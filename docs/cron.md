@@ -1,30 +1,30 @@
 # Scheduling
 
-## The Vercel Hobby constraint
+## Why GitHub Actions and not Vercel Cron
 
-`vercel.json` declares one cron job, not the four PLAN.md §9 specifies. That is
-deliberate, and it needs a decision before the rest are added.
+There is deliberately **no `vercel.json`**. Scheduling lives entirely in
+`.github/workflows/sync.yml`.
 
 Vercel's Hobby tier has historically capped cron at **two jobs, daily
-granularity only**. PLAN.md wants four schedules plus 15-minute live polling
-during match windows. Those do not fit, and the limit is enforced at deploy
-time — the failure arrives when you deploy, not when you write the config.
+granularity only**, and the limit is enforced at deploy time rather than when
+you write the config. PLAN.md §9 wants four schedules, and Phase 6 adds
+15-minute polling during match windows. That does not fit now and will not fit
+later, so building around it would mean unpicking it twice.
 
-Confirm the current limits against Vercel's pricing page before building
-further around this. Three ways forward:
+GitHub Actions is free, has minute-level granularity and no job limit.
 
-1. **Schedule from GitHub Actions** (recommended). Free, minute-level
-   granularity, unlimited schedules. The workflow just `curl`s the same route
-   handlers with the `CRON_SECRET` bearer token, so no application code
-   changes. The routes stay the interface; only the trigger moves.
-2. **Consolidate into fewer routes.** One `/api/cron/daily` that branches
-   internally on what needs doing. Fits the cap, but couples unrelated jobs and
-   makes a single failure take down all of them.
-3. **Upgrade to Pro.** Removes the constraint at a monthly cost.
+Running **both** schedulers was the alternative and is worse than either alone:
+the jobs are idempotent so nothing would break, but every sync would run twice
+and the logs would misreport which schedule mattered.
 
-Option 1 keeps the architecture honest and costs nothing. The route handlers
-are already designed for it: they authenticate on a bearer token rather than
-trusting Vercel's cron headers.
+If you later move to Vercel Pro and want the platform's scheduler, add
+`vercel.json` back with a `crons` array pointing at the route handlers, and
+delete the schedule block from the workflow. The routes and the script call the
+same `syncStatic` and `syncSquad` functions, so the two paths cannot drift.
+
+Note that Vercel injects `Authorization: Bearer $CRON_SECRET` into cron
+invocations when that environment variable is set, and `authorizeCron` already
+parses exactly that — so no code change is needed to switch.
 
 ## Triggering a route by hand
 

@@ -97,8 +97,8 @@ per gameweek and the chip played; the remaining balance is reconstructed in
 `lib/engine/free-transfers.ts` — pure and unit-tested, because it decides
 whether a move is free or costs four points.
 
-See `docs/cron.md` for scheduling, including why `vercel.json` declares one cron
-job rather than the four PLAN.md specifies.
+On a schedule this runs from GitHub Actions rather than Vercel Cron — see
+`docs/cron.md` for why, and for what to change if you move to Vercel Pro.
 
 ## Data source notes
 
