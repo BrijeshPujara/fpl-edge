@@ -56,12 +56,32 @@ export const P_BENCH_CAMEO = 0.35;
 export const CAMEO_MINUTES = 20;
 
 /**
- * `chance_of_playing_next_round` is reported as a percentage but is a coarse
- * signal — clubs round to 25/50/75. These map the reported percentage onto a
- * start probability, discounted because "75% chance of playing" historically
- * converts to starting less often than 75% of the time.
+ * `chance_of_playing_next_round` is a coarse FITNESS signal — clubs round to
+ * 25/50/75 — and it converts to actually starting less often than it claims,
+ * hence the discount.
+ *
+ * Critically, it says nothing about ROLE. A value of 100 and a value of null
+ * carry identical information: the club has no fitness concern. Neither tells
+ * you whether the player starts; only appearance history does. Treating 100 as
+ * a positive signal ranks the handful of players just cleared from injury above
+ * every nailed starter with no news — verified against live data, where 467
+ * available players report null and only 13 report 100.
+ *
+ * So fitness and role are separate factors: this discount applies only when the
+ * reported chance is BELOW 100, and multiplies a start rate derived from
+ * history rather than replacing it.
  */
 export const CHANCE_OF_PLAYING_DISCOUNT = 0.85;
+
+/**
+ * Start probability assumed for an available player with no appearance history
+ * at all — a new signing, or any player pre-season.
+ *
+ * Deliberately mid-range. Assuming a starter would talk the optimiser into
+ * buying squad players; assuming a bench-warmer would make every pre-season
+ * projection useless. With no information, say so rather than guessing high.
+ */
+export const NO_HISTORY_START_PRIOR = 0.5;
 
 /** Number of recent gameweeks used to estimate a start rate from history. */
 export const START_RATE_WINDOW = 6;

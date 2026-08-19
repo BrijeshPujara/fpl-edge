@@ -15,7 +15,8 @@
     "backtest": "tsx scripts/backtest.ts",
     "db:types": "supabase gen types typescript --project-id ehfuwpslwzxsjjaatgng > lib/db/types.generated.ts",
     "db:push": "supabase db push",
-    "sync": "tsx --tsconfig tsconfig.scripts.json scripts/sync.ts"
+    "sync": "tsx --tsconfig tsconfig.scripts.json scripts/sync.ts",
+    "ep:smoke": "tsx --tsconfig tsconfig.scripts.json scripts/ep-smoke.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",
