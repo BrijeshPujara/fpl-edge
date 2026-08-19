@@ -14,12 +14,14 @@
     "check": "npm run typecheck && npm run lint && npm run test",
     "backtest": "tsx scripts/backtest.ts",
     "db:types": "supabase gen types typescript --project-id ehfuwpslwzxsjjaatgng > lib/db/types.generated.ts",
-    "db:push": "supabase db push"
+    "db:push": "supabase db push",
+    "sync": "tsx --tsconfig tsconfig.scripts.json scripts/sync.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "glpk.js": "^5.0.0",
     "lucide-react": "^1.33.0",
     "next": "16.3.1",
     "react": "19.2.8",

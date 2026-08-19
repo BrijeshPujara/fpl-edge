@@ -5,9 +5,14 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 
 /**
- * The design switches screens with client-side state. Here they are real
- * routes, so the active tab is derived from the pathname instead — same
- * appearance, but each screen is linkable and server-rendered.
+ * Primary navigation.
+ *
+ * Mobile-first: seven tabs do not fit a phone, so the base layout is a
+ * horizontal scroller with scroll-snap and momentum, and the desktop row is the
+ * enhancement. `scrollbar-none` hides the bar without disabling the scroll.
+ *
+ * Tap targets are 44px tall on touch — the canvas's 34px is a mouse-era number
+ * and misses reliably with a thumb.
  */
 
 const TABS = [
@@ -24,7 +29,10 @@ export function Tabs() {
   const pathname = usePathname();
 
   return (
-    <nav className="mx-auto flex max-w-[1440px] gap-0.5 border-t border-edge-faint px-6">
+    <nav
+      aria-label="Primary"
+      className="mx-auto flex max-w-[1440px] snap-x snap-mandatory gap-0.5 overflow-x-auto border-t border-edge-faint px-4 [scrollbar-width:none] sm:px-6 md:overflow-x-visible [&::-webkit-scrollbar]:hidden"
+    >
       {TABS.map((tab) => {
         const isActive =
           tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
@@ -34,7 +42,8 @@ export function Tabs() {
             href={tab.href}
             aria-current={isActive ? "page" : undefined}
             className={cn(
-              "border-b-2 px-4 pt-2.5 pb-2 font-mono text-mini tracking-[0.1em] transition-colors",
+              "flex shrink-0 snap-start items-center border-b-2 px-3.5 font-mono text-mini tracking-[0.1em] transition-colors",
+              "min-h-11 md:min-h-0 md:pt-2.5 md:pb-2",
               isActive
                 ? "border-accent bg-active text-primary"
                 : "border-transparent text-dim hover:text-primary",

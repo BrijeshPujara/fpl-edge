@@ -45,7 +45,7 @@ export default async function SquadPage() {
       : await getEntryPicksIfAvailable(Number(teamId), settledGw);
 
   return (
-    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[1fr_300px]">
+    <div className="grid grid-cols-1 items-start gap-4 sm:gap-6 lg:grid-cols-[1fr_300px]">
       <div>
         <SectionLabel meta="FIXTURE DIFFICULTY · LEFT TO RIGHT">
           SQUAD · {target.name.toUpperCase()}
@@ -67,7 +67,7 @@ export default async function SquadPage() {
         )}
       </div>
 
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 sm:gap-6">
         <div>
           <SectionLabel>SQUAD TOTALS</SectionLabel>
           <Pending phase="phase 2 — expected points">

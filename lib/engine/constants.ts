@@ -172,11 +172,42 @@ export const DEFAULT_HORIZON = 5;
 export const HORIZON_DISCOUNT = 0.95;
 
 /**
- * Weight on bench EP in the objective when Bench Boost is *not* active. The
- * bench is not worthless — it covers rotation and flags — but it is close.
- * Set to 1.0 by the caller when Bench Boost is being evaluated.
+ * Weight on bench EP in the objective.
+ *
+ * Near-zero when Bench Boost is inactive. The bench is not literally worthless
+ * — it covers rotation and flags — but valuing it any higher makes the
+ * optimiser buy bench quality with money the starting XI should be spending.
+ * That is the whole point of treating the bench as a budget lever: four cheap
+ * bodies free perhaps £8-10m into the XI, which is worth far more than the
+ * fraction of a point the bench actually returns.
+ *
+ * Exactly 1.0 under Bench Boost, when all fifteen score.
  */
-export const BENCH_WEIGHT = 0.12;
+export const BENCH_WEIGHT_INACTIVE = 0.05;
+export const BENCH_WEIGHT_BENCH_BOOST = 1.0;
+
+/**
+ * Minimum P(minutes) for a bench player to count as genuine injury cover.
+ *
+ * 0.5 is the point at which a player is more likely to feature than not. Below
+ * it, a bench slot is decoration: it cannot be relied on to auto-sub in.
+ */
+export const MIN_BENCH_PLAYING_PROB = 0.5;
+
+/**
+ * How many *outfield* bench players must clear that threshold.
+ *
+ * Two of the three. The goalkeeper bench slot is deliberately excluded: the
+ * standard and correct play is a £4.0 non-playing backup keeper, precisely
+ * because it frees budget into the XI. Counting the keeper would force either a
+ * playing backup or all three outfield bench nailed — both of which spend the
+ * money this constraint exists to free, defeating its own purpose.
+ *
+ * Set MIN_NAILED_BENCH_OUTFIELD to 3 and BENCH_RULE_INCLUDES_GK to true to get
+ * the stricter "3 of 4" reading instead.
+ */
+export const MIN_NAILED_BENCH_OUTFIELD = 2;
+export const BENCH_RULE_INCLUDES_GK = false;
 
 // ---------------------------------------------------------------------------
 // Chip advisory thresholds
@@ -192,3 +223,72 @@ export const WILDCARD_TRIGGERS = {
   /** This many flagged or dead-weight players and the squad needs surgery. */
   problemPlayerCount: 4,
 } as const;
+
+// ---------------------------------------------------------------------------
+// Value and price
+// ---------------------------------------------------------------------------
+
+/**
+ * Weight converting expected price movement (tenths of a million) into the
+ * points currency of the objective.
+ *
+ * DERIVATION. The objective is `Σ EP + priceWeight × Σ expectedPriceDelta`, so
+ * priceWeight carries units of points per tenth. The only defensible value is
+ * what a tenth of a million is actually worth inside the squad — which is
+ * exactly the shadow price on the budget constraint, `marginalEpPerTenth`.
+ *
+ * 0.08 is a typical mid-season value of that dual over a 5-gameweek horizon:
+ * roughly, £1.0m buys about 0.8 EP of upgrade once the squad is already
+ * sensible. It is a static default because computing it requires a solve, and
+ * the solve requires this weight — see `priceWeight: "auto"` in the optimiser
+ * for the two-pass version that breaks that circularity by measuring the dual
+ * first and re-solving.
+ *
+ * Tune against the backtest. If the measured shadow price settles well away
+ * from this, change the default rather than living with the drift.
+ */
+export const PRICE_WEIGHT_DEFAULT = 0.08;
+
+/**
+ * Fraction of a price RISE you actually realise.
+ *
+ * FPL charges a 50% sell-on fee: bank £0.4m of profit and you keep £0.2m. A
+ * price FALL, by contrast, is borne in full. The value of price movement is
+ * therefore asymmetric, and treating it symmetrically overvalues rises by
+ * about a factor of two.
+ */
+export const PRICE_RISE_REALISATION = 0.5;
+
+/**
+ * Gameweeks of transfer momentum used to project price movement, most recent
+ * first. Shorter than FORM_WEIGHTS because transfer flow reverses far faster
+ * than underlying performance does — a single bad result turns it around.
+ */
+export const PRICE_MOMENTUM_WEIGHTS = [0.5, 0.3, 0.2] as const;
+
+/**
+ * Net transfers, as a fraction of a player's owner count, needed to move the
+ * price by £0.1m.
+ *
+ * FPL's real threshold is undisclosed and scales with ownership: a widely-owned
+ * player needs far more net transfers in absolute terms than a differential.
+ * Expressing it as a proportion of owners captures that scaling. 0.11 is the
+ * community-estimated figure; it is the single most uncertain constant in this
+ * file and the first thing to fit once a season of `price_history` exists.
+ */
+export const PRICE_CHANGE_THRESHOLD_RATIO = 0.11;
+
+/**
+ * Cap on projected price movement over a horizon, in tenths.
+ *
+ * Momentum decays and clubs' fortunes turn; projecting a player five gameweeks
+ * out at +0.5m on the strength of one good week is how a price model starts
+ * driving transfers it should only be informing.
+ */
+export const MAX_PROJECTED_PRICE_DELTA = 3;
+
+/**
+ * Minimum number of priced players in a position before the value frontier is
+ * fitted. Below this the curve is noise dressed up as a benchmark.
+ */
+export const FRONTIER_MIN_SAMPLE = 8;

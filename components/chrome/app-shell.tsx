@@ -23,8 +23,8 @@ export async function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen pb-16">
       <header className="sticky top-0 z-10 border-b border-edge-strong bg-page">
-        <div className="mx-auto flex h-14 max-w-[1440px] items-stretch justify-between gap-8 px-6">
-          <div className="flex items-center gap-3.5">
+        <div className="mx-auto flex max-w-[1440px] flex-col items-stretch gap-0 px-4 sm:px-6 md:h-14 md:flex-row md:justify-between md:gap-8">
+          <div className="flex h-14 shrink-0 items-center gap-3.5">
             <div className="h-[9px] w-[9px] bg-accent" />
             <div className="font-mono text-small font-semibold tracking-[0.16em] text-primary">
               FPL TERMINAL
@@ -34,11 +34,16 @@ export async function AppShell({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          <div className="flex items-center">
+          {/*
+            Mobile: the five readouts become a 3-then-2 grid under the mark,
+            with hairlines between cells rather than only to the left. Desktop
+            restores the single inline strip from the canvas.
+          */}
+          <div className="grid grid-cols-3 border-t border-edge-strong pb-2 md:flex md:items-center md:border-t-0 md:pb-0">
             <Readout
               label="DEADLINE"
               tone="warn"
-              className="border-l border-edge-strong"
+              className="col-span-2 px-0 md:border-l md:border-edge-strong md:px-5"
               value={
                 season.available ? (
                   <DeadlineCountdown
@@ -52,22 +57,22 @@ export async function AppShell({ children }: { children: ReactNode }) {
             <Readout
               label="PROJ. EP"
               value="—"
-              className="border-l border-edge-strong"
+              className="px-0 md:border-l md:border-edge-strong md:px-5"
             />
             <Readout
               label="BANK"
               value="—"
-              className="border-l border-edge-strong"
+              className="px-0 md:border-l md:border-edge-strong md:px-5"
             />
             <Readout
               label="FT"
               value="—"
-              className="border-l border-edge-strong"
+              className="px-0 md:border-l md:border-edge-strong md:px-5"
             />
             <Readout
               label="OR"
               value="—"
-              className="border-l border-edge-strong pr-0"
+              className="px-0 md:border-l md:border-edge-strong md:pr-0 md:pl-5"
             />
           </div>
         </div>
@@ -75,7 +80,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       {!season.available ? (
-        <div className="mx-auto max-w-[1440px] px-6 pt-6">
+        <div className="mx-auto max-w-[1440px] px-4 pt-4 sm:px-6 sm:pt-6">
           <div className="border border-[var(--warn-dim)] bg-panel px-3.5 py-2.5">
             <div className="font-mono text-tiny tracking-[0.14em] text-warn">
               UPSTREAM UNAVAILABLE
@@ -88,7 +93,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
         </div>
       ) : null}
 
-      <main className="mx-auto max-w-[1440px] p-6">{children}</main>
+      <main className="mx-auto max-w-[1440px] p-4 sm:p-6">{children}</main>
     </div>
   );
 }

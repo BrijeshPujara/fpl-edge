@@ -82,9 +82,11 @@ export function Row({
     <div
       className={cn(
         "items-center border-b border-edge-subtle px-3.5 last:border-b-0",
-        height === "dense" && "h-[30px]",
-        height === "table" && "h-[34px]",
-        height === "tall" && "h-[44px]",
+        // Touch targets first: 44px is the minimum a thumb hits reliably, so
+        // the dense canvas heights are a desktop enhancement, not the base.
+        height === "dense" && "min-h-11 md:h-[30px] md:min-h-0",
+        height === "table" && "min-h-11 md:h-[34px] md:min-h-0",
+        height === "tall" && "min-h-11 md:h-[44px] md:min-h-0",
         hover && "hover:bg-panel-hover",
         className,
       )}
@@ -138,7 +140,7 @@ export function Readout({
 }) {
   return (
     <div
-      className={cn("flex flex-col justify-center px-5", className)}
+      className={cn("flex flex-col justify-center py-1.5", className)}
     >
       <div className="font-mono text-micro tracking-[0.14em] text-label">
         {label}

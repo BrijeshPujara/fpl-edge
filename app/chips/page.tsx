@@ -54,7 +54,13 @@ export default async function ChipsPage() {
         CHIP TIMELINE · GW1–{TOTAL_GAMEWEEKS}
       </SectionLabel>
 
-      <Panel className="p-4 pb-3.5">
+      {/*
+        The 38-column timeline cannot compress to a phone without becoming
+        unreadable, so it scrolls horizontally inside its panel at a minimum
+        legible width. The page body itself never scrolls sideways.
+      */}
+      <Panel className="overflow-x-auto p-4 pb-3.5">
+        <div className="min-w-[720px]">
         <div className="mb-2.5 grid grid-cols-[150px_1fr] items-center gap-3.5">
           <div />
           <div
@@ -159,6 +165,7 @@ export default async function ChipsPage() {
             </div>
           );
         })}
+        </div>
       </Panel>
 
       {counts === null ? (

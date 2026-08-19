@@ -48,8 +48,8 @@ export default async function DashboardPage() {
     .filter((c) => c.remaining !== null);
 
   return (
-    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[1fr_340px]">
-      <div className="flex flex-col gap-6">
+    <div className="grid grid-cols-1 items-start gap-4 sm:gap-6 lg:grid-cols-[1fr_340px]">
+      <div className="flex flex-col gap-4 sm:gap-6">
         <div>
           <SectionLabel meta="ENGINE NOT YET BUILT">
             RECOMMENDED ACTIONS
@@ -73,11 +73,11 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 sm:gap-6">
         <div>
           <SectionLabel>DEADLINE PRESSURE</SectionLabel>
           <Panel padded>
-            <div className="font-mono text-display font-medium tracking-[-0.02em] text-warn">
+            <div className="font-mono text-hero font-medium tracking-[-0.02em] text-warn sm:text-display">
               <DeadlineCountdown deadline={target.deadline_time} />
             </div>
             <div className="mt-2 font-mono text-tiny tracking-[0.1em] text-label">

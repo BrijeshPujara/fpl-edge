@@ -192,19 +192,90 @@ Build a **multi-gameweek EP** function that sums EP over the next N fixtures (de
 
 ## 6. The optimiser
 
-`lib/engine/optimiser.ts`. Squad selection is a mixed-integer linear programme. Use `glpk.js` (pure WASM, runs in a Node route handler, no Python dependency).
+`lib/engine/optimiser.ts`. Squad selection is a mixed-integer linear programme solved with `glpk.js` (pure WASM, no Python dependency).
 
-**Objective:** maximise Σ EP over the horizon for the starting XI, plus a discounted weight on bench EP (bench matters less unless Bench Boost is active — make that weight a parameter).
+**Import `glpk.js/node`, not the package default** — the default build dispatches to a browser `Worker` and throws in Node.
 
-**Constraints:** budget, position counts, max 3 per club, valid formation, and — critically — a transfer penalty term of 4 points per transfer beyond the free allowance.
+**Purity.** `lib/engine/**` takes no I/O, and GLPK needs async WASM initialisation. The solver is therefore *injected*: the engine depends only on the `LpSolver` interface in `lib/engine/lp.ts`, and `lib/solver/glpk.ts` adapts glpk.js to it at the boundary. Tests pass a fake. Expected points are likewise an input — the optimiser never computes them, which is what lets it be built and tested before §5 exists.
 
-**Modes:**
-- `suggestTransfers(currentSquad, horizon, freeTransfers)` — best 0/1/2/3-transfer moves ranked by net EP gain after hits. Must be able to recommend *rolling* a transfer when nothing clears the bar.
-- `optimalWildcard(budget, horizon)` — unconstrained rebuild from scratch.
+### Variables
+
+- `x_i` — player *i* is in the fifteen
+- `s_i` — player *i* starts
+
+Bench membership is `x_i − s_i`, which keeps every bench rule linear.
+
+### Objective
+
+```
+maximise  Σ EP_i · (benchWeight + (1 − benchWeight)·s_i) · x_i
+        + priceWeight · Σ expectedPriceDelta_i · x_i
+```
+
+`priceWeight` converts tenths of a million into points. Its principled value is the shadow price on the budget constraint — money in the squad is worth exactly what that constraint says it is worth. `PRICE_WEIGHT_DEFAULT` is a static calibration of that; `priceWeight: "auto"` solves the relaxation first, reads the dual, and re-solves. The two are circular, and measuring once breaks the cycle.
+
+`expectedPriceDelta` must be the **realisable** delta from `lib/engine/price-model.ts`, not the raw one. FPL's 50% sell-on fee means you keep half of a rise but bear all of a fall; treating movement symmetrically overvalues risers roughly twofold.
+
+### Constraints
+
+Budget, exact position counts, max 3 per club, valid formation, `s_i ≤ x_i`, and:
+
+**Nailed bench.** At least `MIN_NAILED_BENCH_OUTFIELD` (2) of the three *outfield* bench players must have `P(minutes) ≥ MIN_BENCH_PLAYING_PROB` (0.5).
+
+The goalkeeper bench slot is deliberately excluded. The standard and correct play is a £4.0m non-playing backup keeper, precisely because it frees budget into the XI. Counting the keeper toward the floor would force either a playing backup or all three outfield bench nailed — both of which spend the money this constraint exists to free. Set `BENCH_RULE_INCLUDES_GK` to `true` for the stricter "3 of 4" reading.
+
+**Bench weight** is `0.05` when Bench Boost is inactive and `1.0` when active. Near-zero rather than zero: the bench is not worthless, but valuing it any higher buys bench quality with money the XI should be spending.
+
+### The hit is not a term
+
+Rolling, one transfer, two and three are structurally different problems. Each is solved separately, then compared **after** deducting `4 × (transfers − freeTransfers)`. That is what lets the tool answer "roll it" — rolling wins whenever no move clears the hit it costs. A single programme with a penalty term cannot express this.
+
+### The shadow price
+
+A mixed-integer programme has no duals; duality is LP theory. So there are two solves:
+
+1. the MIP, with `x` and `s` binary, giving the squad;
+2. the LP relaxation, with both in `[0,1]`, giving the dual on the budget row.
+
+That dual is `marginalEpPerTenth` — the marginal expected points per £0.1m. It is **non-negative** and **non-increasing in budget**, reaching zero once budget stops binding. Both are asserted in tests.
+
+Three honest caveats, which belong in the UI as well as the code: it is a *local* estimate, whereas the true integer marginal is a step function (an extra £0.1m buys nothing until it crosses a threshold, then buys a whole upgrade); degenerate optima make the dual non-unique; and it moves with the candidate pool.
+
+### Value diagnostics
+
+`lib/engine/frontier.ts` fits, per position, a monotone (isotonic) curve of EP against price and reports each player's vertical distance from it as `valueSurplus`. Positive means more output than the price implies — underpriced.
+
+This is **not** an efficiency frontier in the strict sense. A true frontier is an upper envelope, so nothing sits above it and every surplus would be ≤ 0. What is wanted is a *typical* price-to-output curve, so roughly half the league lands on each side and the number discriminates. The fit is monotone because more expensive players should not be projected to score less, and positions are fitted separately because a £5.0m defender and a £5.0m forward are not competing for the same job.
+
+**It is a diagnostic for the UI and must never enter the objective.** EP is already in the objective and price is already in the budget constraint; adding surplus on top pays twice for the same fact and biases the squad toward cheap players whose EP the model has merely overestimated.
+
+### Price momentum
+
+`lib/engine/price-model.ts` projects price movement from net transfer momentum (`transfers_balance`) scaled against ownership — FPL's change threshold rises with the owner base, so identical flow moves a differential further than a template pick.
+
+Both inputs come from tables that are empty until gameweeks have been played, so the model returns zero with `confidence: "none"` until roughly GW4. Callers must not present that zero as a prediction of no movement.
+
+### Modes
+
+- `suggestTransfers(currentSquad, candidates, freeTransfers, bank)` — best 0/1/2/3-transfer moves ranked by net EP after hits. Must be able to recommend *rolling*.
+- `optimalWildcard(budget, horizon)` — unconstrained rebuild.
 - `optimalFreeHit(gw)` — single-gameweek rebuild, ignoring future value.
 - `bestXI(squad, gw)` — formation and bench order.
 
-Always return the top 3–5 options with EP deltas, not a single answer. The user makes the call; the tool informs it.
+### Result contract
+
+Every option returned to `/transfers` carries, at minimum:
+
+| Field | Meaning |
+|---|---|
+| `epGain` | Raw EP gain over the horizon, before hits |
+| `hitCost` | `4 × (transfers − freeTransfers)`, floored at zero |
+| `netGain` | `epGain − hitCost` — the number that decides it |
+| `costDelta` | Change in squad cost, tenths. Negative frees money |
+| `expectedPriceDelta` | Net realisable price movement, tenths, after sell-on |
+| `marginalEpPerTenth` | What £0.1m is worth at this squad |
+
+Always return the top 3–5 options with these deltas, not a single answer. The user makes the call; the tool informs it.
 
 ---
 
