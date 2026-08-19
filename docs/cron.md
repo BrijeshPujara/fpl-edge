@@ -42,6 +42,7 @@ because retries and manual triggers both happen.
 |---|---|---|---|
 | `/api/cron/sync-static` | Daily 00:15 UK | bootstrap-static + fixtures, price snapshots | Built |
 | `/api/cron/sync-squad` | Daily 06:00 | Entry, picks, derived free transfers | Built |
+| `/api/cron/sync-results` | Daily 08:00 | Played-gameweek results into `player_gw_stats` | Built |
 | `/api/cron/weekly-brief` | Thu 09:00 | Run engine, generate brief, persist decisions | Not built |
 | `/api/cron/resolve-outcomes` | Tue 09:00 | Score last gameweek's decisions | Not built |
 
@@ -53,6 +54,17 @@ rather than yesterday's.
 deadline has passed. That is the expected state through pre-season, not a
 failure — alerting on a non-200 would otherwise cry wolf every morning until
 the first deadline. Alert on `ok: false` instead.
+
+`sync-results` only writes gameweeks the API reports as both `finished` AND
+`data_checked`. Bonus points and stats stay provisional until the second flag,
+so syncing on `finished` alone would store numbers that later change. A run
+before the data is checked skips the gameweek rather than storing something
+wrong, which is why it can safely run daily.
+
+`transfers_balance` is written as zero. The live endpoint does not carry it, and
+it is the price model's main input — so the price model stays inert until a
+separate daily capture of net transfers exists. Recorded here rather than left
+as a silent zero that looks like real data.
 
 Mini-league standings are *not* synced. PLAN.md §9 lists them under this job,
 but the §4 schema has no table to put them in, so that needs a schema addition

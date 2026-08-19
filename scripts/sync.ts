@@ -15,15 +15,17 @@
  * routes instead — both paths call the same code, so they cannot drift.
  *
  * Usage:
- *   npm run sync           both jobs
- *   npm run sync -- static only the reference data
- *   npm run sync -- squad  only the squad
+ *   npm run sync            all jobs
+ *   npm run sync -- static  only the reference data
+ *   npm run sync -- squad   only the squad
+ *   npm run sync -- results only played-gameweek results
  */
 
 import { config } from "dotenv";
 import { getDb, isDbConfigured } from "@/lib/db/client";
 import { syncStatic } from "@/lib/db/sync";
 import { syncSquad } from "@/lib/db/sync-squad";
+import { syncResults } from "@/lib/db/sync-results";
 
 config({ path: ".env.local", quiet: true });
 config({ quiet: true });
@@ -56,6 +58,17 @@ async function main() {
     } catch (error) {
       failed = true;
       log(`sync-static FAILED: ${(error as Error).message}`);
+    }
+  }
+
+  if (which === "all" || which === "results") {
+    try {
+      const started = Date.now();
+      const result = await syncResults(db);
+      log(`sync-results ok in ${Date.now() - started}ms`, result);
+    } catch (error) {
+      failed = true;
+      log(`sync-results FAILED: ${(error as Error).message}`);
     }
   }
 

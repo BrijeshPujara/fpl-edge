@@ -19,6 +19,10 @@ on:
     - cron: "15 0 * * *"
     # 06:00 UK, for the squad.
     - cron: "0 6 * * *"
+    # 08:00 UK, for played-gameweek results. Late enough that bonus points have
+    # been confirmed and the API has set data_checked; the job skips anything
+    # still provisional, so an early run is wasted rather than wrong.
+    - cron: "0 8 * * *"
   # Lets you trigger a sync by hand from the Actions tab.
   workflow_dispatch:
     inputs:
@@ -27,7 +31,7 @@ on:
         required: false
         default: all
         type: choice
-        options: [all, static, squad]
+        options: [all, static, squad, results]
 
 concurrency:
   # Two overlapping syncs would race on the same upsert. Queue, do not cancel:
@@ -61,6 +65,8 @@ jobs:
             echo "value=${{ inputs.target }}" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event.schedule }}" = "0 6 * * *" ]; then
             echo "value=squad" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 8 * * *" ]; then
+            echo "value=results" >> "$GITHUB_OUTPUT"
           else
             echo "value=static" >> "$GITHUB_OUTPUT"
           fi
