@@ -1,0 +1,73 @@
+name: Sync FPL data
+
+# Why GitHub Actions rather than Vercel Cron:
+#   - Vercel Hobby has historically capped cron at two jobs, daily granularity
+#     only. PLAN.md section 9 needs four schedules plus in-play polling.
+#   - Nothing is deployed yet, so there is no URL for a cron to call — and the
+#     per-gameweek and price history this project is built on CANNOT be
+#     backfilled. Every day without a sync is a day permanently lost.
+#
+# This runs the same syncStatic/syncSquad functions the route handlers call,
+# so the two cannot drift.
+
+on:
+  schedule:
+    # 00:15 UK, after the overnight price changes settle, so the daily price
+    # snapshot captures the new prices rather than yesterday's.
+    # GitHub cron is UTC; during BST this fires at 01:15 local, which is still
+    # comfortably after the change window.
+    - cron: "15 0 * * *"
+    # 06:00 UK, for the squad.
+    - cron: "0 6 * * *"
+  # Lets you trigger a sync by hand from the Actions tab.
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Which sync to run
+        required: false
+        default: all
+        type: choice
+        options: [all, static, squad]
+
+concurrency:
+  # Two overlapping syncs would race on the same upsert. Queue, do not cancel:
+  # a cancelled sync is a lost day of price history.
+  group: fpl-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Both cron entries trigger this same job, so the schedule that fired is
+      # what selects the target. Without this the 06:00 run would redo the
+      # reference sync as well — harmless, since everything is idempotent, but
+      # it would make the logs lie about what each schedule is for.
+      - name: Choose target
+        id: target
+        run: |
+          if [ -n "${{ inputs.target }}" ]; then
+            echo "value=${{ inputs.target }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 6 * * *" ]; then
+            echo "value=squad" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=static" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run sync
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          FPL_TEAM_ID: ${{ secrets.FPL_TEAM_ID }}
+        run: npm run sync -- ${{ steps.target.outputs.value }}

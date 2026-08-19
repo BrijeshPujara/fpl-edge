@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Typecheck, lint and the full test suite — the gate PLAN.md section 11
+      # requires each phase to pass.
+      - run: npm run check
+      - run: npm run build
+        env:
+          # The build prerenders pages that call the FPL API. No secrets needed;
+          # the app degrades to its "upstream unavailable" state without them.
+          NEXT_PUBLIC_SUPABASE_URL: ""

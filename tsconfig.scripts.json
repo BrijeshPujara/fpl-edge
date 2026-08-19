@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@/*": ["./*"],
+      /*
+       * `server-only` throws on import outside a React Server Component, which
+       * is exactly what makes it valuable in the app and what breaks it in a
+       * plain Node process. Aliasing it to an empty module lets the scripts
+       * reuse the real sync code rather than duplicating it.
+       *
+       * The guarantee is untouched: `next build` resolves the real package,
+       * which is where the guard actually has to hold.
+       */
+      "server-only": ["./tests/stubs/server-only.ts"]
+    }
+  },
+  "include": ["scripts/**/*.ts", "lib/**/*.ts"]
+}

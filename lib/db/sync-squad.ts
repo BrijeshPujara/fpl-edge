@@ -2,7 +2,6 @@ import "server-only";
 
 import {
   getBootstrapStatic,
-  getEntry,
   getEntryHistory,
   getEntryPicksIfAvailable,
 } from "@/lib/fpl/client";
@@ -47,9 +46,11 @@ export async function syncSquad(
   db: Db,
   teamId: number,
 ): Promise<SyncSquadResult> {
-  const [bootstrap, entry, history] = await Promise.all([
+  // `entry/{id}/` is deliberately not fetched: bank, value and transfer counts
+  // all come from the picks payload's `entry_history`, which is authoritative
+  // for the gameweek being synced. One fewer upstream call per run.
+  const [bootstrap, history] = await Promise.all([
     getBootstrapStatic({ revalidate: 0 }),
-    getEntry(teamId, { revalidate: 0 }),
     getEntryHistory(teamId, { revalidate: 0 }),
   ]);
 
