@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored Claude Design canvas export. It is a read-only reference for
+    // the design tokens, not application source — do not lint or edit it.
+    "design/**",
   ]),
 ]);
 

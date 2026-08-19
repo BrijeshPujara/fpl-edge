@@ -1,26 +1,170 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens extracted verbatim from design/fpl-terminal.dc.html.
+ * The canvas is the source of truth: if a value here disagrees with the
+ * canvas, the canvas wins. Do not introduce colours that are not in this file.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Surfaces — near-black, stepped by ~1-3 points of lightness */
+  --surface-page: #08090a;
+  --surface-panel: #0d0f11;
+  --surface-panel-hover: #101315;
+  --surface-sunken: #0b0d0e;
+  --surface-tile: #0f1113;
+  --surface-tile-hover: #131618;
+  --surface-header: #0a0c0d;
+  --surface-active: #0f1214;
+  --surface-track: #141719;
+  --surface-track-strong: #2f3439;
+
+  /* Borders — three weights */
+  --border-strong: #1b1e21;
+  --border: #17191c;
+  --border-subtle: #131619;
+  --border-faint: #121517;
+
+  /* Text — a warm grey ramp, deliberately narrow */
+  --text-primary: #e6e4e1;
+  --text-secondary: #d4d1cd;
+  --text-tertiary: #c9c6c2;
+  --text-quaternary: #a9a6a2;
+  --text-muted: #8b9096;
+  --text-dim: #7d838a;
+  --text-label: #5c6167;
+  --text-faint: #4f5459;
+  --text-fainter: #4a4f55;
+  --text-ghost: #3f4449;
+
+  /* Accent — the single positive colour. Used only for EP gains and good news. */
+  --accent: oklch(0.78 0.13 158);
+  --accent-bright: oklch(0.86 0.13 158);
+  --accent-dim: oklch(0.62 0.1 158);
+
+  /* Warning — deadline pressure, fitness flags, price-change risk */
+  --warn: oklch(0.78 0.15 72);
+  --warn-dim: oklch(0.6 0.13 62);
+
+  /* Danger — reserved for negative EP and serious flags */
+  --danger: oklch(0.58 0.16 35);
+
+  /* Fixture difficulty ratings 1 (easiest) to 5 (hardest) */
+  --fdr-1-bg: oklch(0.46 0.09 158);
+  --fdr-1-fg: #dff0e6;
+  --fdr-2-bg: oklch(0.36 0.06 158);
+  --fdr-2-fg: #bfd6c8;
+  --fdr-3-bg: #22262a;
+  --fdr-3-fg: #8b9096;
+  --fdr-4-bg: oklch(0.38 0.08 55);
+  --fdr-4-fg: #e9d5bb;
+  --fdr-5-bg: oklch(0.48 0.13 40);
+  --fdr-5-fg: #f6dccb;
+
+  /* Gameweek timeline markers */
+  --gw-double-bg: oklch(0.42 0.08 158);
+  --gw-double-fg: #dff0e6;
+  --gw-blank-bg: oklch(0.4 0.1 45);
+  --gw-blank-fg: #f2ddc6;
+  --gw-current-bg: #2c3237;
+  --gw-past-bg: #111416;
+  --gw-future-bg: #171a1d;
+  --gw-chip-used-bg: #3a4046;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-page: var(--surface-page);
+  --color-panel: var(--surface-panel);
+  --color-panel-hover: var(--surface-panel-hover);
+  --color-sunken: var(--surface-sunken);
+  --color-tile: var(--surface-tile);
+  --color-tile-hover: var(--surface-tile-hover);
+  --color-header: var(--surface-header);
+  --color-active: var(--surface-active);
+  --color-track: var(--surface-track);
+  --color-track-strong: var(--surface-track-strong);
+
+  --color-edge-strong: var(--border-strong);
+  --color-edge: var(--border);
+  --color-edge-subtle: var(--border-subtle);
+  --color-edge-faint: var(--border-faint);
+
+  --color-primary: var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-tertiary: var(--text-tertiary);
+  --color-quaternary: var(--text-quaternary);
+  --color-muted: var(--text-muted);
+  --color-dim: var(--text-dim);
+  --color-label: var(--text-label);
+  --color-faint: var(--text-faint);
+  --color-fainter: var(--text-fainter);
+  --color-ghost: var(--text-ghost);
+
+  --color-accent: var(--accent);
+  --color-accent-bright: var(--accent-bright);
+  --color-accent-dim: var(--accent-dim);
+  --color-warn: var(--warn);
+  --color-warn-dim: var(--warn-dim);
+  --color-danger: var(--danger);
+
+  --font-sans: var(--font-plex-sans), Helvetica, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/*
+ * The canvas uses a small set of non-standard type sizes (9px labels through to
+ * 40px readouts). Naming them keeps the ramp intact rather than letting each
+ * component pick an arbitrary Tailwind step.
+ */
+@theme inline {
+  --text-micro: 9px;
+  --text-micro--line-height: 1.2;
+  --text-tiny: 10px;
+  --text-tiny--line-height: 1.2;
+  --text-mini: 11px;
+  --text-mini--line-height: 1.3;
+  --text-caption: 11.5px;
+  --text-caption--line-height: 1.45;
+  --text-small: 12px;
+  --text-small--line-height: 1.5;
+  --text-body: 12.5px;
+  --text-body--line-height: 1.4;
+  --text-cell: 13px;
+  --text-cell--line-height: 1.35;
+  --text-value: 15px;
+  --text-value--line-height: 1.2;
+  --text-readout: 26px;
+  --text-readout--line-height: 1;
+  --text-hero: 34px;
+  --text-hero--line-height: 1;
+  --text-display: 40px;
+  --text-display--line-height: 1;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font-family: var(--font-plex-sans), Helvetica, sans-serif;
+  /* Every number in this app is compared against another number in a column
+     above or below it. Tabular figures are not optional. */
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--accent-bright);
+}
+
+::selection {
+  background: oklch(0.78 0.13 158 / 0.25);
 }

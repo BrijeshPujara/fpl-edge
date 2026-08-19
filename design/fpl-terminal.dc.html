@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  html, body { margin:0; padding:0; background:#08090a; }
+  body { font-family:"IBM Plex Sans", Helvetica, sans-serif; -webkit-font-smoothing:antialiased; }
+  * { box-sizing:border-box; }
+  a { color:oklch(0.78 0.13 158); text-decoration:none; }
+  a:hover { color:oklch(0.86 0.13 158); }
+  ::selection { background:oklch(0.78 0.13 158 / 0.25); }
+</style>
+</helmet>
+
+<div style="min-height:100vh; background:#08090a; color:#e6e4e1; font-family:'IBM Plex Sans',Helvetica,sans-serif; font-variant-numeric:tabular-nums; padding:0 0 64px 0">
+
+  <div style="position:sticky; top:0; z-index:10; background:#08090a; border-bottom:1px solid #1b1e21">
+    <div style="max-width:1440px; margin:0 auto; padding:0 24px; display:flex; align-items:stretch; justify-content:space-between; gap:32px; height:56px">
+      <div style="display:flex; align-items:center; gap:14px">
+        <div style="width:9px; height:9px; background:oklch(0.78 0.13 158)"></div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:0.16em; font-weight:600; color:#e6e4e1">FPL TERMINAL</div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.1em; color:#5c6167">GW12 · 2026/27</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:0">
+        <div style="display:flex; flex-direction:column; justify-content:center; padding:0 20px; border-left:1px solid #1b1e21">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.14em; color:#5c6167">DEADLINE</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:15px; font-weight:500; color:oklch(0.78 0.15 72); letter-spacing:0.02em">{{ countdown }}</div>
+        </div>
+        <div style="display:flex; flex-direction:column; justify-content:center; padding:0 20px; border-left:1px solid #1b1e21">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.14em; color:#5c6167">PROJ. EP</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:15px; font-weight:500">72.8</div>
+        </div>
+        <div style="display:flex; flex-direction:column; justify-content:center; padding:0 20px; border-left:1px solid #1b1e21">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.14em; color:#5c6167">BANK</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:15px; font-weight:500">£1.4</div>
+        </div>
+        <div style="display:flex; flex-direction:column; justify-content:center; padding:0 20px; border-left:1px solid #1b1e21">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.14em; color:#5c6167">FT</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:15px; font-weight:500">2</div>
+        </div>
+        <div style="display:flex; flex-direction:column; justify-content:center; padding:0 0 0 20px; border-left:1px solid #1b1e21">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.14em; color:#5c6167">OR</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:15px; font-weight:500">41,208</div>
+        </div>
+      </div>
+    </div>
+    <div style="max-width:1440px; margin:0 auto; padding:0 24px; display:flex; gap:2px; border-top:1px solid #121517">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4">
+        <div onClick="{{ t.go }}" style="cursor:pointer; padding:9px 16px 8px 16px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.1em; color:#7d838a; border-bottom:2px solid transparent; background:{{ t.bg }}; color:{{ t.fg }}; border-bottom-color:{{ t.bd }}" style-hover="color:#e6e4e1">{{ t.label }}</div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="max-width:1440px; margin:0 auto; padding:24px">
+
+    <sc-if value="{{ isDash }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid; grid-template-columns:1fr 340px; gap:24px; align-items:start">
+        <div style="display:flex; flex-direction:column; gap:24px">
+
+          <div>
+            <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:10px">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.16em; color:#5c6167">RECOMMENDED ACTIONS</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.08em; color:#4a4f55">MODEL v4.2 · 10k SIMS · UPDATED 14:02</div>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:#1b1e21; border:1px solid #1b1e21">
+              <sc-for list="{{ actions }}" as="a" hint-placeholder-count="3">
+                <div style="background:#0d0f11; padding:16px; display:flex; flex-direction:column; gap:14px; min-height:196px" style-hover="background:#101315">
+                  <div style="display:flex; align-items:center; justify-content:space-between">
+                    <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.14em; color:#5c6167">{{ a.kind }}</div>
+                    <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.1em; color:{{ a.confFg }}">{{ a.conf }}</div>
+                  </div>
+                  <div style="font-size:15px; font-weight:500; line-height:1.35; letter-spacing:-0.01em">{{ a.title }}</div>
+                  <div style="display:flex; align-items:baseline; gap:10px">
+                    <div style="font-family:'IBM Plex Mono',monospace; font-size:34px; font-weight:500; letter-spacing:-0.02em; line-height:1; color:{{ a.deltaFg }}">{{ a.delta }}</div>
+                    <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.1em; color:#5c6167; white-space:nowrap">EP / 5 GW</div>
+                  </div>
+                  <div style="font-size:12px; line-height:1.5; color:#8b9096; text-wrap:pretty; margin-top:-4px">{{ a.note }}</div>
+                  <div style="margin-top:auto; display:flex; gap:16px; border-top:1px solid #17191c; padding-top:10px">
+                    <div style="display:flex; flex-direction:column; gap:3px">
+                      <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.12em; color:#4a4f55">COST</div>
+                      <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#c9c6c2; white-space:nowrap">{{ a.cost }}</div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:3px">
+                      <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.12em; color:#4a4f55">RISK</div>
+                      <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#c9c6c2; white-space:nowrap">{{ a.risk }}</div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:3px">
+                      <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.12em; color:#4a4f55">OWN</div>
+                      <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#c9c6c2; white-space:nowrap">{{ a.own }}</div>
+                    </div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.16em; color:#5c6167; margin-bottom:10px">SQUAD EP DISTRIBUTION · GW12</div>
+            <div style="border:1px solid #1b1e21; background:#0d0f11">
+              <sc-for list="{{ epRows }}" as="r" hint-placeholder-count="8">
+                <div style="display:grid; grid-template-columns:150px 46px 1fr 62px; align-items:center; gap:12px; padding:0 14px; height:30px; border-bottom:1px solid #131619">
+                  <div style="font-size:12.5px; color:#d4d1cd; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ r.name }}</div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.08em; color:#5c6167">{{ r.pos }}</div>
+                  <div style="height:7px; background:#141719; position:relative">
+                    <div style="position:absolute; left:0; top:0; bottom:0; width:{{ r.pct }}; background:{{ r.barBg }}"></div>
+                  </div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; text-align:right; color:{{ r.epFg }}">{{ r.ep }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:24px">
+          <div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.16em; color:#5c6167; margin-bottom:10px">DEADLINE PRESSURE</div>
+            <div style="border:1px solid #1b1e21; background:#0d0f11; padding:16px">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:40px; font-weight:500; letter-spacing:-0.02em; line-height:1; color:oklch(0.78 0.15 72)">{{ countdown }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.1em; color:#5c6167; margin-top:8px">SAT 22 AUG · 11:00 BST</div>
+              <div style="margin-top:14px; display:flex; flex-direction:column; gap:8px">
+                <sc-for list="{{ pressures }}" as="p" hint-placeholder-count="3">
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; border-top:1px solid #17191c; padding-top:8px">
+                    <div style="font-size:12px; color:#8b9096">{{ p.label }}</div>
+                    <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:{{ p.fg }}">{{ p.val }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.16em; color:#5c6167; margin-bottom:10px">FLAGS · 3 ACTIVE</div>
+            <div style="border:1px solid #1b1e21; background:#0d0f11">
+              <sc-for list="{{ flags }}" as="f" hint-placeholder-count="3">
+                <div style="display:flex; gap:10px; padding:11px 14px; border-bottom:1px solid #131619">
+                  <div style="width:3px; align-self:stretch; background:{{ f.bar }}; flex:none"></div>
+                  <div style="flex:1; min-width:0">
+                    <div style="display:flex; justify-content:space-between; gap:8px">
+                      <div style="font-size:12.5px; color:#d4d1cd">{{ f.name }}</div>
+                      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:{{ f.bar }}">{{ f.chance }}</div>
+                    </div>
+                    <div style="font-size:11.5px; color:#6f757b; margin-top:3px; line-height:1.4">{{ f.note }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.16em; color:#5c6167; margin-bottom:10px">PRICE WATCH · TONIGHT</div>
+            <div style="border:1px solid #1b1e21; background:#0d0f11">
+              <sc-for list="{{ priceWatch }}" as="p" hint-placeholder-count="4">
+                <div style="display:grid; grid-template-columns:1fr 54px 54px; align-items:center; gap:8px; padding:0 14px; height:30px; border-bottom:1px solid #131619">
+                  <div style="font-size:12.5px; color:#d4d1cd; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ p.name }}</div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; text-align:right; color:#7d838a">{{ p.price }}</div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; text-align:right; color:{{ p.fg }}">{{ p.prog }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isSquad }}">
+      <div style="display:grid; grid-template-columns:1fr 300px; gap:24px; align-items:start">
+        <div>
+          <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:10px">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.16em; color:#5c6167">SQUAD · 4-4-2 · GW12</div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.08em; color:#4a4f55">FIXTURE DIFFICULTY GW12–16 · LEFT TO RIGHT</div>
+          </div>
+          <div style="border:1px solid #1b1e21; background:#0b0d0e; padding:18px 18px 8px 18px">
+            <sc-for list="{{ pitch }}" as="row" hint-placeholder-count="4">
+              <div style="display:flex; align-items:center; gap:14px; margin-bottom:14px">
+                <div style="width:26px; flex:none; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.1em; color:#3f4449">{{ row.label }}</div>
+                <div style="flex:1; display:grid; grid-template-columns:{{ row.cols }}; gap:10px">
+                  <sc-for list="{{ row.players }}" as="p" hint-placeholder-count="4">
+                    <div style="background:#0f1113; border:1px solid #1b1e21; border-top:2px solid {{ p.top }}; padding:9px 10px 8px 10px; display:flex; flex-direction:column; gap:7px" style-hover="background:#131618">
+                      <div style="display:flex; align-items:baseline; justify-content:space-between; gap:6px">
+                        <div style="font-size:13px; font-weight:500; color:#e6e4e1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ p.name }}</div>
+                        <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:{{ p.flagFg }}">{{ p.badge }}</div>
+                      </div>
+                      <div style="display:flex; align-items:baseline; justify-content:space-between">
+                        <div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.06em; color:#5c6167">{{ p.club }} · {{ p.price }}</div>
+                        <div style="font-family:'IBM Plex Mono',monospace; font-size:15px; font-weight:500; color:{{ p.epFg }}">{{ p.ep }}</div>
+                      </div>
+                      <sc-if value="{{ showStrip }}" hint-placeholder-val="{{ true }}">
+                        <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:2px">
+                          <sc-for list="{{ p.fix }}" as="f" hint-placeholder-count="5">
+                            <div style="height:14px; background:{{ f.bg }}; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:8px; letter-spacing:0.04em; color:{{ f.fg }}">{{ f.opp }}</div>
+                          </sc-for>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ showBench }}" hint-placeholder-val="{{ true }}">
+            <div style="margin-top:20px">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.16em; color:#5c6167; margin-bottom:10px">BENCH · ORDERED</div>
+              <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px">
+                <sc-for list="{{ bench }}" as="p" hint-placeholder-count="4">
+                  <div style="background:#0b0d0e; border:1px solid #17191c; padding:9px 10px 8px 10px; display:flex; flex-direction:column; gap:7px">
+                    <div style="display:flex; align-items:baseline; justify-content:space-between; gap:6px">
+                      <div style="font-size:13px; color:#a9a6a2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ p.name }}</div>
+                      <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:{{ p.flagFg }}">{{ p.badge }}</div>
+                    </div>
+                    <div style="display:flex; align-items:baseline; justify-content:space-between">
+                      <div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.06em; color:#4f5459">{{ p.club }} · {{ p.price }}</div>
+                      <div style="font-family:'IBM Plex Mono',monospace; font-size:15px; color:#8b9096">{{ p.ep }}</div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:2px">
+                      <sc-for list="{{ p.fix }}" as="f" hint-placeholder-count="5">
+                        <div style="height:14px; background:{{ f.bg }}; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:8px; color:{{ f.fg }}">{{ f.opp }}</div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:24px">
+          <div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.16em; color:#5c6167; margin-bottom:10px">SQUAD TOTALS</div>
+            <div style="border:1px solid #1b1e21; background:#0d0f11">
+              <sc-for list="{{ squadTotals }}" as="t" hint-placeholder-count="6">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:0 14px; height:32px; border-bottom:1px solid #131619">
+                  <div style="font-size:12px; color:#8b9096">{{ t.label }}</div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:{{ t.fg }}">{{ t.val }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.16em; color:#5c6167; margin-bottom:10px">DIFFICULTY KEY</div>
+            <div style="border:1px solid #1b1e21; background:#0d0f11; padding:14px; display:flex; flex-direction:column; gap:8px">
+              <sc-for list="{{ fdrKey }}" as="k" hint-placeholder-count="5">
+                <div style="display:flex; align-items:center; gap:10px">
+                  <div style="width:22px; height:12px; background:{{ k.bg }}; flex:none"></div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7d838a">{{ k.label }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.16em; color:#5c6167; margin-bottom:10px">CAPTAIN MODEL</div>
+            <div style="border:1px solid #1b1e21; background:#0d0f11">
+              <sc-for list="{{ captaincy }}" as="c" hint-placeholder-count="4">
+                <div style="display:grid; grid-template-columns:1fr 44px 52px; align-items:center; gap:8px; padding:0 14px; height:30px; border-bottom:1px solid #131619">
+                  <div style="font-size:12.5px; color:{{ c.nameFg }}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ c.name }}</div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; text-align:right; color:#7d838a">{{ c.ep }}</div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; text-align:right; color:{{ c.hFg }}">{{ c.haul }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isTransfers }}">
+      <div>
+        <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:10px">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.16em; color:#5c6167">TRANSFER CANDIDATES · 2 FT · BANK £1.4</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.08em; color:#4a4f55">SORTED BY {{ sortLabel }} · HORIZON 5 GW</div>
+        </div>
+        <div style="border:1px solid #1b1e21; background:#0d0f11">
+          <div style="display:grid; grid-template-columns:26px 1.35fr 1.35fr 78px 78px 88px 92px 90px 78px; align-items:center; gap:10px; padding:0 14px; height:34px; border-bottom:1px solid #1b1e21; background:#0a0c0d">
+            <div></div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.14em; color:#5c6167">OUT</div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.14em; color:#5c6167">IN</div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.14em; color:#5c6167; text-align:right">Δ COST</div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.14em; color:#5c6167; text-align:right">HIT</div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.14em; color:#5c6167; text-align:right">EP GAIN</div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.14em; color:#5c6167; text-align:right">NET AFTER HIT</div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.14em; color:#5c6167; text-align:right">PRICE RISK</div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.14em; color:#5c6167; text-align:right">EO Δ</div>
+          </div>
+          <sc-for list="{{ transfers }}" as="t" hint-placeholder-count="8">
+            <div style="display:grid; grid-template-columns:26px 1.35fr 1.35fr 78px 78px 88px 92px 90px 78px; align-items:center; gap:10px; padding:0 14px; height:44px; border-bottom:1px solid #131619" style-hover="background:#101315">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#3f4449">{{ t.rank }}</div>
+              <div style="display:flex; flex-direction:column; gap:2px; min-width:0">
+                <div style="font-size:13px; color:#a9a6a2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ t.out }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.06em; color:#4f5459; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ t.outMeta }}</div>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:2px; min-width:0">
+                <div style="font-size:13px; font-weight:500; color:#e6e4e1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ t.in }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.06em; color:#5c6167; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ t.inMeta }}</div>
+              </div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; text-align:right; color:{{ t.costFg }}">{{ t.cost }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; text-align:right; color:{{ t.hitFg }}">{{ t.hit }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:13px; text-align:right; color:#c9c6c2">{{ t.gain }}</div>
+              <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px">
+                <div style="width:38px; height:6px; background:#141719; position:relative">
+                  <div style="position:absolute; left:0; top:0; bottom:0; width:{{ t.netPct }}; background:{{ t.netFg }}"></div>
+                </div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:500; color:{{ t.netFg }}; min-width:38px; text-align:right">{{ t.net }}</div>
+              </div>
+              <sc-if value="{{ showRisk }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex; align-items:center; justify-content:flex-end; gap:7px">
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:{{ t.riskFg }}">{{ t.risk }}</div>
+                  <div style="width:6px; height:6px; background:{{ t.riskFg }}; flex:none"></div>
+                </div>
+              </sc-if>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-align:right; color:#7d838a">{{ t.eo }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin-top:24px">
+          <div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.16em; color:#5c6167; margin-bottom:10px">HIT BREAK-EVEN</div>
+            <div style="border:1px solid #1b1e21; background:#0d0f11; padding:14px; display:flex; flex-direction:column; gap:10px">
+              <div style="font-size:12px; color:#8b9096; line-height:1.5; text-wrap:pretty">A −4 hit clears only above <span style="font-family:'IBM Plex Mono',monospace; color:#e6e4e1">+4.0 EP</span> over the horizon. Two candidates qualify this week.</div>
+              <div style="display:flex; gap:1px; background:#1b1e21">
+                <sc-for list="{{ hitCells }}" as="h" hint-placeholder-count="4">
+                  <div style="flex:1; background:#0d0f11; padding:9px 8px; display:flex; flex-direction:column; gap:4px">
+                    <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.1em; color:#4a4f55">{{ h.label }}</div>
+                    <div style="font-family:'IBM Plex Mono',monospace; font-size:15px; color:{{ h.fg }}">{{ h.val }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.16em; color:#5c6167; margin-bottom:10px">PLANNED PATH · GW12–15</div>
+            <div style="border:1px solid #1b1e21; background:#0d0f11">
+              <sc-for list="{{ plan }}" as="p" hint-placeholder-count="4">
+                <div style="display:grid; grid-template-columns:46px 1fr 60px; align-items:center; gap:10px; padding:0 14px; height:34px; border-bottom:1px solid #131619">
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.1em; color:#4a4f55">{{ p.gw }}</div>
+                  <div style="font-size:12.5px; color:#a9a6a2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ p.move }}</div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-align:right; color:{{ p.fg }}">{{ p.val }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.16em; color:#5c6167; margin-bottom:10px">TEMPLATE EXPOSURE</div>
+            <div style="border:1px solid #1b1e21; background:#0d0f11">
+              <sc-for list="{{ exposure }}" as="e" hint-placeholder-count="5">
+                <div style="display:grid; grid-template-columns:1fr 90px 52px; align-items:center; gap:10px; padding:0 14px; height:34px; border-bottom:1px solid #131619">
+                  <div style="font-size:12.5px; color:#a9a6a2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ e.name }}</div>
+                  <div style="height:6px; background:#141719; position:relative">
+                    <div style="position:absolute; left:0; top:0; bottom:0; width:{{ e.pct }}; background:{{ e.fg }}"></div>
+                  </div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; text-align:right; color:{{ e.fg }}">{{ e.val }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isChips }}">
+      <div>
+        <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:10px">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.16em; color:#5c6167">CHIP TIMELINE · GW1–38</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.08em; color:#4a4f55">B = BLANK · D = DOUBLE · SECOND-HALF CHIPS UNLOCK GW20</div>
+        </div>
+
+        <div style="border:1px solid #1b1e21; background:#0d0f11; padding:16px 16px 14px 16px">
+          <div style="display:grid; grid-template-columns:150px 1fr; gap:14px; align-items:center; margin-bottom:10px">
+            <div></div>
+            <div style="display:grid; grid-template-columns:repeat(38,1fr); gap:2px">
+              <sc-for list="{{ gwCells }}" as="g" hint-placeholder-count="38">
+                <div style="display:flex; flex-direction:column; align-items:center; gap:4px">
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:8px; color:{{ g.numFg }}">{{ g.gw }}</div>
+                  <div style="width:100%; height:16px; background:{{ g.bg }}; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:600; color:{{ g.fg }}">{{ g.mark }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <sc-for list="{{ chipRows }}" as="c" hint-placeholder-count="5">
+            <div style="display:grid; grid-template-columns:150px 1fr; gap:14px; align-items:center; height:38px; border-top:1px solid #16191b">
+              <div style="display:flex; flex-direction:column; gap:2px">
+                <div style="font-size:12.5px; color:{{ c.nameFg }}">{{ c.name }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.1em; color:{{ c.statusFg }}">{{ c.status }}</div>
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(38,1fr); gap:2px">
+                <sc-for list="{{ c.cells }}" as="x" hint-placeholder-count="38">
+                  <div style="height:14px; background:{{ x.bg }}; border-bottom:1px solid {{ x.bd }}"></div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:#1b1e21; border:1px solid #1b1e21; margin-top:24px">
+          <sc-for list="{{ chipCards }}" as="c" hint-placeholder-count="4">
+            <div style="background:#0d0f11; padding:16px; display:flex; flex-direction:column; gap:12px">
+              <div style="display:flex; align-items:center; justify-content:space-between">
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.14em; color:#5c6167">{{ c.name }}</div>
+                <div style="width:6px; height:6px; background:{{ c.dot }}"></div>
+              </div>
+              <div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.12em; color:#4a4f55; margin-bottom:4px">EXPIRES IN</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:26px; font-weight:500; letter-spacing:-0.02em; line-height:1; color:{{ c.expFg }}">{{ c.expiry }}</div>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:6px; border-top:1px solid #17191c; padding-top:10px">
+                <div style="display:flex; justify-content:space-between">
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.1em; color:#4a4f55">BEST GW</div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#c9c6c2">{{ c.best }}</div>
+                </div>
+                <div style="display:flex; justify-content:space-between">
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.1em; color:#4a4f55">PROJ. GAIN</div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:oklch(0.78 0.13 158)">{{ c.gain }}</div>
+                </div>
+              </div>
+              <div style="font-size:11.5px; color:#6f757b; line-height:1.45; text-wrap:pretty">{{ c.note }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;defaultScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dashboard&quot;,&quot;squad&quot;,&quot;transfers&quot;,&quot;chips&quot;],&quot;default&quot;:&quot;dashboard&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;View&quot;},&quot;showFixtureStrip&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Squad&quot;},&quot;showBench&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Squad&quot;},&quot;transferSort&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Net after hit&quot;,&quot;EP gain&quot;,&quot;Price risk&quot;],&quot;default&quot;:&quot;Net after hit&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Transfers&quot;},&quot;showPriceRisk&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Transfers&quot;}}">
+const ACC = 'oklch(0.78 0.13 158)';
+const ACC_DIM = 'oklch(0.62 0.10 158)';
+const WARN = 'oklch(0.78 0.15 72)';
+const WARN_DIM = 'oklch(0.60 0.13 62)';
+const TXT = '#e6e4e1';
+const MID = '#8b9096';
+const DIM = '#5c6167';
+
+const FDR = {
+  1: { bg: 'oklch(0.46 0.09 158)', fg: '#dff0e6' },
+  2: { bg: 'oklch(0.36 0.06 158)', fg: '#bfd6c8' },
+  3: { bg: '#22262a', fg: '#8b9096' },
+  4: { bg: 'oklch(0.38 0.08 55)', fg: '#e9d5bb' },
+  5: { bg: 'oklch(0.48 0.13 40)', fg: '#f6dccb' }
+};
+const fx = (arr) => arr.map(([opp, d]) => ({ opp, bg: FDR[d].bg, fg: FDR[d].fg }));
+
+class Component extends DCLogic {
+  state = { screen: null, now: Date.now() };
+
+  componentDidMount() {
+    this.t = setInterval(() => this.setState({ now: Date.now() }), 1000);
+  }
+  componentWillUnmount() { clearInterval(this.t); }
+
+  countdown() {
+    const target = new Date();
+    target.setHours(target.getHours() + 41);
+    target.setMinutes(12, 38, 0);
+    const s = Math.max(0, Math.floor((target - this.state.now) / 1000));
+    const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+    const p = (n) => String(n).padStart(2, '0');
+    return d + 'd ' + p(h) + ':' + p(m) + ':' + p(sec);
+  }
+
+  renderVals() {
+    const screen = this.state.screen ?? (this.props.defaultScreen || 'dashboard');
+    const go = (k) => () => this.setState({ screen: k });
+    const tabs = [
+      ['dashboard', 'DASHBOARD'], ['squad', 'SQUAD'], ['transfers', 'TRANSFERS'], ['chips', 'CHIPS']
+    ].map(([k, label]) => ({
+      label, go: go(k),
+      bg: screen === k ? '#0f1214' : 'transparent',
+      fg: screen === k ? TXT : '#7d838a',
+      bd: screen === k ? ACC : 'transparent'
+    }));
+
+    const actions = [
+      { kind: 'TRANSFER', conf: 'CONF 82%', confFg: ACC_DIM, title: 'Semenyo → Rogers', delta: '+6.4', deltaFg: ACC,
+        note: 'Rogers outscores on xGI in 4 of 5 fixtures. Frees £0.6 toward the GW14 defence move.',
+        cost: '£0.6 in', risk: 'Low', own: '18.4%' },
+      { kind: 'CAPTAIN', conf: 'CONF 74%', confFg: ACC_DIM, title: 'Captain Haaland over Salah', delta: '+2.1', deltaFg: ACC,
+        note: 'Home vs promoted side, 31% haul probability against Salah\u2019s 24%. Effective ownership favours the switch.',
+        cost: 'Free', risk: 'Low', own: '61.2%' },
+      { kind: 'BENCH', conf: 'CONF 91%', confFg: WARN, title: 'Start Wood over Van Dijk', delta: '+1.8', deltaFg: ACC,
+        note: 'Van Dijk 75% flagged with a late fitness test. Wood has the cleaner minutes projection.',
+        cost: 'Free', risk: 'Flag', own: '\u2014' }
+    ];
+
+    const rows = [
+      ['Haaland', 'FWD', 9.2], ['Salah', 'MID', 8.4], ['Palmer', 'MID', 6.9], ['Saka', 'MID', 6.1],
+      ['Isak', 'FWD', 5.8], ['Gabriel', 'DEF', 5.2], ['Gvardiol', 'DEF', 4.8], ['Semenyo', 'MID', 4.7],
+      ['Van Dijk', 'DEF', 4.5], ['Raya', 'GK', 4.1], ['Muñoz', 'DEF', 3.9]
+    ];
+    const epRows = rows.map(([name, pos, ep]) => ({
+      name, pos, ep: ep.toFixed(1),
+      pct: Math.round(ep / 9.2 * 100) + '%',
+      barBg: ep >= 6 ? ACC_DIM : '#2f3439',
+      epFg: ep >= 6 ? ACC : '#c9c6c2'
+    }));
+
+    const pressures = [
+      { label: 'Transfers pending', val: '1 of 2', fg: TXT },
+      { label: 'Flagged starters', val: '2', fg: WARN },
+      { label: 'Price changes at risk', val: '3', fg: WARN },
+      { label: 'Model refresh', val: '18:00', fg: MID }
+    ];
+
+    const flags = [
+      { name: 'Van Dijk', chance: '75%', bar: WARN, note: 'Knock · late fitness test Friday. Manager non-committal.' },
+      { name: 'Isak', chance: '50%', bar: 'oklch(0.58 0.16 35)', note: 'Groin · missed two full sessions this week.' },
+      { name: 'Saka', chance: '100%', bar: ACC_DIM, note: 'Cleared. Returned to full training Wednesday.' }
+    ];
+
+    const priceWatch = [
+      { name: 'Rogers', price: '£5.5', prog: '+96%', fg: WARN },
+      { name: 'Semenyo', price: '£6.1', prog: '−81%', fg: 'oklch(0.58 0.16 35)' },
+      { name: 'Muñoz', price: '£5.6', prog: '+62%', fg: '#7d838a' },
+      { name: 'Wood', price: '£7.2', prog: '−44%', fg: '#7d838a' }
+    ];
+
+    const mk = (name, club, price, ep, fixArr, badge, flagged) => ({
+      name, club, price: '£' + price.toFixed(1), ep: ep.toFixed(1),
+      fix: fx(fixArr), badge: badge || '',
+      flagFg: flagged === 'warn' ? WARN : flagged === 'bad' ? 'oklch(0.58 0.16 35)' : ACC,
+      epFg: ep >= 6 ? ACC : '#d4d1cd',
+      top: badge === 'C' ? ACC : flagged ? WARN : '#1b1e21'
+    });
+
+    const pitch = [
+      { label: 'GK', cols: 'repeat(4,1fr)', players: [mk('Raya', 'ARS', 5.6, 4.1, [['BUR', 2], ['CHE', 4], ['WOL', 1], ['NEW', 4], ['EVE', 2]])] },
+      { label: 'DEF', cols: 'repeat(4,1fr)', players: [
+        mk('Gabriel', 'ARS', 6.3, 5.2, [['BUR', 2], ['CHE', 4], ['WOL', 1], ['NEW', 4], ['EVE', 2]]),
+        mk('Gvardiol', 'MCI', 6.5, 4.8, [['LEE', 1], ['AVL', 3], ['BOU', 3], ['FUL', 2], ['TOT', 4]]),
+        mk('Van Dijk', 'LIV', 6.4, 4.5, [['BHA', 3], ['MUN', 4], ['SUN', 2], ['CRY', 3], ['ARS', 5]], '75%', 'warn'),
+        mk('Muñoz', 'CRY', 5.6, 3.9, [['NFO', 3], ['BRE', 3], ['WHU', 2], ['LIV', 5], ['LEE', 2]])
+      ] },
+      { label: 'MID', cols: 'repeat(4,1fr)', players: [
+        mk('Salah', 'LIV', 14.6, 8.4, [['BHA', 3], ['MUN', 4], ['SUN', 2], ['CRY', 3], ['ARS', 5]]),
+        mk('Palmer', 'CHE', 10.8, 6.9, [['TOT', 4], ['ARS', 5], ['BUR', 1], ['AVL', 3], ['NFO', 3]]),
+        mk('Saka', 'ARS', 10.2, 6.1, [['BUR', 2], ['CHE', 4], ['WOL', 1], ['NEW', 4], ['EVE', 2]]),
+        mk('Semenyo', 'BOU', 6.1, 4.7, [['EVE', 3], ['WOL', 2], ['MCI', 5], ['BRE', 3], ['SUN', 2]])
+      ] },
+      { label: 'FWD', cols: 'repeat(4,1fr)', players: [
+        mk('Haaland', 'MCI', 15.1, 9.2, [['LEE', 1], ['AVL', 3], ['BOU', 3], ['FUL', 2], ['TOT', 4]], 'C'),
+        mk('Isak', 'NEW', 9.4, 5.8, [['WHU', 2], ['FUL', 3], ['TOT', 4], ['ARS', 5], ['BRE', 3]], '50%', 'bad')
+      ] }
+    ];
+
+    const bench = [
+      mk('Sels', 'NFO', 5.0, 3.2, [['CRY', 3], ['SUN', 2], ['EVE', 3], ['WOL', 2], ['CHE', 4]]),
+      mk('Rogers', 'AVL', 5.5, 3.6, [['WOL', 2], ['MCI', 5], ['LEE', 2], ['CHE', 4], ['BUR', 1]]),
+      mk('Wood', 'NFO', 7.2, 4.2, [['CRY', 3], ['SUN', 2], ['EVE', 3], ['WOL', 2], ['CHE', 4]]),
+      mk('Estupiñán', 'WHU', 4.6, 3.1, [['NEW', 4], ['CRY', 3], ['BHA', 3], ['LEE', 2], ['MUN', 4]])
+    ];
+
+    const squadTotals = [
+      { label: 'Starting XI EP', val: '63.6', fg: TXT },
+      { label: 'Captain bonus', val: '+9.2', fg: ACC },
+      { label: 'Projected total', val: '72.8', fg: ACC },
+      { label: 'Squad value', val: '£103.2', fg: TXT },
+      { label: 'Mean fixture difficulty', val: '2.86', fg: MID },
+      { label: 'Bench EP (wasted)', val: '14.1', fg: WARN }
+    ];
+
+    const fdrKey = [1, 2, 3, 4, 5].map((d) => ({
+      bg: FDR[d].bg,
+      label: d + '  ' + ['very easy', 'easy', 'neutral', 'hard', 'very hard'][d - 1]
+    }));
+
+    const captaincy = [
+      { name: 'Haaland', ep: '9.2', haul: '31%', nameFg: ACC, hFg: ACC },
+      { name: 'Salah', ep: '8.4', haul: '24%', nameFg: '#d4d1cd', hFg: '#c9c6c2' },
+      { name: 'Palmer', ep: '6.9', haul: '19%', nameFg: '#d4d1cd', hFg: '#c9c6c2' },
+      { name: 'Saka', ep: '6.1', haul: '16%', nameFg: '#d4d1cd', hFg: '#c9c6c2' }
+    ];
+
+    const tRaw = [
+      { out: 'Semenyo', outMeta: 'BOU · £6.1 · 4.7 EP', in: 'Rogers', inMeta: 'AVL · £5.5 · 6.8 EP', cost: '−£0.6', hit: 0, gain: 6.4, risk: 'HIGH', riskLv: 3, eo: '+4.1%' },
+      { out: 'Van Dijk', outMeta: 'LIV · £6.4 · 4.5 EP', in: 'Timber', inMeta: 'ARS · £6.1 · 6.0 EP', cost: '−£0.3', hit: 0, gain: 5.1, risk: 'MED', riskLv: 2, eo: '+2.8%' },
+      { out: 'Isak', outMeta: 'NEW · £9.4 · 5.8 EP', in: 'Watkins', inMeta: 'AVL · £9.0 · 7.4 EP', cost: '−£0.4', hit: 4, gain: 7.9, risk: 'MED', riskLv: 2, eo: '+1.6%' },
+      { out: 'Muñoz', outMeta: 'CRY · £5.6 · 3.9 EP', in: 'Burn', inMeta: 'NEW · £5.1 · 5.2 EP', cost: '−£0.5', hit: 0, gain: 3.4, risk: 'LOW', riskLv: 1, eo: '+0.9%' },
+      { out: 'Estupiñán', outMeta: 'WHU · £4.6 · 3.1 EP', in: 'Andersen', inMeta: 'FUL · £4.5 · 4.4 EP', cost: '−£0.1', hit: 0, gain: 2.9, risk: 'LOW', riskLv: 1, eo: '+0.4%' },
+      { out: 'Saka', outMeta: 'ARS · £10.2 · 6.1 EP', in: 'Gordon', inMeta: 'NEW · £7.6 · 6.4 EP', cost: '+£2.6', hit: 4, gain: 4.2, risk: 'LOW', riskLv: 1, eo: '−1.2%' },
+      { out: 'Sels', outMeta: 'NFO · £5.0 · 3.2 EP', in: 'Petrović', inMeta: 'BOU · £4.6 · 4.0 EP', cost: '−£0.4', hit: 4, gain: 2.2, risk: 'MED', riskLv: 2, eo: '+0.3%' },
+      { out: 'Palmer', outMeta: 'CHE · £10.8 · 6.9 EP', in: 'Bruno F.', inMeta: 'MUN · £9.2 · 6.4 EP', cost: '+£1.6', hit: 4, gain: 0.8, risk: 'HIGH', riskLv: 3, eo: '−2.4%' }
+    ];
+    const riskFg = { 1: '#5c6167', 2: WARN_DIM, 3: WARN };
+    let transfers = tRaw.map((t) => {
+      const net = t.gain - t.hit;
+      return {
+        out: t.out, outMeta: t.outMeta, in: t.in, inMeta: t.inMeta,
+        cost: t.cost, costFg: t.cost.charAt(0) === '−' ? '#c9c6c2' : WARN_DIM,
+        hit: t.hit ? '−' + t.hit : '0',
+        hitFg: t.hit ? WARN : '#4f5459',
+        gain: '+' + t.gain.toFixed(1),
+        net: (net >= 0 ? '+' : '−') + Math.abs(net).toFixed(1),
+        netFg: net >= 3 ? ACC : net > 0 ? '#c9c6c2' : 'oklch(0.58 0.16 35)',
+        netPct: Math.min(100, Math.max(6, Math.abs(net) / 6.4 * 100)) + '%',
+        risk: t.risk, riskFg: riskFg[t.riskLv], riskLv: t.riskLv,
+        eo: t.eo, _net: net
+      };
+    });
+    const sort = this.props.transferSort || 'Net after hit';
+    if (sort === 'Price risk') transfers.sort((a, b) => b.riskLv - a.riskLv);
+    else if (sort === 'EP gain') transfers.sort((a, b) => parseFloat(b.gain) - parseFloat(a.gain));
+    else transfers.sort((a, b) => b._net - a._net);
+    transfers = transfers.map((t, i) => Object.assign({}, t, { rank: String(i + 1).padStart(2, '0') }));
+
+    const hitCells = [
+      { label: 'BREAK-EVEN', val: '+4.0', fg: '#c9c6c2' },
+      { label: 'QUALIFY', val: '2', fg: ACC },
+      { label: 'BEST NET', val: '+6.4', fg: ACC },
+      { label: 'HITS TAKEN', val: '3', fg: '#c9c6c2' }
+    ];
+
+    const plan = [
+      { gw: 'GW12', move: 'Semenyo → Rogers', val: '+6.4', fg: ACC },
+      { gw: 'GW13', move: 'Roll transfer', val: '—', fg: '#5c6167' },
+      { gw: 'GW14', move: 'Van Dijk → Timber · Isak → Watkins', val: '+9.0', fg: ACC },
+      { gw: 'GW15', move: 'Wildcard window opens', val: 'hold', fg: WARN }
+    ];
+
+    const exposure = [
+      { name: 'Haaland', val: '78%', pct: '78%', fg: '#7d838a' },
+      { name: 'Salah', val: '64%', pct: '64%', fg: '#7d838a' },
+      { name: 'Palmer', val: '41%', pct: '41%', fg: '#7d838a' },
+      { name: 'Rogers', val: '18%', pct: '18%', fg: ACC },
+      { name: 'Semenyo', val: '31%', pct: '31%', fg: WARN_DIM }
+    ];
+
+    const blanks = { 18: 'B', 29: 'B', 33: 'B' };
+    const doubles = { 25: 'D', 32: 'D', 34: 'D', 37: 'D' };
+    const CURRENT = 12;
+    const gwCells = [];
+    for (let g = 1; g <= 38; g++) {
+      const mark = doubles[g] || blanks[g] || '';
+      const past = g < CURRENT;
+      gwCells.push({
+        gw: g % 2 === 1 || g === CURRENT ? g : '',
+        numFg: g === CURRENT ? TXT : past ? '#33383d' : '#4a4f55',
+        mark,
+        bg: doubles[g] ? 'oklch(0.42 0.08 158)' : blanks[g] ? 'oklch(0.40 0.10 45)' : g === CURRENT ? '#2c3237' : past ? '#111416' : '#171a1d',
+        fg: doubles[g] ? '#dff0e6' : blanks[g] ? '#f2ddc6' : '#5c6167'
+      });
+    }
+
+    const chipDefs = [
+      { name: 'Wildcard 1', status: 'EXPIRES GW19', from: 12, to: 19, plan: 15, used: null, urgent: true },
+      { name: 'Free Hit 1', status: 'EXPIRES GW19', from: 12, to: 19, plan: 18, used: null, urgent: true },
+      { name: 'Bench Boost 1', status: 'USED GW07', from: 1, to: 19, plan: null, used: 7, urgent: false },
+      { name: 'Triple Captain 1', status: 'EXPIRES GW19', from: 12, to: 19, plan: null, used: null, urgent: true },
+      { name: 'Second-half set', status: 'UNLOCKS GW20', from: 20, to: 38, plan: 32, used: null, urgent: false }
+    ];
+    const chipRows = chipDefs.map((c) => {
+      const cells = [];
+      for (let g = 1; g <= 38; g++) {
+        const inWin = g >= c.from && g <= c.to;
+        let bg = '#101315', bd = 'transparent';
+        if (inWin) bg = c.urgent ? '#1e2124' : '#191c1f';
+        if (c.used === g) { bg = '#3a4046'; }
+        if (c.plan === g) { bg = ACC_DIM; }
+        if (inWin && (blanks[g] || doubles[g])) bd = doubles[g] ? 'oklch(0.42 0.08 158)' : 'oklch(0.40 0.10 45)';
+        cells.push({ bg, bd });
+      }
+      return {
+        name: c.name, status: c.status, cells,
+        nameFg: c.used ? '#5c6167' : TXT,
+        statusFg: c.used ? '#3f4449' : c.urgent ? WARN : '#4a4f55'
+      };
+    });
+
+    const chipCards = [
+      { name: 'WILDCARD 1', dot: WARN, expiry: '7 GW', expFg: WARN, best: 'GW15', gain: '+18.2', note: 'Rebuild before the GW18 blank. Value drops sharply if held past GW17.' },
+      { name: 'FREE HIT 1', dot: WARN, expiry: '7 GW', expFg: WARN, best: 'GW18', gain: '+21.6', note: 'Blank GW18 leaves 6 players without a fixture. Highest single-week return.' },
+      { name: 'TRIPLE CAPTAIN', dot: WARN, expiry: '7 GW', expFg: WARN, best: 'GW16', gain: '+9.4', note: 'No first-half double. Haaland at home to Leeds is the ceiling play.' },
+      { name: 'BENCH BOOST 1', dot: '#3a4046', expiry: 'USED', expFg: '#5c6167', best: 'GW07', gain: '+11.8', note: 'Played GW7 on the Wolves double. Returned 11.8 above baseline.' }
+    ];
+
+    return {
+      countdown: this.countdown(),
+      tabs,
+      isDash: screen === 'dashboard', isSquad: screen === 'squad',
+      isTransfers: screen === 'transfers', isChips: screen === 'chips',
+      actions, epRows, pressures, flags, priceWatch,
+      pitch, bench, squadTotals, fdrKey, captaincy,
+      showBench: this.props.showBench ?? true,
+      showStrip: this.props.showFixtureStrip ?? true,
+      showRisk: this.props.showPriceRisk ?? true,
+      transfers, sortLabel: sort.toUpperCase(), hitCells, plan, exposure,
+      gwCells, chipRows, chipCards
+    };
+  }
+}
+</script>
+</body>
+</html>
