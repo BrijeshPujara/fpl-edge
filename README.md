@@ -100,6 +100,13 @@ whether a move is free or costs four points.
 On a schedule this runs from GitHub Actions rather than Vercel Cron — see
 `docs/cron.md` for why, and for what to change if you move to Vercel Pro.
 
+## Where this is going
+
+`docs/next-steps.md` is the working plan: known gaps that are real defects, and
+an optimisation roadmap ordered by payoff. Start there rather than at PLAN.md
+§11 if you are picking the work up cold — PLAN.md is the spec, that file is the
+state.
+
 ## Data source notes
 
 All data comes from the official unauthenticated API at

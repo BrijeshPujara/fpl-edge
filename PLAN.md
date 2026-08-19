@@ -429,4 +429,9 @@ Paste this when generating the UI:
 
 ## 15. Immediate next step
 
+> **See `docs/next-steps.md`** for the live working plan — known gaps and the
+> optimisation roadmap. This section is the original pre-season intent and is
+> kept for the record.
+
+
 Phase 1, and get data flowing before the Gameweek 1 deadline. Read the deadline from `bootstrap-static.events[]` rather than assuming it. Even if only the sync and the squad page exist by kickoff, you will have started building history — and the per-gameweek history is the asset that makes every later phase possible.
