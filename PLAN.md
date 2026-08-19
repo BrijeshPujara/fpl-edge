@@ -186,7 +186,25 @@ EP(player, fixture) =
 
 Build a **multi-gameweek EP** function that sums EP over the next N fixtures (default 5), handling doubles (two fixtures in one GW) and blanks (zero). Optimise on this, not on single gameweeks — that is what stops you chasing last week's points.
 
-**Calibration requirement:** write a backtest script (`scripts/backtest.ts`) that runs the model over 2025/26 historical data (the `vaastav/Fantasy-Premier-League` GitHub dataset has clean per-gameweek CSVs) and reports mean absolute error against actual points, bucketed by position. Tune constants against this, not against intuition.
+**Calibration requirement:** `scripts/backtest.ts` replays the model over 2025/26 gameweek by gameweek, using only data available at the time, and reports mean absolute error per position against the naive baseline. Run it with `npm run backtest`, or `-- --neutral` to disable the opponent adjustment. Tune constants against this, not against intuition.
+
+**Result as of the first calibration run (GW7–38, n=25,004):**
+
+| Position | Model MAE | Baseline MAE | |
+|---|---|---|---|
+| All | 1.010 | 1.038 | beats by 2.6% |
+| GK | 0.527 | 0.593 | beats by 11.1% |
+| DEF | 1.168 | 1.210 | beats by 3.5% |
+| MID | 0.983 | 1.008 | beats by 2.4% |
+| FWD | 1.154 | 1.110 | **loses by 3.9%** |
+
+Three things this exposed, all worth keeping in mind before trusting the numbers:
+
+- **Minutes dominate everything.** 62% of player-gameweek rows are non-appearances. The first run *lost* to the baseline by 16.2% purely because a fixed cameo probability was applied to every non-starter, handing appearance points to reserves who had not played in six weeks. Deriving the cameo rate from observed appearances instead moved the model from −16.2% to +2.6% in one change. No other single constant comes close to mattering this much.
+- **The opponent adjustment barely earns its place.** Disabling it entirely costs only 0.4pp (2.6% → 2.2%). Either the strength ratings carry little signal or §5's formulation underuses them. Worth revisiting before adding complexity elsewhere.
+- **Forwards are still worse than the baseline.** Their scoring is the most goal-dependent and therefore the most skewed, and MAE rewards conservative predictions on skewed distributions. This is the open problem in the model.
+
+The margin overall is real but thin. Treat it as "not worse than doing nothing obvious", not as a validated edge.
 
 ---
 

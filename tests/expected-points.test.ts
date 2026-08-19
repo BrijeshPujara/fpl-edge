@@ -374,3 +374,57 @@ describe("expectedPointsOverHorizon", () => {
     );
   });
 });
+
+describe("cameo rate is observed, not assumed", () => {
+  /**
+   * The regression the backtest exposed. Roughly 62% of all player-gameweek
+   * rows are non-appearances, so assuming a fixed cameo probability for every
+   * non-starter was the single largest source of error in the model — it gave
+   * appearance points to reserves who had not played in six weeks.
+   */
+  it("gives almost nothing to a player who has not featured at all", () => {
+    const unused = projectMinutes({
+      status: "a",
+      chanceOfPlayingNextRound: null,
+      recentStarts: [false, false, false, false, false, false],
+      recentMinutes: [0, 0, 0, 0, 0, 0],
+    });
+    expect(unused.pAppears).toBeLessThan(0.05);
+  });
+
+  it("separates a regular substitute from a total reserve", () => {
+    const shared = { status: "a", chanceOfPlayingNextRound: null };
+    const sub = projectMinutes({
+      ...shared,
+      recentStarts: [false, false, false, false, false, false],
+      recentMinutes: [22, 18, 0, 25, 14, 30],
+    });
+    const reserve = projectMinutes({
+      ...shared,
+      recentStarts: [false, false, false, false, false, false],
+      recentMinutes: [0, 0, 0, 0, 0, 0],
+    });
+
+    // Identical start records; only the observed appearances differ.
+    expect(sub.pAppears).toBeGreaterThan(0.6);
+    expect(reserve.pAppears).toBeLessThan(0.05);
+    // Neither should be credited with reaching 60 minutes.
+    expect(sub.pSixty).toBe(0);
+  });
+
+  it("still ranks a nailed starter above a regular substitute", () => {
+    const shared = { status: "a", chanceOfPlayingNextRound: null };
+    const starter = projectMinutes({
+      ...shared,
+      recentStarts: [true, true, true, true, true, true],
+      recentMinutes: [90, 90, 85, 90, 88, 90],
+    });
+    const sub = projectMinutes({
+      ...shared,
+      recentStarts: [false, false, false, false, false, false],
+      recentMinutes: [22, 18, 20, 25, 14, 30],
+    });
+    expect(starter.pSixty).toBeGreaterThan(sub.pSixty);
+    expect(starter.expectedMinutes).toBeGreaterThan(sub.expectedMinutes);
+  });
+});

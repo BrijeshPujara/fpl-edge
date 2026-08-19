@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "check": "npm run typecheck && npm run lint && npm run test",
-    "backtest": "tsx scripts/backtest.ts",
+    "backtest": "tsx --tsconfig tsconfig.scripts.json scripts/backtest.ts",
     "db:types": "supabase gen types typescript --project-id ehfuwpslwzxsjjaatgng > lib/db/types.generated.ts",
     "db:push": "supabase db push",
     "sync": "tsx --tsconfig tsconfig.scripts.json scripts/sync.ts",

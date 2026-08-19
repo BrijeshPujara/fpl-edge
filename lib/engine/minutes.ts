@@ -47,16 +47,37 @@ const NEVER: MinutesProjection = {
 };
 
 /**
- * Proportion of recent gameweeks started.
+ * Observed start and appearance rates over the recent window.
  *
- * Gameweeks the player was not in the squad for at all are still counted as
- * non-starts, which is correct: a player who has not started in six weeks is
- * not a starter, whatever the reason.
+ * Both matter, and using only the first is the mistake the backtest exposed.
+ * "Did not start" and "was not involved at all" are very different states: the
+ * first is a genuine cameo risk, the second is a player who is not being
+ * selected. Assuming a fixed cameo probability for every non-starter gave
+ * appearance points to reserves who had not played in six weeks — and since
+ * roughly 62% of all player-gameweek rows are non-appearances, that single
+ * assumption dominated the model's error.
+ *
+ * The cameo rate is therefore observed, not assumed: it is how often this
+ * player actually came off the bench.
  */
-function recentStartRate(starts: boolean[]): number | null {
-  const window = starts.slice(0, START_RATE_WINDOW);
-  if (window.length === 0) return null;
-  return window.filter(Boolean).length / window.length;
+function recentRates(
+  starts: boolean[],
+  minutes: number[],
+): { start: number; cameo: number } | null {
+  const startWindow = starts.slice(0, START_RATE_WINDOW);
+  const minuteWindow = minutes.slice(0, START_RATE_WINDOW);
+  const size = Math.max(startWindow.length, minuteWindow.length);
+  if (size === 0) return null;
+
+  const started = startWindow.filter(Boolean).length;
+  const appeared = minuteWindow.filter((m) => m > 0).length;
+
+  const start = started / size;
+  // Appearances that were not starts. Floored at zero because the two arrays
+  // can disagree at the edges of a short window.
+  const cameo = Math.max(0, (appeared - started) / size);
+
+  return { start, cameo };
 }
 
 export function projectMinutes(input: MinutesInput): MinutesProjection {
@@ -77,15 +98,15 @@ export function projectMinutes(input: MinutesInput): MinutesProjection {
       ? 1
       : (chanceOfPlayingNextRound / 100) * CHANCE_OF_PLAYING_DISCOUNT;
 
-  // Role comes from appearances. With none — a new signing, or pre-season —
-  // sit in the middle rather than guessing.
-  const role = recentStartRate(recentStarts) ?? NO_HISTORY_START_PRIOR;
+  // Role comes from observed appearances. With none — a new signing, or
+  // pre-season — sit in the middle rather than guessing.
+  const rates = recentRates(recentStarts, recentMinutes) ?? {
+    start: NO_HISTORY_START_PRIOR,
+    cameo: (1 - NO_HISTORY_START_PRIOR) * P_BENCH_CAMEO,
+  };
 
-  const pStart = role * fitness;
-
-  // A non-starter can still appear off the bench, but never for 60 minutes in
-  // any meaningful proportion of cases.
-  const pCameo = (1 - pStart) * P_BENCH_CAMEO;
+  const pStart = rates.start * fitness;
+  const pCameo = rates.cameo * fitness;
 
   const pSixty = pStart * P_STARTER_COMPLETES_60;
   const pShort = pStart * (1 - P_STARTER_COMPLETES_60) + pCameo;
