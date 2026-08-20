@@ -1,4 +1,7 @@
-import { loadDecisionContext } from "@/lib/db/decision-context";
+import {
+  loadDecisionContext,
+  type ReadyDecisionContext,
+} from "@/lib/db/decision-context";
 import { getChipsPlayed } from "@/lib/db/queries";
 import { getDb, isDbConfigured } from "@/lib/db/client";
 import { toPlayerCandidate } from "@/lib/squad/candidates";
@@ -69,11 +72,28 @@ export async function ChipAdvisories() {
         <br />
         Recommendations appear once{" "}
         <span className="text-tertiary">results have synced</span> for a
-        completed gameweek.
+        completed gameweek. To see the screen working before then, run{" "}
+        <code className="font-mono text-tertiary">npm run backtest</code> once
+        and open <code className="font-mono text-tertiary">/preview/chips</code>{" "}
+        in development.
       </Pending>
     );
   }
 
+  return <ChipPlanPanels context={context} />;
+}
+
+/**
+ * The panels themselves, given a loaded context.
+ *
+ * Separated from the loading above so the dev preview renders exactly this
+ * component rather than a lookalike that can drift from it.
+ */
+export async function ChipPlanPanels({
+  context,
+}: {
+  context: ReadyDecisionContext;
+}) {
   const solver = await createGlpkSolver();
   const priceOf = (id: number) => context.priceDeltas.get(id) ?? 0;
   const withGameweeks = (c: (typeof context.pool)[number]) => ({

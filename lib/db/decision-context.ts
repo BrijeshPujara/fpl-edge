@@ -26,37 +26,40 @@ import type { ChipWindow } from "@/lib/fpl/gameweek";
  * errors.
  */
 
+/** The loaded, usable state. Named so the preview harness can construct one. */
+export interface ReadyDecisionContext {
+  state: "ready";
+  gw: number;
+  gwName: string;
+  gameweeks: number[];
+  chipWindows: ChipWindow[];
+  /** The fifteen currently owned, with projections. */
+  squad: Candidate[];
+  /** Everyone buyable, including the fifteen above. */
+  pool: Candidate[];
+  /** Tenths. */
+  bank: number;
+  teamValue: number;
+  freeTransfers: number;
+  chipPlayed: string | null;
+  /**
+   * Realisable price movement per player over the horizon, in tenths, already
+   * net of the sell-on fee. Zero for players the price model has no confidence
+   * about, which is all of them before roughly GW4.
+   */
+  priceDeltas: Map<number, number>;
+  /**
+   * False when no gameweek has been played. Every projection is then the same
+   * positional prior and nothing may be ranked — see `CandidatePool`.
+   */
+  projectable: boolean;
+}
+
 export type DecisionContext =
   | { state: "no-api"; reason: string }
   | { state: "no-db" }
   | { state: "no-squad"; gw: number; gwName: string }
-  | {
-      state: "ready";
-      gw: number;
-      gwName: string;
-      gameweeks: number[];
-      chipWindows: ChipWindow[];
-      /** The fifteen currently owned, with projections. */
-      squad: Candidate[];
-      /** Everyone buyable, including the fifteen above. */
-      pool: Candidate[];
-      /** Tenths. */
-      bank: number;
-      teamValue: number;
-      freeTransfers: number;
-      chipPlayed: string | null;
-      /**
-       * Realisable price movement per player over the horizon, in tenths,
-       * already net of the sell-on fee. Zero for players the price model has
-       * no confidence about, which is all of them before roughly GW4.
-       */
-      priceDeltas: Map<number, number>;
-      /**
-       * False when no gameweek has been played. Every projection is then the
-       * same positional prior and nothing may be ranked — see `CandidatePool`.
-       */
-      projectable: boolean;
-    };
+  | ReadyDecisionContext;
 
 export async function loadDecisionContext(
   horizon: number,

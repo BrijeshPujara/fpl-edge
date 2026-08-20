@@ -68,6 +68,31 @@ has, every projection is the same positional prior, so they explain that rather
 than ranking noise. That gate is `projectable` on the candidate pool, and it is
 the single most important line of code on either screen.
 
+### Seeing the screens before the season starts
+
+That gate means nobody can watch the decision screens work until real results
+exist. `/preview/squad`, `/preview/transfers` and `/preview/chips` fill the gap
+in development:
+
+```bash
+npm run backtest   # once, to populate .backtest-cache/
+npm run dev        # then open /preview
+```
+
+The preview replays **real 2025/26 results**, matched onto this season's players
+by name — around three quarters match, and the rest are new signings and
+promoted-club players who genuinely have no Premier League history, so the model
+rating them low is correct rather than a gap. Fixtures and prices are this
+season's; the squad is invented, picked on last season's points the way a person
+would rather than on the model's own expected points, so the optimiser has real
+disagreements to show.
+
+Three fences keep it out of the running app: `app/preview/layout.tsx` returns a
+404 when `NODE_ENV` is production, nothing under `lib/preview/` writes to the
+database, and every preview page carries a banner saying what it is. The real
+routes never import from `lib/preview/`, so there is no flag to leave switched
+on by accident.
+
 Screens whose engine does not exist yet render an explicit "awaiting phase N"
 state. They never render placeholder numbers: a decision tool that displays an
 invented expected-points figure is worse than one that displays nothing.
