@@ -14,6 +14,11 @@ const SCREENS = [
     note: "Pitch view, per-player EP, fixture difficulty strips",
   },
   {
+    href: "/preview/captain",
+    name: "Captain",
+    note: "Not just who — the shape of each candidate: haul, blank, ceiling",
+  },
+  {
     href: "/preview/transfers",
     name: "Transfers",
     note: "Ranked options, hits, the roll, and the budget shadow price",

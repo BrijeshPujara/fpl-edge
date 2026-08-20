@@ -35,6 +35,20 @@ function pool(): Candidate[] {
           pMinutes: 0.9,
           flag: null,
           unavailable: false,
+          modelInput: {
+            playerId: id,
+            position: position as PositionId,
+            teamId: club,
+            minutes: {
+              status: "a",
+              chanceOfPlayingNextRound: null,
+              recentStarts: [],
+              recentMinutes: [],
+            },
+            recent: [],
+            priorSeason: null,
+          },
+          thisGameweek: [],
         });
       }
     }

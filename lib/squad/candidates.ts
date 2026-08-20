@@ -1,12 +1,17 @@
 import { PLAYER_STATUS, POSITION_SHORT, type PositionId } from "@/lib/rules";
 import type { PlayerCandidate } from "@/lib/engine/optimiser";
-import type { PriorSeasonRates } from "@/lib/engine/expected-points";
+import type {
+  FixtureContext,
+  PlayerModelInput,
+  PriorSeasonRates,
+} from "@/lib/engine/expected-points";
 import { projectMinutes } from "@/lib/engine/minutes";
 import { readNewsSignal } from "@/lib/engine/news-signal";
 import {
   fixtureContextsFor,
   historyFor,
   leagueRatings,
+  modelInputFor,
   projectPlayer,
   statsByPlayer,
 } from "./projection";
@@ -39,6 +44,17 @@ export interface Candidate {
   flag: { chance: number | null; note: string } | null;
   /** True when the API says the player cannot be selected at all. */
   unavailable: boolean;
+  /**
+   * The model input this projection was built from, and the fixtures it was
+   * built against, both for the gameweek being decided.
+   *
+   * Carried rather than rebuilt. The captain screen needs the full outcome
+   * distribution rather than its mean, and reconstructing these would mean a
+   * second assembly of the same inputs — which is exactly how two screens end
+   * up disagreeing about the same player.
+   */
+  modelInput: PlayerModelInput;
+  thisGameweek: FixtureContext[];
 }
 
 export interface CandidatePool {
@@ -147,6 +163,8 @@ export function buildCandidatePool(
       newsMultiplier: readNewsSignal(player.news).multiplier,
     }).pAppears;
 
+    const thisGameweek = contexts.filter((c) => c.gw === input.gw);
+
     candidates.push({
       id: player.id,
       name: player.web_name,
@@ -160,6 +178,12 @@ export function buildCandidatePool(
       pMinutes,
       flag: flagFor(player),
       unavailable: player.status !== PLAYER_STATUS.available,
+      modelInput: modelInputFor(
+        player,
+        history,
+        input.priorSeasons?.get(player.code) ?? null,
+      ),
+      thisGameweek,
     });
   }
 

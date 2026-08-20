@@ -527,3 +527,26 @@ export const PRIOR_SEASON_MIN_MINUTES = 900;
  * correctly because FPL writes seasons zero-padded and year-first.
  */
 export const FIRST_XG_SEASON = "2022/23";
+
+// ---------------------------------------------------------------------------
+// Captaincy
+// ---------------------------------------------------------------------------
+
+/**
+ * The score at or above which a captain has "hauled".
+ *
+ * Ten points is the conventional line and it survives scrutiny: doubled it is
+ * twenty, which is roughly the difference between a good gameweek and a
+ * forgettable one against a field where the average manager scores around
+ * fifty. Below that a captain has merely not hurt you.
+ */
+export const CAPTAIN_HAUL_THRESHOLD = 10;
+
+/**
+ * The score at or below which a captain has blanked.
+ *
+ * Two points, because that is what a player earns for turning up and doing
+ * nothing else. Doubling two is the outcome that actually loses a gameweek —
+ * not a red card, which is rare, but ninety anonymous minutes.
+ */
+export const CAPTAIN_BLANK_THRESHOLD = 2;
