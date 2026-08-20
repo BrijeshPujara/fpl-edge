@@ -82,11 +82,13 @@ flowchart TB
     LLM -.->|"prose only"| DB
 
     GLPK["glpk.js<br/><i>WASM solver</i>"] -.->|"injected"| OPT
-
-    style engine fill:#0d1f17,stroke:#2f6b4f
-    style external fill:#1f1a0d,stroke:#6b5a2f
-    style DB fill:#0d1417,stroke:#2f5a6b
 ```
+
+<!--
+  Deliberately unstyled. GitHub renders Mermaid in the READER's theme, and
+  hardcoded fills only work in one of them — dark subgraph fills rendered as
+  dark-on-dark, unreadable, for anyone on light mode. The default theme adapts.
+-->
 
 Three rules hold the shape:
 
