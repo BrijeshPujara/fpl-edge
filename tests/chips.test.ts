@@ -374,3 +374,78 @@ describe("gains", () => {
     );
   });
 });
+
+describe("planChips — the margin is against weeks you could actually use", () => {
+  it("never reports a negative margin", () => {
+    // Both chips want GW12. Bench Boost wins it, so Triple Captain takes GW15.
+    // Measuring TC against GW12 — a week it cannot have — would report it as
+    // worse off than an impossible alternative.
+    const plan = planChips({
+      windows: [
+        window(CHIP.benchBoost, 2, 19),
+        window(CHIP.tripleCaptain, 2, 19),
+      ],
+      gains: [
+        gain(CHIP.benchBoost, 12, 20),
+        gain(CHIP.benchBoost, 13, 3),
+        gain(CHIP.tripleCaptain, 12, 18),
+        gain(CHIP.tripleCaptain, 15, 6),
+        gain(CHIP.tripleCaptain, 16, 4),
+      ],
+      currentGw: 4,
+      solver,
+    });
+
+    for (const assignment of plan.assignments) {
+      if (assignment.marginOverNextBest === null) continue;
+      expect(assignment.marginOverNextBest).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("names a free gameweek as the alternative, not an occupied one", () => {
+    const plan = planChips({
+      windows: [
+        window(CHIP.benchBoost, 2, 19),
+        window(CHIP.tripleCaptain, 2, 19),
+      ],
+      gains: [
+        gain(CHIP.benchBoost, 12, 20),
+        gain(CHIP.benchBoost, 13, 3),
+        gain(CHIP.tripleCaptain, 12, 18),
+        gain(CHIP.tripleCaptain, 15, 6),
+        gain(CHIP.tripleCaptain, 16, 4),
+      ],
+      currentGw: 4,
+      solver,
+    });
+
+    const tc = plan.assignments.find((a) => a.chip === CHIP.tripleCaptain)!;
+    expect(tc.gw).toBe(15);
+    // GW12 is Bench Boost's. The real alternative is GW16.
+    expect(tc.nextBestGw).toBe(16);
+    expect(tc.marginOverNextBest).toBeCloseTo(2, 6);
+  });
+
+  it("reports no alternative when every other week is taken", () => {
+    const plan = planChips({
+      windows: [
+        window(CHIP.benchBoost, 10, 11),
+        window(CHIP.tripleCaptain, 10, 11),
+      ],
+      gains: [
+        gain(CHIP.benchBoost, 10, 20),
+        gain(CHIP.benchBoost, 11, 18),
+        gain(CHIP.tripleCaptain, 10, 9),
+        gain(CHIP.tripleCaptain, 11, 8),
+      ],
+      currentGw: 4,
+      solver,
+    });
+
+    expect(plan.assignments).toHaveLength(2);
+    for (const assignment of plan.assignments) {
+      expect(assignment.marginOverNextBest).toBeNull();
+      expect(assignment.nextBestGw).toBeNull();
+    }
+  });
+});

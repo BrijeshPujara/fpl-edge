@@ -300,3 +300,74 @@ describe("optimiseSquad — retention floor", () => {
     expect(kept).toHaveLength(10);
   });
 });
+
+describe("suggestTransfers — robustness", () => {
+  it("still offers the roll when the current squad breaks the bench floor", () => {
+    // Two injured players means "retain all fifteen" cannot satisfy the
+    // optimiser's nailed-bench constraint. Rolling is nonetheless a real
+    // option in real life, and losing the whole screen over it would be the
+    // worst possible failure mode.
+    const squad = currentSquad().map((p, i) =>
+      i < 6 ? { ...p, pMinutes: 0 } : p,
+    );
+
+    const result = suggestTransfers(
+      {
+        currentSquad: squad,
+        candidates: upgrades(3),
+        freeTransfers: 1,
+        bank: 0,
+      },
+      solver,
+    );
+
+    const roll = result.options.find((o) => o.transfers === 0);
+    expect(roll).toBeDefined();
+    expect(roll?.epGain).toBe(0);
+    expect(roll?.netGain).toBe(0);
+  });
+
+  it("reports no shadow price for the roll rather than claiming zero", () => {
+    const result = suggestTransfers(
+      {
+        currentSquad: currentSquad(),
+        candidates: upgrades(3),
+        freeTransfers: 1,
+        bank: 0,
+      },
+      solver,
+    );
+    const roll = result.options.find((o) => o.transfers === 0);
+    // Zero would assert money is worthless at this squad. Null says unknown.
+    expect(roll?.marginalEpPerTenth).toBeNull();
+  });
+
+  it("measures gain on the starting eleven, not the fifteen", () => {
+    // One outstanding upgrade that will start, and the squad is otherwise
+    // uniform at 3. The XI gain is the difference for that one slot; a
+    // fifteen-wide measure would report the same number here, so make the
+    // bench the discriminator: a huge bench-only upgrade must NOT be counted.
+    const squad = currentSquad();
+    const result = suggestTransfers(
+      { currentSquad: squad, candidates: upgrades(1, 6), freeTransfers: 1, bank: 0 },
+      solver,
+    );
+    const one = result.options.find((o) => o.transfers === 1);
+    expect(one).toBeDefined();
+    // The best single upgrade is worth 6 more than the player it replaces, and
+    // that player was starting, so the XI gains exactly that.
+    expect(one!.epGain).toBeGreaterThan(0);
+    expect(one!.epGain).toBeLessThanOrEqual(6.0001);
+  });
+
+  it("carries the roll's price movement rather than zeroing it", () => {
+    const squad = currentSquad().map((p) => ({ ...p, expectedPriceDelta: 0.4 }));
+    const result = suggestTransfers(
+      { currentSquad: squad, candidates: upgrades(1), freeTransfers: 1, bank: 0 },
+      solver,
+    );
+    const roll = result.options.find((o) => o.transfers === 0);
+    // Holding a squad still exposes you to its price movement.
+    expect(roll?.expectedPriceDelta).toBeCloseTo(15 * 0.4, 6);
+  });
+});

@@ -9,6 +9,7 @@ import { CHIP_LABEL, TOTAL_GAMEWEEKS, type ChipName } from "@/lib/rules";
 import { cn } from "@/lib/cn";
 import { Panel, SectionLabel } from "@/components/ui/panel";
 import { Pending } from "@/components/ui/pending";
+import { ChipAdvisories } from "@/components/chips/advisories";
 
 /**
  * The 38-gameweek chip timeline.
@@ -18,8 +19,9 @@ import { Pending } from "@/components/ui/pending";
  * fixtures per team per gameweek. No expected-points model is involved, which
  * is why this is the one analytical screen that works in phase 1.
  *
- * The chip advisories — which gameweek to actually play each chip — are
- * phase 4 and depend on the model.
+ * The advisories below it — which gameweek to actually play each chip — are
+ * solved rather than triggered, and depend on the expected-points model. See
+ * `components/chips/advisories.tsx`.
  */
 export default async function ChipsPage() {
   const season = await getSeasonContext();
@@ -178,13 +180,7 @@ export default async function ChipsPage() {
       ) : null}
 
       <div className="mt-6">
-        <SectionLabel>CHIP ADVISORIES</SectionLabel>
-        <Pending phase="phase 4 — chip strategy">
-          Which gameweek to play each chip, with a confidence level and an
-          urgency score that rises as the window closes. The windows and the
-          blank/double calendar above are the inputs; the recommendation needs
-          the expected-points model on top.
-        </Pending>
+        <ChipAdvisories />
       </div>
     </div>
   );

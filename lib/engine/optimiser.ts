@@ -94,6 +94,18 @@ export interface OptimiserOptions {
    */
   retentionPool?: number[];
   minRetained?: number;
+  /**
+   * Whether to measure the budget shadow price. Defaults to true.
+   *
+   * It costs a whole second solve — a mixed-integer programme has no usable
+   * duals, so the relaxation has to be solved separately — and callers that
+   * only want the squad pay double for a number they discard. The chip planner
+   * runs dozens of solves per render and needs none of them.
+   *
+   * When false, `marginalEpPerTenth` is 0. Read `shadowPriceMeasured` before
+   * showing it, or you will present "money is worth nothing here" as a finding.
+   */
+  shadowPrice?: boolean;
 }
 
 export interface OptimisedSquad {
@@ -113,6 +125,11 @@ export interface OptimisedSquad {
    * zero as budget stops binding.
    */
   marginalEpPerTenth: number;
+  /**
+   * False when `shadowPrice: false` skipped the relaxation. `marginalEpPerTenth`
+   * is then 0 because it was never measured, not because money is worthless.
+   */
+  shadowPriceMeasured: boolean;
   /** The price weight actually applied, after resolving "auto". */
   priceWeightUsed: number;
 }
@@ -371,11 +388,14 @@ export function optimiseSquad(
   }
 
   // Second solve purely for the dual. Same programme, integrality dropped.
-  const relaxation = solver.solve(buildProblem(players, build, true));
-  const marginalEpPerTenth = Math.max(
-    0,
-    relaxation.duals?.[BUDGET_CONSTRAINT] ?? 0,
-  );
+  const wantShadowPrice = options.shadowPrice ?? true;
+  const relaxation = wantShadowPrice
+    ? solver.solve(buildProblem(players, build, true))
+    : null;
+  const marginalEpPerTenth =
+    relaxation === null
+      ? 0
+      : Math.max(0, relaxation.duals?.[BUDGET_CONSTRAINT] ?? 0);
 
   const chosen = players.filter((p) => (mip.variables[inSquad(p.id)] ?? 0) > 0.5);
   const starting = chosen.filter((p) => (mip.variables[inXi(p.id)] ?? 0) > 0.5);
@@ -398,6 +418,7 @@ export function optimiseSquad(
       0,
     ),
     marginalEpPerTenth,
+    shadowPriceMeasured: wantShadowPrice,
     priceWeightUsed: priceWeight,
   };
 }

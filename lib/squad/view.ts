@@ -6,11 +6,12 @@ import {
   type PositionId,
 } from "@/lib/rules";
 import {
-  expectedPoints,
-  type FixtureContext,
-  type GameweekSample,
-} from "@/lib/engine/expected-points";
-import { FORM_WINDOW } from "@/lib/engine/constants";
+  fixtureContextsFor,
+  historyFor,
+  leagueRatings,
+  projectPlayer,
+  statsByPlayer,
+} from "./projection";
 
 /**
  * Assembling the squad view.
@@ -130,16 +131,6 @@ const ORDER: PositionId[] = [
   POSITION.FWD,
 ];
 
-/** League mean and spread of a rating, ignoring the zeros reported pre-season. */
-function ratingStats(values: number[]): { mean: number; std: number } | null {
-  const real = values.filter((v) => v > 0);
-  if (real.length < 2) return null;
-  const mean = real.reduce((a, b) => a + b, 0) / real.length;
-  const variance =
-    real.reduce((sum, v) => sum + (v - mean) ** 2, 0) / real.length;
-  return { mean, std: Math.sqrt(variance) };
-}
-
 /** The next N fixtures for a team, from a gameweek forward. */
 export function fixtureStripFor(
   teamId: number,
@@ -200,24 +191,8 @@ export function buildSquadView(input: BuildSquadViewInput): SquadView {
   const teamsById = new Map(input.teams.map((t) => [t.id, t]));
   const playersById = new Map(input.players.map((p) => [p.id, p]));
 
-  const attack = ratingStats(
-    input.teams.flatMap((t) => [t.strength_attack_home, t.strength_attack_away]),
-  );
-  const defence = ratingStats(
-    input.teams.flatMap((t) => [
-      t.strength_defence_home,
-      t.strength_defence_away,
-    ]),
-  );
-
-  const statsByPlayer = new Map<number, StatLike[]>();
-  for (const s of input.stats) {
-    const list = statsByPlayer.get(s.player_id) ?? [];
-    list.push(s);
-    statsByPlayer.set(s.player_id, list);
-  }
-  for (const list of statsByPlayer.values()) list.sort((a, b) => b.gw - a.gw);
-
+  const ratings = leagueRatings(input.teams);
+  const byPlayer = statsByPlayer(input.stats);
   const anyHistory = input.stats.length > 0;
 
   const tiles: PlayerTileView[] = [];
@@ -225,18 +200,7 @@ export function buildSquadView(input: BuildSquadViewInput): SquadView {
     const player = playersById.get(pick.player_id);
     if (!player) continue;
 
-    const history = (statsByPlayer.get(player.id) ?? []).slice(0, FORM_WINDOW);
-    const recent: GameweekSample[] = history.map((s) => ({
-      minutes: s.minutes,
-      started: s.starts > 0,
-      expectedGoals: s.expected_goals,
-      expectedAssists: s.expected_assists,
-      defensiveContribution: s.defensive_contribution,
-      bonus: s.bonus,
-      goalsConceded: s.goals_conceded,
-      yellowCards: s.yellow_cards,
-      redCards: s.red_cards,
-    }));
+    const history = historyFor(player.id, byPlayer);
 
     const strip = fixtureStripFor(
       player.team_id,
@@ -247,64 +211,19 @@ export function buildSquadView(input: BuildSquadViewInput): SquadView {
     );
 
     const team = teamsById.get(player.team_id);
-    const next = input.fixtures.find(
-      (f) =>
-        f.gw === input.gw &&
-        (f.home_team === player.team_id || f.away_team === player.team_id),
-    );
-    const isHome = next ? next.home_team === player.team_id : true;
-    const opponentId = next
-      ? isHome
-        ? next.away_team
-        : next.home_team
-      : null;
-    const opponent = opponentId ? teamsById.get(opponentId) : null;
 
-    const fixture: FixtureContext = {
-      gw: input.gw,
-      isHome,
-      teamDefence: team
-        ? isHome
-          ? team.strength_defence_home
-          : team.strength_defence_away
-        : null,
-      opponentAttack: opponent
-        ? isHome
-          ? opponent.strength_attack_away
-          : opponent.strength_attack_home
-        : null,
-      leagueMeanAttack: attack?.mean ?? null,
-      leagueStdAttack: attack?.std ?? null,
-      opponentDefence: opponent
-        ? isHome
-          ? opponent.strength_defence_away
-          : opponent.strength_defence_home
-        : null,
-      leagueMeanDefence: defence?.mean ?? null,
-      leagueStdDefence: defence?.std ?? null,
-    };
-
-    const ep = expectedPoints(
-      {
-        playerId: player.id,
-        position: player.position as PositionId,
-        teamId: player.team_id,
-        minutes: {
-          status: player.status,
-          chanceOfPlayingNextRound: player.chance_of_playing_next_round,
-          recentStarts: history.map((s) => s.starts > 0),
-          recentMinutes: history.map((s) => s.minutes),
-        },
-        recent,
-        priorSeason: null,
-        setPieces: {
-          penaltiesOrder: player.penalties_order ?? null,
-          cornersOrder: player.corners_order ?? null,
-          directFreekicksOrder: player.direct_freekicks_order ?? null,
-        },
-      },
-      fixture,
+    // Every fixture in the target gameweek, not just the first. A double
+    // gameweek is two fixtures and should project as two — taking only the
+    // first understated it by half.
+    const contexts = fixtureContextsFor(
+      player.team_id,
+      input.fixtures,
+      teamsById,
+      ratings,
+      [input.gw],
     );
+
+    const ep = projectPlayer(player, history, contexts, [input.gw]);
 
     tiles.push({
       playerId: player.id,

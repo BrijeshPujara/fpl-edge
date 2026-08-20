@@ -396,3 +396,44 @@ export const SET_PIECE_TAKER_SHARE = [0.75, 0.18, 0.05] as const;
  * Reproduce with `SP_FLOOR` wired into `setPieceCredit` and `npm run backtest`.
  */
 export const SET_PIECE_CREDIT_APPEARANCES = FORM_WINDOW;
+
+// ---------------------------------------------------------------------------
+// Chip planning
+// ---------------------------------------------------------------------------
+
+/**
+ * Gameweeks ahead the chip planner looks.
+ *
+ * Longer than DEFAULT_HORIZON on purpose. The squad optimiser plans a team that
+ * has to survive five weeks; the chip planner is answering "is a better week
+ * coming before this window shuts", and a five-week view cannot see a December
+ * double from October. Ten weeks reaches far enough to catch the fixture swings
+ * that actually decide chip timing.
+ *
+ * The cost is real — Free Hit and Wildcard each need a solve per gameweek — so
+ * this is a balance against page render time, not a free parameter.
+ */
+export const CHIP_SCAN_HORIZON = 10;
+
+/**
+ * Gameweeks over which confidence in a chip projection halves.
+ *
+ * Distant projections are worth less than near ones, but not nothing: the
+ * biggest chip weeks of a season are precisely the far-off doubles, so a hard
+ * horizon cut-off would blind the planner to exactly what it exists to find.
+ * Geometric decay discounts them without discarding them.
+ *
+ * Five gameweeks is roughly the span over which a squad and the fixture list
+ * both stop resembling today's — the same reasoning behind DEFAULT_HORIZON.
+ */
+export const CHIP_CONFIDENCE_HALF_LIFE = 5;
+
+/**
+ * Floor under that decay.
+ *
+ * Without it, a gameweek far enough out is worth arbitrarily close to zero and
+ * the planner would sooner burn a chip on a mediocre week now than hold it for
+ * a known double later. The floor keeps distant opportunities visible; it is a
+ * deliberate refusal to let the discount run to nothing.
+ */
+export const CHIP_CONFIDENCE_FLOOR = 0.25;

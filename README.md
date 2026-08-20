@@ -59,8 +59,14 @@ gate each build phase has to pass.
 | Transfer suggestions | Working — each transfer count pinned by a retention floor |
 | Chip planner | Working — assignment problem over chips and gameweeks |
 | Price momentum | Capturing daily; reports no confidence until roughly GW4 |
-| `/transfers` and `/chips` screens | Not built — the engine behind both is done |
+| `/transfers` screen | Working — ranked options with the roll always offered |
+| `/chips` screen | Working — timeline, plan, expiry pressure |
 | LLM brief | Not built — see PLAN.md §8 |
+
+Both decision screens gate on whether any gameweek has been played. Until one
+has, every projection is the same positional prior, so they explain that rather
+than ranking noise. That gate is `projectable` on the candidate pool, and it is
+the single most important line of code on either screen.
 
 Screens whose engine does not exist yet render an explicit "awaiting phase N"
 state. They never render placeholder numbers: a decision tool that displays an

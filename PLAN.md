@@ -415,9 +415,9 @@ Notification: start by writing the brief to the DB and rendering it in the UI. A
 |---|---|
 | `/` | Dashboard — current GW, deadline countdown, squad EP total, top 3 recommended actions, chip expiry countdown |
 | `/squad` | Your 15 in pitch view, per-player EP, next 5 fixtures with difficulty colouring, flag warnings |
-| `/transfers` | Ranked transfer options, EP delta, cost after hits, price-change risk, "roll instead" option |
+| `/transfers` | Ranked transfer options, EP delta, cost after hits, price-change risk, "roll instead" option. **Built.** The roll is always an option, never an absence, and gain is measured on the starting XI rather than the fifteen — only the eleven score, and the four-point hit it has to clear is charged in real points |
 | `/captain` | Captain candidates ranked by EP with the distribution, not just the mean — ceiling matters for captaincy |
-| `/chips` | Timeline across 38 gameweeks, chip advisories, blank/double gameweek markers |
+| `/chips` | Timeline across 38 gameweeks, chip advisories, blank/double gameweek markers. **Built.** Advisories are solved, not triggered (§7), and each carries the margin over the best week the chip could actually move to |
 | `/history` | Decision journal — what was recommended, what you did, what it returned versus the alternative |
 | `/leagues` | Mini-league standings, rival squads, differential analysis (who owns what that you do not) |
 

@@ -40,11 +40,10 @@ it followed the 01:30 UK price change. It did not — 15 minutes early under BST
 75 under GMT — so every price snapshot was a day stale. Now 02:00 UTC, which is
 late enough in both.
 
-**Still open.** Nothing consumes the projection yet: `projectPriceChange` has
-no production caller because `/transfers` is not built. The seam is ready —
-`loadPriceMomentumInputs` returns exactly what the model takes, and the
-optimiser already accepts `expectedPriceDelta` per candidate. Confidence will
-read `"none"` until roughly GW4, which is correct rather than broken.
+**Now wired.** `/transfers` feeds `realisableDelta` into the optimiser per
+candidate via `loadDecisionContext`. Confidence reads `"none"` until roughly
+GW4, which is correct rather than broken — the price term simply contributes
+nothing until there is momentum to measure.
 
 ### 2. ~~`suggestTransfers` cannot pin a transfer count~~ — **done**, 2026-08-20
 
@@ -150,13 +149,21 @@ cannot give. Unplayed chips report why rather than vanishing.
 worth knowing about: Triple Captain's gain is **one** further multiple of
 captain EP, not three, because the armband is already paying double.
 
-**Still open.** The Free Hit and Wildcard gains need a solve against a candidate
-pool and a budget, so they are the caller's job — `optimalFreeHit` and
-`optimalWildcard` produce them, and the difference against the current squad is
-the gain. Nothing calls `planChips` yet because `/chips` is not built. And gains
-are treated as independent across chips, which they are not: a Wildcard changes
-what a Bench Boost is worth the week after. That is the transfer-path MILP's
-problem, below.
+**Now complete and wired.** All four gains are computed in
+`lib/engine/chip-gains.ts` and rendered on `/chips`. Free Hit and Wildcard each
+take a solve per gameweek, which is why `OptimiserOptions.shadowPrice` exists —
+the dual costs a whole second solve and the chip planner needs none of them.
+
+One flaw found and fixed while building the screen: `marginOverNextBest`
+originally compared against the best *unconstrained* alternative gameweek, which
+goes negative whenever another chip won that week. "3.6 points worse than a
+gameweek you cannot have" answers no question anyone is asking. It now compares
+only against gameweeks no other chip is using, which makes it non-negative by
+optimality.
+
+Still open: gains are treated as independent across chips, which they are not —
+a Wildcard changes what a Bench Boost is worth the week after. That is the
+transfer-path MILP's problem, below.
 
 ### 4. Better form modelling
 
@@ -182,6 +189,11 @@ ratings is the likely fix, and it is directly testable against the backtest.
 4. ~~**`suggestTransfers` cardinality**~~ — done 2026-08-20.
 5. **Transfer-path MILP** — biggest win, biggest job, wants real data first.
    **Next up**, once a few gameweeks have been played.
+
+The screens are built, so the remaining work is all model quality rather than
+plumbing. Both `/transfers` and `/chips` will render an explanation instead of a
+table until a gameweek has been played — see `projectable` on the candidate
+pool. That is the intended behaviour, not an outage.
 6. **Form modelling and forwards** — needs ten-plus gameweeks of 2026/27 before
    tuning is anything other than overfitting.
 

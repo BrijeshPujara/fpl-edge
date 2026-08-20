@@ -70,11 +70,19 @@ export interface ChipAssignment {
   /** After the confidence multiplier — what the solver actually maximised. */
   adjustedGain: number;
   /**
-   * The next-best gameweek for this chip, and what it would have paid.
+   * The best gameweek this chip could move to instead, and how much worse that
+   * would be.
    *
-   * This is the part a threshold cannot produce and the part worth showing a
-   * user: a wide margin means play it here with confidence, and a margin near
-   * zero means the choice is close and worth revisiting next week.
+   * Restricted to gameweeks no OTHER chip in the plan is using, which is the
+   * whole subtlety. Comparing against the unconstrained best week produces a
+   * negative margin whenever another chip won that week — "3.6 points worse
+   * than a gameweek you cannot have" is not an answer to any question a user
+   * is asking. Against genuinely available weeks the margin is non-negative by
+   * optimality: if moving there gained anything, the plan would have done it.
+   *
+   * Null when the chip has nowhere else to go. A wide margin means play it
+   * here with confidence; a margin near zero means the call is close and worth
+   * revisiting next week.
    */
   nextBestGw: number | null;
   marginOverNextBest: number | null;
@@ -257,21 +265,31 @@ export function planChips(options: ChipPlanOptions): ChipPlan {
   const assignments: ChipAssignment[] = [];
   const chosen = new Set<string>();
 
-  for (const edge of edges) {
-    const name = playVar(edge.window.name, edge.window.set, edge.gw);
-    if ((solution.variables[name] ?? 0) < 0.5) continue;
+  const playedEdges = edges.filter(
+    (e) =>
+      (solution.variables[playVar(e.window.name, e.window.set, e.gw)] ?? 0) >=
+      0.5,
+  );
+  const occupied = new Map(
+    playedEdges.map((e) => [e.gw, key(e.window.name, e.window.set)]),
+  );
 
+  for (const edge of playedEdges) {
     const k = key(edge.window.name, edge.window.set);
     chosen.add(k);
 
-    // The counterfactual: the best OTHER gameweek for this same chip. Compared
-    // against the unconstrained alternative rather than the next one the solver
-    // would have picked, because the question a user is asking is "is a better
-    // week coming", not "what would the solver do second".
+    // The counterfactual: where else could THIS chip go?
+    //
+    // Only gameweeks free of another chip count. A week already spoken for is
+    // not an alternative, and measuring against one produces the nonsense of a
+    // negative margin — the chip is "worse off" than a slot it was never able
+    // to take. Restricted this way the margin is non-negative by optimality.
     const alternatives = edges
       .filter(
         (e) =>
-          key(e.window.name, e.window.set) === k && e.gw !== edge.gw,
+          key(e.window.name, e.window.set) === k &&
+          e.gw !== edge.gw &&
+          (occupied.get(e.gw) ?? k) === k,
       )
       .sort((a, b) => b.adjustedGain - a.adjustedGain);
     const nextBest = alternatives[0];

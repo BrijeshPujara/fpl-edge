@@ -1,5 +1,11 @@
 import { HIT_BREAK_EVEN_EP, TRANSFER_HIT_COST } from "@/lib/rules";
-import { optimiseSquad, type OptimiserOptions, type PlayerCandidate } from "./optimiser";
+import {
+  InfeasibleError,
+  optimiseSquad,
+  type OptimiserOptions,
+  type PlayerCandidate,
+} from "./optimiser";
+import { bestXi } from "./best-xi";
 import type { LpSolver } from "./lp";
 
 /**
@@ -25,7 +31,14 @@ export interface TransferOption {
   transfers: number;
   playersIn: PlayerCandidate[];
   playersOut: PlayerCandidate[];
-  /** Raw EP gain over the horizon, before any hit. */
+  /**
+   * Gain in STARTING XI expected points over the horizon, before any hit.
+   *
+   * The starting eleven and not the fifteen, because only the eleven score.
+   * Measuring the whole squad would credit a transfer for upgrading a bench
+   * player who never plays, and the four-point hit it has to clear is charged
+   * in real scoring points.
+   */
   epGain: number;
   /** Points deducted for transfers beyond the free allowance. */
   hitCost: number;
@@ -38,8 +51,13 @@ export interface TransferOption {
    * adjusted for the sell-on fee.
    */
   expectedPriceDelta: number;
-  /** Marginal EP per £0.1m at this squad, from the LP dual. */
-  marginalEpPerTenth: number;
+  /**
+   * Marginal EP per £0.1m at this squad, from the LP dual.
+   *
+   * Null for the roll, which is computed without a solve and therefore has no
+   * dual to read.
+   */
+  marginalEpPerTenth: number | null;
 }
 
 export interface TransferSuggestion {
@@ -80,19 +98,56 @@ export function suggestTransfers(
 
   const results: TransferOption[] = [];
   const baselinePrice = currentSquad.reduce((sum, p) => sum + p.price, 0);
-  const baselineEp = currentSquad.reduce((sum, p) => sum + p.ep, 0);
 
-  for (let n = 0; n <= maxTransfers; n++) {
+  // What the current squad is worth if nothing changes. Every option is
+  // measured against this, so it has to be the same quantity the options
+  // report: the best legal eleven, not the sum of the fifteen.
+  const baseline = bestXi(currentSquad);
+
+  // The roll needs no solve. Keeping all fifteen IS the current squad, so its
+  // value is known exactly, and computing it directly rather than asking the
+  // optimiser to rediscover it has a second benefit that matters more: it
+  // cannot fail. A squad carrying two injured players can violate the
+  // optimiser's nailed-bench floor, which would make "retain all fifteen"
+  // infeasible and take the whole screen down with it — for the one option
+  // that is always available in real life.
+  results.push({
+    transfers: 0,
+    playersIn: [],
+    playersOut: [],
+    epGain: 0,
+    hitCost: 0,
+    netGain: 0,
+    costDelta: 0,
+    expectedPriceDelta: currentSquad.reduce(
+      (sum, p) => sum + (p.expectedPriceDelta ?? 0),
+      0,
+    ),
+    // No solve, so no dual. Null rather than zero: zero would claim money is
+    // worth nothing at this squad, which is a strong and probably false claim.
+    marginalEpPerTenth: null,
+  });
+
+  for (let n = 1; n <= maxTransfers; n++) {
     // Pinning the scenario: requiring 15 − n of the current squad to survive
     // is exactly "at most n transfers". Without this every iteration solved
     // the identical unconstrained problem and was then filtered by whatever
     // count fell out, so most counts were never offered at all.
-    const solved = optimiseSquad(pool, solver, {
-      ...options,
-      budget,
-      retentionPool: currentSquad.map((p) => p.id),
-      minRetained: currentSquad.length - n,
-    });
+    let solved;
+    try {
+      solved = optimiseSquad(pool, solver, {
+        ...options,
+        budget,
+        retentionPool: currentSquad.map((p) => p.id),
+        minRetained: currentSquad.length - n,
+      });
+    } catch (error) {
+      // One scenario being infeasible is not the screen failing. A tight
+      // budget or a flagged squad can make a given transfer count impossible
+      // while others remain fine, so drop this one and keep the rest.
+      if (error instanceof InfeasibleError) continue;
+      throw error;
+    }
 
     const fifteen = [...solved.starting, ...solved.bench];
     const chosen = new Set(fifteen.map((p) => p.id));
@@ -102,7 +157,7 @@ export function suggestTransfers(
     // The floor is "at most n", so a scenario may return fewer changes than
     // asked when the extra transfer is not worth making. That is a correct
     // answer rather than a miss, and the duplicate is collapsed below.
-    const epGain = solved.startingEp + solved.benchEp - baselineEp;
+    const epGain = solved.startingEp - baseline.startingEp;
     const paid = Math.max(0, playersOut.length - freeTransfers);
     const hitCost = paid * TRANSFER_HIT_COST;
 

@@ -174,3 +174,44 @@ export async function getTotalManagers(db: Db): Promise<number | null> {
   if (error) throw new Error(`Failed to read game state: ${error.message}`);
   return data?.total_players ?? null;
 }
+
+/**
+ * Every player. The optimiser's candidate pool.
+ *
+ * Unfiltered on purpose — including the injured and the suspended. Filtering
+ * here would silently remove them from "who could I buy", but they still have
+ * to appear in "who do I own", and the model already prices unavailability
+ * through the minutes projection. One list, one truth.
+ */
+export async function getAllPlayers(db: Db): Promise<PlayerRow[]> {
+  const { data, error } = await db.from("players").select("*");
+  if (error) throw new Error(`Failed to read players: ${error.message}`);
+  return data ?? [];
+}
+
+export interface ChipPlayed {
+  gw: number;
+  chip: string;
+}
+
+/**
+ * Chips already used this season, from the stored squad rows.
+ *
+ * Which SET a chip belonged to is not stored, because it is derivable: the set
+ * is whichever window contains the gameweek it was played in. Storing it would
+ * be a second copy of a fact the API already reports, free to drift.
+ */
+export async function getChipsPlayed(db: Db): Promise<ChipPlayed[]> {
+  const { data, error } = await db
+    .from("squads")
+    .select("gw, chip_played")
+    .not("chip_played", "is", null)
+    .order("gw", { ascending: true });
+
+  if (error) throw new Error(`Failed to read chips played: ${error.message}`);
+  return (data ?? [])
+    .filter((r): r is { gw: number; chip_played: string } =>
+      r.chip_played !== null,
+    )
+    .map((r) => ({ gw: r.gw, chip: r.chip_played }));
+}
