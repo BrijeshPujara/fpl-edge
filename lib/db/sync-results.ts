@@ -211,7 +211,6 @@ export async function syncResults(
           bps: stats.bps,
           total_points: stats.total_points,
           value: 0,
-          transfers_balance: 0,
         });
       }
     }

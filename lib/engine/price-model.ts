@@ -23,18 +23,21 @@ import {
  * optimiser should use. Treating movement symmetrically overvalues rises about
  * twofold and quietly biases the squad toward chasing risers.
  *
- * DATA REALITY. Both inputs come from `player_gw_stats`, which is empty until
- * gameweeks have been played, and `price_history`, which by design records only
- * actual changes. Before roughly GW4 there is nothing to fit and this returns
- * zero with `confidence: "none"`. That is the honest answer, and callers must
- * not present a zero from an empty model as a prediction of no movement.
+ * DATA REALITY. The momentum series comes from `player_transfer_snapshots`,
+ * differenced by `transfer-momentum.ts`. Two snapshots are needed before there
+ * is a single delta and the weights want six gameweeks, so before roughly GW4
+ * there is nothing to fit and this returns zero with `confidence: "none"`. That
+ * is the honest answer, and callers must not present a zero from an empty model
+ * as a prediction of no movement — `confidence` exists to be read.
  */
 
 export interface PriceMomentumInput {
   playerId: number;
   /**
    * Net transfers in (positive) or out (negative) per gameweek, most recent
-   * first — `transfers_balance` from `player_gw_stats`.
+   * first. Built by `momentumSeries` in `transfer-momentum.ts` from differenced
+   * daily snapshots — not from `player_gw_stats`, which cannot represent a
+   * per-gameweek quantity in a per-fixture row.
    */
   transfersBalance: number[];
   /** Current ownership as a percentage, 0-100. */

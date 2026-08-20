@@ -125,6 +125,11 @@ export const elementSchema = z.object({
   news_added: z.string().nullable(),
   selected_by_percent: numericString,
   form: numericString,
+  // Season-cumulative and never reset, which is why the momentum series is
+  // built by differencing these rather than by reading `transfers_in_event`.
+  // See supabase/migrations/0003_transfer_snapshots.sql.
+  transfers_in: z.number().int().optional().default(0),
+  transfers_out: z.number().int().optional().default(0),
   total_points: z.number().int(),
   minutes: z.number().int(),
   goals_scored: z.number().int(),
@@ -185,6 +190,11 @@ export const bootstrapStaticSchema = z.object({
   element_types: z.array(elementTypeSchema).min(1),
   elements: z.array(elementSchema).min(1),
   chips: z.array(chipSchema).default([]),
+  // Active manager count. The denominator behind every ownership figure, and
+  // the scale the price-change threshold is measured against — 20% ownership
+  // is 1.3m managers, and it is the count, not the percentage, that decides
+  // how many net transfers a price move needs.
+  total_players: z.number().int().optional().default(0),
 });
 
 export type FplBootstrapStatic = z.infer<typeof bootstrapStaticSchema>;

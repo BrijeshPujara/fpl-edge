@@ -120,3 +120,57 @@ export async function getRecentStats(
   if (error) throw new Error(`Failed to read player stats: ${error.message}`);
   return data ?? [];
 }
+
+/**
+ * Daily transfer snapshots for a set of players, oldest first.
+ *
+ * Ordered ascending because that is the order differencing wants, though
+ * `netTransferDeltas` sorts defensively anyway — a series differenced in the
+ * wrong order is silently sign-flipped rather than obviously broken.
+ *
+ * `lookbackDays` bounds the read: momentum older than a couple of months is
+ * noise, and the table grows by ~600 rows a day.
+ */
+export async function getTransferSnapshots(
+  db: Db,
+  playerIds: number[],
+  lookbackDays: number,
+  now: Date = new Date(),
+): Promise<Tables<"player_transfer_snapshots">[]> {
+  if (playerIds.length === 0) return [];
+
+  const since = new Date(now.getTime() - lookbackDays * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+
+  const { data, error } = await db
+    .from("player_transfer_snapshots")
+    .select("*")
+    .in("player_id", playerIds)
+    .gte("captured_on", since)
+    .order("captured_on", { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to read transfer snapshots: ${error.message}`);
+  }
+  return data ?? [];
+}
+
+/**
+ * The active manager count.
+ *
+ * Null when the row has never been written, which is a real state before the
+ * first sync. Callers must not substitute a guess: the price model reads a zero
+ * or missing manager count as "no scale information" and reports
+ * `confidence: "none"`, which is the correct behaviour and is lost if a
+ * plausible-looking default is invented here.
+ */
+export async function getTotalManagers(db: Db): Promise<number | null> {
+  const { data, error } = await db
+    .from("game_state")
+    .select("total_players")
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to read game state: ${error.message}`);
+  return data?.total_players ?? null;
+}

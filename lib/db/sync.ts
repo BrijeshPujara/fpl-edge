@@ -25,7 +25,12 @@ const CHUNK_SIZE = 500;
 
 async function upsertChunked<T>(
   db: Db,
-  table: "teams" | "players" | "fixtures" | "price_history",
+  table:
+    | "teams"
+    | "players"
+    | "fixtures"
+    | "price_history"
+    | "player_transfer_snapshots",
   rows: T[],
   onConflict: string,
 ): Promise<number> {
@@ -50,6 +55,7 @@ export interface SyncStaticResult {
   players: number;
   fixtures: number;
   priceSnapshots: number;
+  transferSnapshots: number;
   /** The gameweek the API considers current or next, for logging. */
   targetGw: number | null;
 }
@@ -134,13 +140,88 @@ export async function syncStatic(db: Db): Promise<SyncStaticResult> {
     bootstrap.events.find((e) => e.is_current) ??
     null;
 
+  const transferSnapshots = await snapshotTransfers(
+    db,
+    bootstrap.elements,
+    targetEvent?.id ?? null,
+    now,
+  );
+
+  await recordGameState(db, bootstrap.total_players, now);
+
   return {
     teams: teamRows.length,
     players: playerRows.length,
     fixtures: fixtureRows.length,
     priceSnapshots,
+    transferSnapshots,
     targetGw: targetEvent?.id ?? null,
   };
+}
+
+/**
+ * Record today's cumulative transfer counters for every player.
+ *
+ * Unlike prices, this stores a row a day whether anything moved or not — the
+ * samples where nothing happened are exactly what makes differencing work, and
+ * a series with holes in it cannot be differenced at all.
+ *
+ * Keyed on the date, so running the job twice in a day overwrites rather than
+ * appends and the counters cannot be double counted.
+ *
+ * The gameweek recorded is the one transfers are being made FOR: the next
+ * deadline, not the match round in progress. `lib/engine/transfer-momentum.ts`
+ * relies on that reading when it attributes an interval to a gameweek.
+ */
+async function snapshotTransfers(
+  db: Db,
+  elements: {
+    id: number;
+    transfers_in: number;
+    transfers_out: number;
+    selected_by_percent: number;
+    now_cost: number;
+  }[],
+  gw: number | null,
+  recordedAt: string,
+): Promise<number> {
+  const capturedOn = recordedAt.slice(0, 10);
+
+  const rows: TablesInsert<"player_transfer_snapshots">[] = elements.map(
+    (element) => ({
+      player_id: element.id,
+      captured_on: capturedOn,
+      gw,
+      transfers_in: element.transfers_in,
+      transfers_out: element.transfers_out,
+      selected_by_percent: element.selected_by_percent,
+      now_cost: element.now_cost,
+    }),
+  );
+
+  return upsertChunked(
+    db,
+    "player_transfer_snapshots",
+    rows,
+    "player_id,captured_on",
+  );
+}
+
+/** The manager count, which every ownership threshold is measured against. */
+async function recordGameState(
+  db: Db,
+  totalPlayers: number,
+  recordedAt: string,
+): Promise<void> {
+  const { error } = await db
+    .from("game_state")
+    .upsert(
+      { id: true, total_players: totalPlayers, updated_at: recordedAt },
+      { onConflict: "id" },
+    );
+  if (error) {
+    throw new Error(`Failed to record game state: ${error.message}`);
+  }
 }
 
 /**

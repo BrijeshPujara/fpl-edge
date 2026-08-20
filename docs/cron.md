@@ -40,15 +40,23 @@ because retries and manual triggers both happen.
 
 | Route | Schedule | Job | Status |
 |---|---|---|---|
-| `/api/cron/sync-static` | Daily 00:15 UK | bootstrap-static + fixtures, price snapshots | Built |
+| `/api/cron/sync-static` | Daily 02:00 UTC | bootstrap-static + fixtures, price and transfer snapshots | Built |
 | `/api/cron/sync-squad` | Daily 06:00 | Entry, picks, derived free transfers | Built |
 | `/api/cron/sync-results` | Daily 08:00 | Played-gameweek results into `player_gw_stats` | Built |
 | `/api/cron/weekly-brief` | Thu 09:00 | Run engine, generate brief, persist decisions | Not built |
 | `/api/cron/resolve-outcomes` | Tue 09:00 | Score last gameweek's decisions | Not built |
 
-Note the 00:15 timing on `sync-static`: it runs after the overnight price
-changes have settled, so the daily price snapshot captures the new prices
-rather than yesterday's.
+Note the 02:00 UTC timing on `sync-static`. FPL changes prices at 01:30 UK,
+which is 00:30 UTC in summer and 01:30 UTC in winter, and GitHub cron has no
+timezone support — so 02:00 UTC is the earliest slot that lands after the
+change in both. This was previously 00:15 UTC on the belief that it ran after
+the change; it ran 15 minutes early under BST and 75 minutes early under GMT,
+and every price snapshot was a day stale as a result.
+
+The same job now also snapshots cumulative transfer counters for every player.
+That series is what `lib/engine/price-model.ts` runs on, and it is why the job
+writes a row a day per player rather than only on change: differencing needs
+the samples where nothing happened.
 
 `sync-squad` returns **200** with `status: "no-picks-yet"` when no gameweek
 deadline has passed. That is the expected state through pre-season, not a

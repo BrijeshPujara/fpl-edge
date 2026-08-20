@@ -242,7 +242,6 @@ export type Database = {
           red_cards: number
           starts: number
           total_points: number
-          transfers_balance: number
           value: number
           was_home: boolean
           yellow_cards: number
@@ -266,7 +265,6 @@ export type Database = {
           red_cards?: number
           starts?: number
           total_points?: number
-          transfers_balance?: number
           value?: number
           was_home: boolean
           yellow_cards?: number
@@ -290,7 +288,6 @@ export type Database = {
           red_cards?: number
           starts?: number
           total_points?: number
-          transfers_balance?: number
           value?: number
           was_home?: boolean
           yellow_cards?: number
@@ -312,6 +309,62 @@ export type Database = {
           },
           {
             foreignKeyName: "player_gw_stats_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_state: {
+        Row: {
+          id: boolean
+          total_players: number
+          updated_at: string
+        }
+        Insert: {
+          id?: boolean
+          total_players: number
+          updated_at?: string
+        }
+        Update: {
+          id?: boolean
+          total_players?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      player_transfer_snapshots: {
+        Row: {
+          captured_on: string
+          gw: number | null
+          now_cost: number
+          player_id: number
+          selected_by_percent: number
+          transfers_in: number
+          transfers_out: number
+        }
+        Insert: {
+          captured_on: string
+          gw?: number | null
+          now_cost: number
+          player_id: number
+          selected_by_percent?: number
+          transfers_in: number
+          transfers_out: number
+        }
+        Update: {
+          captured_on?: string
+          gw?: number | null
+          now_cost?: number
+          player_id?: number
+          selected_by_percent?: number
+          transfers_in?: number
+          transfers_out?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_transfer_snapshots_player_id_fkey"
             columns: ["player_id"]
             isOneToOne: false
             referencedRelation: "players"

@@ -12,11 +12,16 @@ name: Sync FPL data
 
 on:
   schedule:
-    # 00:15 UK, after the overnight price changes settle, so the daily price
-    # snapshot captures the new prices rather than yesterday's.
-    # GitHub cron is UTC; during BST this fires at 01:15 local, which is still
-    # comfortably after the change window.
-    - cron: "15 0 * * *"
+    # 02:00 UTC, which is AFTER the 01:30 UK price change in both BST and GMT.
+    #
+    # This used to be 00:15 UTC on the belief that it ran after the change. It
+    # did not: GitHub cron is UTC with no timezone support, so 00:15 UTC is
+    # 01:15 local under BST and 00:15 local under GMT — 15 and 75 minutes
+    # EARLY respectively. Every price snapshot was therefore a day stale.
+    #
+    # 01:30 UK is 00:30 UTC in summer and 01:30 UTC in winter, so the only
+    # times that are safely late year-round are 02:00 UTC or later.
+    - cron: "0 2 * * *"
     # 06:00 UK, for the squad.
     - cron: "0 6 * * *"
     # 08:00 UK, for played-gameweek results. Late enough that bonus points have

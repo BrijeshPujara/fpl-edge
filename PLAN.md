@@ -29,7 +29,7 @@ All from the official, unauthenticated FPL API at `https://fantasy.premierleague
 
 | Endpoint | Contents | Sync frequency |
 |---|---|---|
-| `bootstrap-static/` | All players (price, form, xG, xA, ICT, ownership, status flags), all teams (strength ratings), all gameweeks (`events`, incl. deadlines) | Daily 00:15 UK |
+| `bootstrap-static/` | All players (price, form, xG, xA, ICT, ownership, status flags, set-piece order, cumulative transfers), all teams (strength ratings), all gameweeks (`events`, incl. deadlines) | Daily 02:00 UTC |
 | `fixtures/` | Every fixture, difficulty ratings, kickoff times, finished flags | Daily |
 | `element-summary/{playerId}/` | Per-player gameweek history + upcoming fixtures | On demand, cached |
 | `event/{gw}/live/` | Live points for a gameweek | Every 15 min during match windows |
@@ -86,6 +86,9 @@ players (
   status text,                    -- a/d/i/s/u
   chance_of_playing_next_round int,
   selected_by_percent numeric,
+  penalties_order smallint,       -- 1 = designated taker, null = no duty
+  corners_order smallint,         -- corners and indirect free kicks
+  direct_freekicks_order smallint,-- stored, not modelled
   updated_at timestamptz
 )
 
@@ -96,15 +99,46 @@ player_gw_stats (
   minutes int, goals int, assists int, clean_sheets int,
   expected_goals numeric, expected_assists numeric,
   defensive_contribution int, bonus int, bps int,
-  total_points int, value int, transfers_balance int,
+  total_points int, value int,
   primary key (player_id, gw)
 )
+-- As built the key is (player_id, fixture_id) with opponent_team and was_home,
+-- because (player_id, gw) makes a double gameweek unrepresentable.
+--
+-- transfers_balance is NOT here. It is a per-gameweek quantity and this is a
+-- per-fixture table, so in a double there is no honest value to write. It lives
+-- in player_transfer_snapshots below, at finer resolution and available before
+-- a gameweek is played rather than only after.
 
+-- Changes only. A row per player per unchanged day would bury the signal.
 price_history (
   player_id int references players(id),
   recorded_at timestamptz,
   cost int,
   primary key (player_id, recorded_at)
+)
+
+-- Every day, changed or not — the opposite policy to price_history, and
+-- deliberately so. These are SEASON-CUMULATIVE counters, and the momentum
+-- series is recovered by differencing consecutive days, which needs the days
+-- where nothing moved. Cumulative rather than bootstrap's per-event fields
+-- because those reset at each deadline: miss one run and the gameweek is gone,
+-- whereas a missed day here simply merges into the next delta.
+player_transfer_snapshots (
+  player_id int references players(id),
+  captured_on date,
+  gw smallint,                    -- the gameweek transfers are being made FOR
+  transfers_in bigint, transfers_out bigint,
+  selected_by_percent numeric, now_cost int,
+  primary key (player_id, captured_on)
+)
+
+-- Single row. total_players is the denominator behind every ownership figure,
+-- and the scale the price-change threshold is measured against.
+game_state (
+  id bool primary key default true check (id),
+  total_players int,
+  updated_at timestamptz
 )
 
 fixtures (
@@ -155,7 +189,7 @@ outcomes (
 )
 ```
 
-Index `player_gw_stats(gw)`, `fixtures(gw)`, `decisions(gw)`.
+Index `player_gw_stats(gw)`, `fixtures(gw)`, `decisions(gw)`, `player_transfer_snapshots(captured_on desc)`, and `players(penalties_order) where not null`.
 
 ---
 
@@ -344,7 +378,7 @@ Cost control: cache the static portion of the system prompt, cap `max_tokens` at
 
 | Route | Schedule | Job |
 |---|---|---|
-| `/api/cron/sync-static` | Daily 00:15 UK | bootstrap-static + fixtures → DB, snapshot prices |
+| `/api/cron/sync-static` | Daily 02:00 UTC | bootstrap-static + fixtures → DB, snapshot prices and transfer counters |
 | `/api/cron/sync-squad` | Daily 06:00 | Your entry, picks, mini-league standings |
 | `/api/cron/weekly-brief` | Thu 09:00 | Run engine, generate brief, persist decisions, notify |
 | `/api/cron/resolve-outcomes` | Tue 09:00 | Score last gameweek's decisions into `outcomes` |

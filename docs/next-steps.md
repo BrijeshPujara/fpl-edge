@@ -13,20 +13,38 @@ Ordered by payoff per unit of effort within each half, not by phase number.
 These are real defects or unfinished work, not enhancements. Each one is
 already referenced from the code or docs that it affects.
 
-### 1. `transfers_balance` is always zero → the price model is inert
+### 1. ~~`transfers_balance` is always zero~~ — **done**, 2026-08-20
 
-`lib/db/sync-results.ts` writes `transfers_balance: 0` because
-`event/{gw}/live/` does not carry it. That column is the primary input to
-`lib/engine/price-model.ts`, so price momentum currently returns
-`confidence: "none"` for every player and the second objective term in the
-optimiser contributes nothing.
+Migration `0003_transfer_snapshots.sql`, `lib/engine/transfer-momentum.ts`,
+`lib/db/price-momentum.ts`. `sync-static` now records cumulative
+`transfers_in`/`transfers_out` for every player daily, plus `total_players` in
+a new `game_state` table.
 
-**Fix:** capture net transfers daily in `sync-static` from the bootstrap
-`elements[]` fields `transfers_in_event` and `transfers_out_event`, which are
-current-gameweek running totals. They must be sampled *before* the gameweek
-rolls over, which is why this belongs in the daily job rather than the
-post-gameweek one. Store per player per gameweek and have `sync-results`
-reconcile the final value.
+**Two deviations from what this document originally proposed**, both for
+correctness:
+
+- *Cumulative counters, not `transfers_in_event`.* The per-event fields reset
+  at every deadline, so the proposed "sample before rollover" loses a whole
+  gameweek to a single missed or late cron run. Cumulative counters differenced
+  day-on-day are self-healing (a missed day merges into the next delta),
+  idempotent on retry, and daily rather than weekly — which matters, because
+  FPL moves prices daily.
+- *`player_gw_stats.transfers_balance` was dropped, not filled.* That table is
+  keyed per fixture so doubles are representable; net transfers are per
+  gameweek. In a double there is no honest value to write — the true figure
+  double counts on aggregation, and splitting it invents a per-fixture number
+  that does not exist. The column was unrepresentable where it sat.
+
+Also fixed while in there: the daily sync ran at 00:15 UTC on the belief that
+it followed the 01:30 UK price change. It did not — 15 minutes early under BST,
+75 under GMT — so every price snapshot was a day stale. Now 02:00 UTC, which is
+late enough in both.
+
+**Still open.** Nothing consumes the projection yet: `projectPriceChange` has
+no production caller because `/transfers` is not built. The seam is ready —
+`loadPriceMomentumInputs` returns exactly what the model takes, and the
+optimiser already accepts `expectedPriceDelta` per candidate. Confidence will
+read `"none"` until roughly GW4, which is correct rather than broken.
 
 ### 2. `suggestTransfers` cannot pin a transfer count
 
@@ -156,10 +174,9 @@ ratings is the likely fix, and it is directly testable against the backtest.
 ## Suggested order
 
 1. ~~**Set-piece duties**~~ — done 2026-08-20.
-2. **`transfers_balance` capture** — unblocks a whole objective term that is
-   currently dead weight. **Next up.**
+2. ~~**`transfers_balance` capture**~~ — done 2026-08-20.
 3. **Chip assignment** — turns the vaguest part of the spec into something
-   exact, reuses the existing solver.
+   exact, reuses the existing solver. **Next up.**
 4. **`suggestTransfers` cardinality** — small, and needed before `/transfers`
    can be trusted.
 5. **Transfer-path MILP** — biggest win, biggest job, wants real data first.
