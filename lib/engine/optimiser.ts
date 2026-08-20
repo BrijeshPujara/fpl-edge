@@ -78,6 +78,22 @@ export interface OptimiserOptions {
   lockedIn?: number[];
   /** Players who must not be selected. */
   excluded?: number[];
+  /**
+   * Force at least `minRetained` of `retentionPool` into the fifteen.
+   *
+   * This is how a transfer count is pinned. `suggestTransfers` needs to ask
+   * "what is the best squad reachable with exactly two changes?", and the only
+   * way to express that is a floor on how many of the current fifteen survive:
+   * retaining 13 of 15 means two transfers.
+   *
+   * A floor rather than an equality, deliberately. The optimiser will never
+   * make a transfer that does not help, so the floor binds from below and the
+   * achieved count is whatever is genuinely best at or under the cap. Forcing
+   * equality would make it burn a transfer it does not want, and the caller
+   * asked for "at most n", not "exactly n".
+   */
+  retentionPool?: number[];
+  minRetained?: number;
 }
 
 export interface OptimisedSquad {
@@ -118,6 +134,8 @@ interface BuildOptions {
   budget: number;
   lockedIn: Set<number>;
   excluded: Set<number>;
+  retentionPool: Set<number>;
+  minRetained: number | null;
 }
 
 /**
@@ -244,6 +262,29 @@ function buildProblem(
     });
   }
 
+  // Cardinality: at least `minRetained` of the current squad must survive.
+  //
+  // Summing x_i over the retention pool and putting a floor under it is the
+  // whole mechanism, and it is what lets suggestTransfers ask for a specific
+  // number of changes instead of solving freely and reporting whatever count
+  // happened to come out.
+  //
+  // Skipped when the pool is empty: a floor over no variables is either
+  // vacuous (rhs <= 0) or instantly infeasible, and neither is what a caller
+  // who passed no pool meant.
+  if (opts.minRetained !== null && opts.retentionPool.size > 0) {
+    const members = players.filter((p) => opts.retentionPool.has(p.id));
+    constraints.push({
+      name: "retention",
+      coefficients: Object.fromEntries(members.map((p) => [inSquad(p.id), 1])),
+      type: ">=",
+      // Cannot retain more of the pool than the pool has members present in
+      // the candidate list — a player who has left the game is not retainable,
+      // and demanding it would report infeasible for the wrong reason.
+      rhs: Math.min(opts.minRetained, members.length),
+    });
+  }
+
   for (const id of opts.lockedIn) {
     constraints.push({
       name: `lock_${id}`,
@@ -289,7 +330,14 @@ export function optimiseSquad(
   const lockedIn = new Set(options.lockedIn ?? []);
   const excluded = new Set(options.excluded ?? []);
 
-  const base = { benchWeight, budget, lockedIn, excluded };
+  const base = {
+    benchWeight,
+    budget,
+    lockedIn,
+    excluded,
+    retentionPool: new Set(options.retentionPool ?? []),
+    minRetained: options.minRetained ?? null,
+  };
 
   // Resolve the price weight. "auto" measures the shadow price first, which is
   // the only non-arbitrary value it can take.
@@ -313,7 +361,12 @@ export function optimiseSquad(
       `No feasible squad under a budget of ${budget} tenths with ` +
         `${players.length} candidates (solver status: ${mip.status}). The ` +
         `nailed-bench floor and the max-three-per-club rule are the usual ` +
-        `causes when the candidate pool is small.`,
+        `causes when the candidate pool is small` +
+        (base.minRetained === null
+          ? "."
+          : `, and a retention floor of ${base.minRetained} narrows it ` +
+            `further — a squad that must keep that many existing players may ` +
+            `not fit the budget once prices have moved.`),
     );
   }
 

@@ -46,16 +46,21 @@ no production caller because `/transfers` is not built. The seam is ready —
 optimiser already accepts `expectedPriceDelta` per candidate. Confidence will
 read `"none"` until roughly GW4, which is correct rather than broken.
 
-### 2. `suggestTransfers` cannot pin a transfer count
+### 2. ~~`suggestTransfers` cannot pin a transfer count~~ — **done**, 2026-08-20
 
-`lib/engine/transfers.ts` solves each scenario and then *filters* results by the
-transfer count that happened to come out, because `OptimiserOptions` cannot
-express "exactly N of the current squad must be retained". Some counts may never
-be surfaced.
+`retentionPool` and `minRetained` on `OptimiserOptions`, a `retention`
+constraint in `buildProblem`, and `suggestTransfers` rewritten to use them.
 
-**Fix:** add a cardinality constraint to `buildProblem` — sum of `x_i` over the
-current squad `>= 15 - n` — and expose it through `OptimiserOptions`. The
-optimiser underneath is sound; only the wrapper is wrong.
+**It was worse than described here.** The claim was that "some counts may never
+be surfaced". In fact, with every scenario solving the identical unconstrained
+problem, the function returned exactly **one** option — an eleven-transfer
+wholesale rebuild — and no roll option at all. The regression test pins that:
+with the constraint removed it asserts `[11]` where `[0, 1, 2, 3]` is wanted.
+
+The floor is "at least 15 − n retained", not an equality. The optimiser will
+never make a transfer that does not help, so the floor binds from below and a
+scenario may return fewer changes than asked. That is the correct reading of
+"at most n" and stops the model burning a transfer it does not want.
 
 ### 3. Forwards lose to the naive baseline
 
@@ -174,9 +179,9 @@ ratings is the likely fix, and it is directly testable against the backtest.
 1. ~~**Set-piece duties**~~ — done 2026-08-20.
 2. ~~**`transfers_balance` capture**~~ — done 2026-08-20.
 3. ~~**Chip assignment**~~ — done 2026-08-20.
-4. **`suggestTransfers` cardinality** — small, and needed before `/transfers`
-   can be trusted. **Next up.**
+4. ~~**`suggestTransfers` cardinality**~~ — done 2026-08-20.
 5. **Transfer-path MILP** — biggest win, biggest job, wants real data first.
+   **Next up**, once a few gameweeks have been played.
 6. **Form modelling and forwards** — needs ten-plus gameweeks of 2026/27 before
    tuning is anything other than overfitting.
 

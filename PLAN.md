@@ -317,7 +317,7 @@ Both inputs come from tables that are empty until gameweeks have been played, so
 
 ### Modes
 
-- `suggestTransfers(currentSquad, candidates, freeTransfers, bank)` — best 0/1/2/3-transfer moves ranked by net EP after hits. Must be able to recommend *rolling*.
+- `suggestTransfers(currentSquad, candidates, freeTransfers, bank)` — best 0/1/2/3-transfer moves ranked by net EP after hits. Must be able to recommend *rolling*. Each count is pinned by a retention floor (`minRetained` on `OptimiserOptions`: keep 15 − n of the current fifteen) — a real constraint in the programme, not a filter applied to an unconstrained solve, which returns one squad and therefore one option.
 - `optimalWildcard(budget, horizon)` — unconstrained rebuild.
 - `optimalFreeHit(gw)` — single-gameweek rebuild, ignoring future value.
 - `bestXI(squad, gw)` — formation and bench order.

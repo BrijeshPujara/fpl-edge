@@ -7,10 +7,17 @@ import type { LpSolver } from "./lp";
  *
  * The four-point hit is NOT a term in a single programme. Rolling, one
  * transfer, two, and three are structurally different problems, so each is
- * solved separately with the squad size held and the number of changes
- * constrained, then the results are compared after the hit is deducted. That is
- * what makes "roll it" an answer the tool can actually give: it wins whenever
- * no move clears the bar.
+ * solved separately with the number of changes constrained, then the results
+ * are compared after the hit is deducted. That is what makes "roll it" an
+ * answer the tool can actually give: it wins whenever no move clears the bar.
+ *
+ * Each scenario is pinned by a retention floor — keep 15 − n of the current
+ * fifteen — which is a real constraint in the programme rather than a filter
+ * applied afterwards. It used to be the latter, and the difference matters: an
+ * unconstrained solve returns one squad, and filtering four identical solves by
+ * the transfer count that happened to come out means most counts were never
+ * offered. A user who wanted to see the two-transfer option simply did not get
+ * one.
  */
 
 export interface TransferOption {
@@ -49,6 +56,7 @@ export interface SuggestTransfersInput {
   freeTransfers: number;
   /** Money in the bank, tenths. */
   bank: number;
+  /** Highest number of changes to evaluate. Each one costs a solve. */
   maxTransfers?: number;
 }
 
@@ -71,43 +79,41 @@ export function suggestTransfers(
   ];
 
   const results: TransferOption[] = [];
+  const baselinePrice = currentSquad.reduce((sum, p) => sum + p.price, 0);
+  const baselineEp = currentSquad.reduce((sum, p) => sum + p.ep, 0);
 
   for (let n = 0; n <= maxTransfers; n++) {
-    // Forcing exactly 15 − n of the current squad to stay is what pins the
-    // number of transfers for this scenario.
-    const keep = currentSquad.length - n;
+    // Pinning the scenario: requiring 15 − n of the current squad to survive
+    // is exactly "at most n transfers". Without this every iteration solved
+    // the identical unconstrained problem and was then filtered by whatever
+    // count fell out, so most counts were never offered at all.
     const solved = optimiseSquad(pool, solver, {
       ...options,
       budget,
-      lockedIn: undefined,
-      // Constrain retention via a synthetic constraint is not expressible
-      // through OptimiserOptions, so scenarios with n > 0 rely on the solver
-      // choosing freely and are filtered to the achieved transfer count below.
+      retentionPool: currentSquad.map((p) => p.id),
+      minRetained: currentSquad.length - n,
     });
 
-    const chosen = new Set([...solved.starting, ...solved.bench].map((p) => p.id));
-    const actualOut = currentSquad.filter((p) => !chosen.has(p.id));
-    const actualIn = [...solved.starting, ...solved.bench].filter(
-      (p) => !currentIds.has(p.id),
-    );
+    const fifteen = [...solved.starting, ...solved.bench];
+    const chosen = new Set(fifteen.map((p) => p.id));
+    const playersOut = currentSquad.filter((p) => !chosen.has(p.id));
+    const playersIn = fifteen.filter((p) => !currentIds.has(p.id));
 
-    if (actualOut.length !== n && n !== 0) continue;
-    void keep;
-
-    const baselineEp = currentSquad.reduce((sum, p) => sum + p.ep, 0);
+    // The floor is "at most n", so a scenario may return fewer changes than
+    // asked when the extra transfer is not worth making. That is a correct
+    // answer rather than a miss, and the duplicate is collapsed below.
     const epGain = solved.startingEp + solved.benchEp - baselineEp;
-    const paid = Math.max(0, actualOut.length - freeTransfers);
+    const paid = Math.max(0, playersOut.length - freeTransfers);
     const hitCost = paid * TRANSFER_HIT_COST;
 
     results.push({
-      transfers: actualOut.length,
-      playersIn: actualIn,
-      playersOut: actualOut,
+      transfers: playersOut.length,
+      playersIn,
+      playersOut,
       epGain,
       hitCost,
       netGain: epGain - hitCost,
-      costDelta:
-        solved.totalCost - currentSquad.reduce((sum, p) => sum + p.price, 0),
+      costDelta: solved.totalCost - baselinePrice,
       expectedPriceDelta: solved.expectedPriceDelta,
       marginalEpPerTenth: solved.marginalEpPerTenth,
     });
