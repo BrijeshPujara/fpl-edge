@@ -83,9 +83,27 @@ function recentRates(
 export function projectMinutes(input: MinutesInput): MinutesProjection {
   const { status, chanceOfPlayingNextRound, recentStarts, recentMinutes } = input;
 
-  // Hard zero on anything but available. Suspended and injured players score
-  // nothing, and a model that hedges here will happily recommend them.
-  if (status !== PLAYER_STATUS.available) return NEVER;
+  // Hard zero only where the player CANNOT play. Suspension and unavailability
+  // — left the club, not registered — are absolute, and no fitness percentage
+  // can argue with them.
+  //
+  // Injury and doubt are not absolute, and this used to zero them too. That was
+  // wrong, and measurably so. Against live data: every injured, suspended and
+  // unavailable player carries `chance_of_playing_next_round: 0`, so the
+  // fitness term below zeroes them anyway and the status check was redundant.
+  // Doubtful players carry 25 to 75, mean 70 — FPL is explicitly saying most of
+  // them will play, and hard-zeroing 28 players the game rates at 70% both
+  // hides real candidates and, worse, tells you to panic-sell anyone in your
+  // own squad who picks up a knock.
+  //
+  // So: trust the percentage where the game gives one, and refuse only what is
+  // genuinely impossible.
+  if (
+    status === PLAYER_STATUS.suspended ||
+    status === PLAYER_STATUS.unavailable
+  ) {
+    return NEVER;
+  }
 
   // FITNESS and ROLE are separate questions, and the API answers only the first.
   //
@@ -93,6 +111,15 @@ export function projectMinutes(input: MinutesInput): MinutesProjection {
   // same thing — no concern — and neither says whether the player STARTS. Only
   // history answers that. Reading 100 as a positive signal would rank the few
   // players just cleared from injury above every nailed starter with no news.
+  if (chanceOfPlayingNextRound === 0) return NEVER;
+
+  // A flagged player with no percentage attached is not a fit player. For an
+  // available player null means "no concern"; for a doubtful or injured one it
+  // means the club has not said, and the harm is asymmetric — reading silence
+  // as fitness buys an injured player, reading it as absence merely skips one.
+  const flagged = status !== PLAYER_STATUS.available;
+  if (flagged && chanceOfPlayingNextRound === null) return NEVER;
+
   const fitness =
     chanceOfPlayingNextRound === null || chanceOfPlayingNextRound >= 100
       ? 1

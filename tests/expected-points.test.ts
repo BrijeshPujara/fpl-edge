@@ -62,10 +62,10 @@ function fixture(over: Partial<FixtureContext> = {}): FixtureContext {
 }
 
 describe("minutes", () => {
-  it("is a hard zero for anyone not available", () => {
-    // The model must never hedge here. An injured player scores nothing, and a
-    // model that gives them 30% of their output will recommend them.
-    for (const status of ["i", "s", "u", "d"]) {
+  it("is a hard zero for anyone who genuinely cannot play", () => {
+    // Suspension and unavailability are absolute. No fitness percentage argues
+    // with them, so they are refused on status alone.
+    for (const status of ["s", "u"]) {
       const p = projectMinutes({
         status,
         chanceOfPlayingNextRound: 75,
@@ -74,6 +74,56 @@ describe("minutes", () => {
       });
       expect(p.pAppears).toBe(0);
     }
+  });
+
+  it("trusts the percentage on a doubtful player rather than zeroing him", () => {
+    // This used to zero every status but "a". Against live data every injured,
+    // suspended and unavailable player carries a chance of 0 — so the fitness
+    // term already handled them and the status check was redundant — while
+    // doubtful players carry 25 to 75, mean 70. Zeroing those hid real
+    // candidates and, worse, told you to panic-sell anyone in your own squad
+    // who picked up a knock.
+    const history = {
+      recentStarts: [true, true, true],
+      recentMinutes: [90, 90, 90],
+    };
+    const doubtful = projectMinutes({
+      status: "d",
+      chanceOfPlayingNextRound: 75,
+      ...history,
+    });
+    const fit = projectMinutes({
+      status: "a",
+      chanceOfPlayingNextRound: null,
+      ...history,
+    });
+
+    expect(doubtful.pAppears).toBeGreaterThan(0);
+    // Discounted against a fit player, but present.
+    expect(doubtful.pAppears).toBeLessThan(fit.pAppears);
+  });
+
+  it("still refuses a player the game rates at zero", () => {
+    const p = projectMinutes({
+      status: "i",
+      chanceOfPlayingNextRound: 0,
+      recentStarts: [true, true, true],
+      recentMinutes: [90, 90, 90],
+    });
+    expect(p.pAppears).toBe(0);
+  });
+
+  it("refuses a flagged player with no percentage attached", () => {
+    // Silence from the club is not a green light. The harm is asymmetric:
+    // reading it as fitness buys an injured player, reading it as absence
+    // merely skips one.
+    const p = projectMinutes({
+      status: "i",
+      chanceOfPlayingNextRound: null,
+      recentStarts: [true, true, true],
+      recentMinutes: [90, 90, 90],
+    });
+    expect(p.pAppears).toBe(0);
   });
 
   it("lets an explicit club statement outrank history", () => {

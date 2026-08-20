@@ -101,7 +101,14 @@ describe("buildCandidatePool", () => {
   it("gives an unavailable player no expected points at all", () => {
     const pool = buildCandidatePool({
       ...base,
-      players: [player({ status: "i", news: "Knee injury" })],
+      // Zero chance, as the API reports for every injured player in practice.
+      players: [
+        player({
+          status: "i",
+          chance_of_playing_next_round: 0,
+          news: "Knee injury",
+        }),
+      ],
       stats: [stat(1, 4)],
     });
     const [c] = pool.candidates;
@@ -109,6 +116,27 @@ describe("buildCandidatePool", () => {
     expect(c.pMinutes).toBe(0);
     expect(c.ep).toBe(0);
     expect(c.flag?.note).toBe("Knee injury");
+  });
+
+  it("keeps a doubtful player in contention rather than zeroing him", () => {
+    // FPL rates doubtful players at 25 to 75. A 75% player is a real option,
+    // and treating him as certainly absent is how a model talks you into
+    // selling someone who then starts.
+    const pool = buildCandidatePool({
+      ...base,
+      players: [
+        player({
+          status: "d",
+          chance_of_playing_next_round: 75,
+          news: "Knock - 75% chance of playing",
+        }),
+      ],
+      stats: [stat(1, 4)],
+    });
+    const [c] = pool.candidates;
+    expect(c.unavailable).toBe(true);
+    expect(c.pMinutes).toBeGreaterThan(0);
+    expect(c.ep).toBeGreaterThan(0);
   });
 
   it("leaves an available player unflagged", () => {
