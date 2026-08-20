@@ -106,6 +106,13 @@ gate each build phase has to pass.
 | `/history` screen | Working — decisions recorded pre-deadline, scored after |
 | LLM brief | Built — writes nothing without `ANTHROPIC_API_KEY`, by design |
 
+To check the brief, put a key in `.env.local` and run `npm run brief:check`. It
+exercises the real call against the preview harness, so it works before a squad
+exists — otherwise the brief could not be tested until a deadline had passed.
+`npm run brief:check -- --prompt-only` prints what would be sent without
+sending it, which is also the fastest way to see exactly what the model is and
+is not told.
+
 The journal is the only screen that can embarrass the engine, and it is
 deliberately built so it can. Recommendations are written down **only for the
 gameweek still open** — a recommendation recorded after a deadline is hindsight

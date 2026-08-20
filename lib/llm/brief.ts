@@ -1,6 +1,6 @@
 import "server-only";
 
-import { complete, logUsage, BRIEF_MODEL } from "./client";
+import { complete, logUsage, BRIEF_MODEL, type LlmResult } from "./client";
 import { getDb, isDbConfigured } from "@/lib/db/client";
 
 /**
@@ -171,6 +171,23 @@ export function buildPrompt(context: BriefContext): string {
 }
 
 /**
+ * Write a brief without storing it.
+ *
+ * Split from `generateBrief` so the call can be exercised against a context
+ * that has no manager behind it — the preview harness, or a check script —
+ * without writing a row for a manager who does not exist.
+ */
+export async function composeBrief(
+  context: BriefContext,
+): Promise<LlmResult | null> {
+  return complete({
+    system: SYSTEM,
+    prompt: buildPrompt(context),
+    model: BRIEF_MODEL,
+  });
+}
+
+/**
  * Generate and store a brief.
  *
  * Returns null when there is no key, when the call fails, or when the model
@@ -181,11 +198,7 @@ export async function generateBrief(
   entryId: number,
   context: BriefContext,
 ): Promise<string | null> {
-  const result = await complete({
-    system: SYSTEM,
-    prompt: buildPrompt(context),
-    model: BRIEF_MODEL,
-  });
+  const result = await composeBrief(context);
   if (result === null) return null;
 
   if (isDbConfigured()) {
