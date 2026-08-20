@@ -58,7 +58,9 @@ export default async function TransfersPage({
         No squad has been synced yet, and a transfer is a change to a squad. The
         FPL API only publishes picks once a gameweek deadline has passed, so
         there is nothing to move until{" "}
-        <span className="text-tertiary">{context.gwName}</span> locks.
+        <span className="text-tertiary">{context.gwName}</span> locks. After it
+        does, <span className="text-tertiary">refresh squad</span> pulls your
+        team in immediately.
       </Pending>
     );
   }

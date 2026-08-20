@@ -66,7 +66,10 @@ export default async function SquadPage({
         No squad has been synced yet. The FPL API only publishes a manager&apos;s
         picks once a gameweek&apos;s deadline has passed, so there is nothing to
         render until <span className="text-tertiary">{target.name}</span> locks.
-        The scheduled sync will pick it up the following morning.
+        Once it has, use{" "}
+        <span className="text-tertiary">refresh squad</span> above to pull it
+        straight away — the scheduled sync would not otherwise reach it until
+        the following morning.
       </Pending>
     );
   }
