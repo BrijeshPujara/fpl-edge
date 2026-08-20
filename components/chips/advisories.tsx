@@ -19,7 +19,7 @@ import type { ChipWindow } from "@/lib/fpl/gameweek";
 import { ep as formatEp } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { Panel, Row, SectionLabel } from "@/components/ui/panel";
-import { Pending } from "@/components/ui/pending";
+import { NoEntry, Pending } from "@/components/ui/pending";
 
 /**
  * Which gameweek to play each chip.
@@ -48,6 +48,8 @@ export async function ChipAdvisories() {
       </Pending>
     );
   }
+
+  if (context.state === "no-entry") return <NoEntry />;
 
   if (context.state === "no-squad") {
     return (
@@ -111,7 +113,7 @@ export async function ChipPlanPanels({
     solver,
   });
 
-  const played = await resolvePlayedChips(context.chipWindows);
+  const played = await resolvePlayedChips(context.entryId, context.chipWindows);
 
   const plan = planChips({
     windows: context.chipWindows,
@@ -203,10 +205,11 @@ export async function ChipPlanPanels({
  * rather than guessed at.
  */
 async function resolvePlayedChips(
+  entryId: number,
   windows: ChipWindow[],
 ): Promise<{ chip: ChipName; set: number }[]> {
   if (!isDbConfigured()) return [];
-  const rows = await getChipsPlayed(getDb());
+  const rows = await getChipsPlayed(getDb(), entryId);
 
   return rows.flatMap((row) => {
     const window = windows.find(

@@ -26,6 +26,7 @@ import { getDb, isDbConfigured } from "@/lib/db/client";
 import { syncStatic } from "@/lib/db/sync";
 import { syncSquad } from "@/lib/db/sync-squad";
 import { syncResults } from "@/lib/db/sync-results";
+import { resolveEntryId } from "@/lib/fpl/entry";
 
 config({ path: ".env.local", quiet: true });
 config({ quiet: true });
@@ -73,9 +74,9 @@ async function main() {
   }
 
   if (which === "all" || which === "squad") {
-    const teamId = Number(process.env.FPL_TEAM_ID);
-    if (!Number.isInteger(teamId) || teamId <= 0) {
-      log("sync-squad skipped: FPL_TEAM_ID is not set");
+    const teamId = resolveEntryId();
+    if (teamId === null) {
+      log("sync-squad skipped: FPL_TEAM_ID is not set to a valid entry id");
     } else {
       try {
         const started = Date.now();

@@ -41,7 +41,7 @@ Only two tables are per-user, and only one column is missing:
 
 | Change | Effort |
 |---|---|
-| `squads.entry_id`, and the key becomes `(entry_id, gw)` | 20 minutes |
+| ~~`squads.entry_id`, and the key becomes `(entry_id, gw)`~~ | **done 2026-08-20** |
 | `entries` table caching team name and last sync | 30 minutes |
 | Routes become `/t/{entryId}/...`, with a cookie remembering the last one | half a day |
 | A landing page that takes an ID and redirects | an hour |
@@ -89,6 +89,19 @@ season exposes, then open it up with something that has a track record.
 adding one to a table carrying half a season of your own history, mid-season,
 with foreign keys onto it, is an afternoon and a migration you have to get right
 first time.
+
+**Done, 2026-08-20** — migration `0004_squad_entry_id.sql`. `not null` with no
+default, which is only possible on an empty table: the alternative is a default
+entry id, which silently attributes every existing squad to whoever it names.
+The unique key moved from `(gw)` to `(entry_id, gw)`, verified against the live
+database — two managers can now share a gameweek, one manager still cannot
+duplicate one.
+
+`lib/fpl/entry.ts` is the other half, and the more useful half long term. It is
+the single place that answers "whose squad is this": today from `FPL_TEAM_ID`,
+tomorrow from a route segment. `parseEntryId` also refuses what `Number()`
+quietly accepts — `""` becomes 0, `"1e5"` becomes 100000 — each of which would
+otherwise reach the FPL API as a request for a team that does not exist.
 
 ---
 

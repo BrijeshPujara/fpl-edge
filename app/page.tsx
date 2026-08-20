@@ -13,7 +13,7 @@ import { DEFAULT_HORIZON } from "@/lib/engine/constants";
 import { DeadlineCountdown } from "@/components/chrome/deadline-countdown";
 import { FlagPanel, WeekPanels } from "@/components/dashboard/week-panels";
 import { Panel, Row, SectionLabel, StatRow } from "@/components/ui/panel";
-import { Pending } from "@/components/ui/pending";
+import { NoEntry, Pending } from "@/components/ui/pending";
 
 export default async function DashboardPage() {
   const season = await getSeasonContext();
@@ -69,6 +69,8 @@ export default async function DashboardPage() {
               <Pending phase="configuration">
                 Supabase is not configured, so there is no squad to advise on.
               </Pending>
+            ) : context.state === "no-entry" ? (
+              <NoEntry />
             ) : context.state === "no-squad" ? (
               <Pending phase="the first deadline">
                 The engine is built and waiting. FPL only publishes a
@@ -150,6 +152,8 @@ export default async function DashboardPage() {
           <SectionLabel>FLAGS</SectionLabel>
           {context.state === "ready" ? (
             <FlagPanel squad={context.squad} />
+          ) : context.state === "no-entry" ? (
+            <NoEntry />
           ) : (
             <Pending phase="the first deadline">
               Fitness flags for your own fifteen. Needs a synced squad, which

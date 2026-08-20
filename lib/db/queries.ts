@@ -23,18 +23,24 @@ export interface SquadWithPicks {
 }
 
 /**
- * The most recent squad at or before a gameweek.
+ * A manager's most recent squad at or before a gameweek.
  *
  * Returns null when nothing has been synced — the state before the first
  * deadline, and one every caller has to handle rather than assume away.
+ *
+ * `entryId` is required rather than optional. An optional filter on a
+ * per-manager table is the kind of thing that works perfectly until there are
+ * two managers in it, and then silently returns a stranger's squad.
  */
 export async function getLatestSquad(
   db: Db,
+  entryId: number,
   upToGw: number,
 ): Promise<SquadWithPicks | null> {
   const { data: squad, error } = await db
     .from("squads")
     .select("*")
+    .eq("entry_id", entryId)
     .lte("gw", upToGw)
     .order("gw", { ascending: false })
     .limit(1)
@@ -201,10 +207,14 @@ export interface ChipPlayed {
  * is whichever window contains the gameweek it was played in. Storing it would
  * be a second copy of a fact the API already reports, free to drift.
  */
-export async function getChipsPlayed(db: Db): Promise<ChipPlayed[]> {
+export async function getChipsPlayed(
+  db: Db,
+  entryId: number,
+): Promise<ChipPlayed[]> {
   const { data, error } = await db
     .from("squads")
     .select("gw, chip_played")
+    .eq("entry_id", entryId)
     .not("chip_played", "is", null)
     .order("gw", { ascending: true });
 

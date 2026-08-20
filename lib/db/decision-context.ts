@@ -13,6 +13,7 @@ import { projectPriceChanges } from "@/lib/engine/price-model";
 import { FORM_WINDOW } from "@/lib/engine/constants";
 import { buildCandidatePool, type Candidate } from "@/lib/squad/candidates";
 import { getSeasonContext } from "@/lib/fpl/season";
+import { resolveEntryId } from "@/lib/fpl/entry";
 import type { ChipWindow } from "@/lib/fpl/gameweek";
 
 /**
@@ -29,6 +30,8 @@ import type { ChipWindow } from "@/lib/fpl/gameweek";
 /** The loaded, usable state. Named so the preview harness can construct one. */
 export interface ReadyDecisionContext {
   state: "ready";
+  /** Whose squad this is. See `lib/fpl/entry.ts`. */
+  entryId: number;
   gw: number;
   gwName: string;
   gameweeks: number[];
@@ -58,6 +61,12 @@ export interface ReadyDecisionContext {
 export type DecisionContext =
   | { state: "no-api"; reason: string }
   | { state: "no-db" }
+  /**
+   * No entry id configured. Distinct from `no-squad` on purpose: that one is
+   * "the deadline has not passed", this one is "nobody has said whose team this
+   * is", and telling a user the wrong one sends them looking in the wrong place.
+   */
+  | { state: "no-entry" }
   | { state: "no-squad"; gw: number; gwName: string }
   | ReadyDecisionContext;
 
@@ -70,9 +79,12 @@ export async function loadDecisionContext(
   }
   if (!isDbConfigured()) return { state: "no-db" };
 
+  const entryId = resolveEntryId();
+  if (entryId === null) return { state: "no-entry" };
+
   const { target } = season.gameweek;
   const db = getDb();
-  const stored = await getLatestSquad(db, target.id);
+  const stored = await getLatestSquad(db, entryId, target.id);
   if (!stored) {
     return { state: "no-squad", gw: target.id, gwName: target.name };
   }
@@ -116,6 +128,7 @@ export async function loadDecisionContext(
 
   return {
     state: "ready",
+    entryId,
     gw: target.id,
     gwName: target.name,
     gameweeks: pool.gameweeks,

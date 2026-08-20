@@ -8,10 +8,11 @@ import {
   getTeams,
 } from "@/lib/db/queries";
 import { buildSquadView } from "@/lib/squad/view";
+import { resolveEntryId } from "@/lib/fpl/entry";
 import { FORM_WINDOW } from "@/lib/engine/constants";
 import { ep as formatEp, money } from "@/lib/format";
 import { Panel, SectionLabel, StatRow } from "@/components/ui/panel";
-import { Pending } from "@/components/ui/pending";
+import { NoEntry, Pending } from "@/components/ui/pending";
 import { FixtureDifficultyKey } from "@/components/ui/fixture-strip";
 import { Bench, Pitch } from "@/components/squad/pitch";
 
@@ -47,9 +48,12 @@ export default async function SquadPage() {
     );
   }
 
+  const entryId = resolveEntryId();
+  if (entryId === null) return <NoEntry />;
+
   const { target } = season.gameweek;
   const db = getDb();
-  const stored = await getLatestSquad(db, target.id);
+  const stored = await getLatestSquad(db, entryId, target.id);
 
   if (!stored) {
     return (

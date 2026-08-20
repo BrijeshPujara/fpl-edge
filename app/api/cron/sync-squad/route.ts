@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeCron } from "@/lib/cron/auth";
 import { getDb, isDbConfigured } from "@/lib/db/client";
 import { syncSquad } from "@/lib/db/sync-squad";
+import { resolveEntryId } from "@/lib/fpl/entry";
 
 /**
  * Daily sync of your own squad: picks, captain, bank, value, free transfers.
@@ -29,8 +30,8 @@ export async function GET(request: Request) {
     );
   }
 
-  const teamId = Number(process.env.FPL_TEAM_ID);
-  if (!Number.isInteger(teamId) || teamId <= 0) {
+  const teamId = resolveEntryId();
+  if (teamId === null) {
     return NextResponse.json(
       {
         error:

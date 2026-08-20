@@ -55,6 +55,16 @@ import { getBootstrapStatic } from "@/lib/fpl/client";
  */
 export const PREVIEW_GW = 8;
 
+/**
+ * The entry id the preview squad claims to belong to.
+ *
+ * Zero is not a valid FPL entry id — they start at 1 — so any query filtered on
+ * it correctly returns nothing, which is the truth: the preview squad is
+ * invented and has played no chips. A real-looking id here would quietly pull a
+ * real manager's chip history into a fabricated squad.
+ */
+export const PREVIEW_ENTRY_ID = 0;
+
 const CACHE = ".backtest-cache";
 
 export function isPreviewEnabled(): boolean {
@@ -363,6 +373,7 @@ export async function loadPreviewContext(
     state: "ready",
     context: {
       state: "ready",
+      entryId: PREVIEW_ENTRY_ID,
       gw: PREVIEW_GW,
       gwName: `Gameweek ${PREVIEW_GW}`,
       gameweeks: pool.gameweeks,

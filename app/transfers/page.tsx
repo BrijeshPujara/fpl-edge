@@ -2,7 +2,7 @@ import { loadDecisionContext } from "@/lib/db/decision-context";
 import { DEFAULT_HORIZON } from "@/lib/engine/constants";
 import { TransferBoard } from "@/components/transfers/transfer-board";
 import { SectionLabel } from "@/components/ui/panel";
-import { Pending } from "@/components/ui/pending";
+import { NoEntry, Pending } from "@/components/ui/pending";
 
 /**
  * Ranked transfer options.
@@ -36,6 +36,8 @@ export default async function TransfersPage() {
       </Pending>
     );
   }
+
+  if (context.state === "no-entry") return <NoEntry />;
 
   if (context.state === "no-squad") {
     return (

@@ -100,6 +100,7 @@ export async function syncSquad(
   );
 
   const squadRow: TablesInsert<"squads"> = {
+    entry_id: teamId,
     gw: settledGw,
     captain_id: captain?.element ?? null,
     vice_captain_id: vice?.element ?? null,
@@ -111,7 +112,10 @@ export async function syncSquad(
 
   const { data: squad, error: squadError } = await db
     .from("squads")
-    .upsert(squadRow, { onConflict: "gw" })
+    // One squad per manager per gameweek. Conflicting on gw alone would have
+    // one manager's sync overwrite another's the moment the app serves more
+    // than one team.
+    .upsert(squadRow, { onConflict: "entry_id,gw" })
     .select("id")
     .single();
 

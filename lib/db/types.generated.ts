@@ -508,6 +508,7 @@ export type Database = {
           captain_id: number | null
           chip_played: string | null
           created_at: string
+          entry_id: number
           free_transfers: number
           gw: number
           id: string
@@ -519,6 +520,7 @@ export type Database = {
           captain_id?: number | null
           chip_played?: string | null
           created_at?: string
+          entry_id: number
           free_transfers?: number
           gw: number
           id?: string
@@ -530,6 +532,7 @@ export type Database = {
           captain_id?: number | null
           chip_played?: string | null
           created_at?: string
+          entry_id?: number
           free_transfers?: number
           gw?: number
           id?: string

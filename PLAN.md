@@ -151,11 +151,15 @@ fixtures (
 -- Your state
 squads (
   id uuid primary key default gen_random_uuid(),
+  -- Whose squad. An FPL entry id is PUBLIC data, not a credential:
+  -- entry/{id}/ is unauthenticated, so there is no auth to build around it.
+  entry_id int not null,
   gw smallint, captain_id int, vice_captain_id int,
   chip_played text,               -- null | wildcard | freehit | 3xc | bboost
   bank int, team_value int,
   free_transfers smallint,
-  created_at timestamptz
+  created_at timestamptz,
+  unique (entry_id, gw)
 )
 
 squad_picks (
