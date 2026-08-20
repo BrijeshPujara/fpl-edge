@@ -85,7 +85,10 @@ function fakeDb() {
         },
         upsert(payload: unknown) {
           calls.push({ op: "upsert", table, payload });
-          return {
+          // Leagues are upserted without a select; the awaited result must
+          // still be a thenable carrying an `error`.
+          const result = {
+            error: null,
             select: () => ({
               single: async () => ({
                 data:
@@ -96,6 +99,7 @@ function fakeDb() {
               }),
             }),
           };
+          return result as typeof result & PromiseLike<{ error: null }>;
         },
         delete() {
           return {
@@ -123,6 +127,22 @@ beforeEach(() => {
     name: "Test",
     player_first_name: "A",
     player_last_name: "Manager",
+    // The real schema defaults this, but a mock bypasses Zod entirely — so the
+    // fixture has to carry the shape the code is entitled to expect.
+    leagues: {
+      classic: [
+        {
+          id: 605034,
+          name: "A Mini-League",
+          league_type: "x",
+          scoring: "c",
+          start_event: 1,
+          entry_rank: null,
+          entry_last_rank: null,
+        },
+      ],
+      h2h: [],
+    },
   });
   mocks.getEntryHistory.mockResolvedValue({ current: [], chips: [] });
 });
@@ -193,10 +213,14 @@ describe("syncSquad", () => {
 
     // Picks must be cleared before reinsertion, or the unique constraint on
     // (squad_id, position) collides when a player changes bench slot.
-    // Registration comes first — a squad cannot reference an unknown entry.
+    // The order is all foreign keys. A squad cannot reference an unknown
+    // entry, and a membership cannot reference an unknown league or entry, so
+    // registration and league discovery both have to land first.
     expect(calls.map((c) => `${c.op}:${c.table}`)).toEqual([
       "select:entries",
       "upsert:entries",
+      "upsert:leagues",
+      "upsert:league_memberships",
       "upsert:squads",
       "delete:squad_picks",
       "insert:squad_picks",

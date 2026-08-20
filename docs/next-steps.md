@@ -72,11 +72,29 @@ how you overfit. Revisit once there are ten or more gameweeks of 2026/27 data,
 and consider whether MAE is even the right loss for a captaincy decision, where
 the ceiling matters more than the mean.
 
-### 4. Mini-leagues have no schema
+### 4. ~~Mini-leagues have no schema~~ — **done**, 2026-08-20
 
-`getLeagueStandings` exists in the FPL client and is unused. PLAN.md §4 never
-specified tables for it, so `/leagues` cannot be built. Needs a migration
-(`leagues`, `league_standings`) before the §9 sync job is worth writing.
+Migration `0006_leagues.sql`, `lib/db/leagues.ts`, and `/leagues` renders.
+
+**There is nothing to configure**, which was the surprise. `entry/{id}/`
+already lists every league a manager belongs to, and the app already fetches
+that payload to register them — the schema was simply discarding the field.
+Joining a league on the FPL site is the entire setup.
+
+`league_type` is the field that carries the weight: `"x"` is a league someone
+joined, `"s"` is one the game enrols everyone into (Overall, their country,
+their favourite club). Of eleven leagues on the test account, six were real and
+five were global. The UI leads with the six and lists the rest below.
+
+**Standings are deliberately not stored.** They are read-only display data that
+`leagues-classic/{id}/standings/` returns in one cached request; a table and a
+sync job would buy nothing today. Storage starts earning its place when the
+question becomes "how has my rank *moved*" — history — or "what do my rivals own
+that I do not", which needs rival squads rather than a table. Neither is this
+schema.
+
+Still open: head-to-head leagues are recorded but not modelled, and the
+differential analysis PLAN.md §10 describes needs a fetch per rival.
 
 ### 5. No authentication on the deployed app
 

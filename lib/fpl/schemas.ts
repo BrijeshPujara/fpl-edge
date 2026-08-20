@@ -346,9 +346,44 @@ export const elementSummarySchema = z.object({
 // entry/{teamId}/ and picks
 // ---------------------------------------------------------------------------
 
+/**
+ * One league a manager belongs to, as `entry/{id}/` reports it.
+ *
+ * `league_type` is the field that matters and the reason no configuration is
+ * needed: "x" is a private league someone actually joined, "s" is a system
+ * league the game enrols everyone into — Overall, their country, their
+ * favourite club. Both arrive in the same array, and only the first kind is a
+ * mini-league in any useful sense.
+ */
+export const entryLeagueSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  /** "x" = private/invitational, "s" = system. */
+  league_type: z.string(),
+  /** "c" = classic, "h" = head-to-head. */
+  scoring: z.string(),
+  start_event: z.number().int().nullable().optional().default(null),
+  /** Zero before a gameweek has been scored, not a real position. */
+  entry_rank: z.number().int().nullable().optional().default(null),
+  entry_last_rank: z.number().int().nullable().optional().default(null),
+});
+
+export type FplEntryLeague = z.infer<typeof entryLeagueSchema>;
+
 export const entrySchema = z.object({
   id: z.number().int(),
   name: z.string(),
+  /**
+   * Every league the manager is in. Already in the payload the app fetches to
+   * register them, so mini-leagues are discovered rather than configured.
+   */
+  leagues: z
+    .object({
+      classic: z.array(entryLeagueSchema).default([]),
+      h2h: z.array(entryLeagueSchema).default([]),
+    })
+    .optional()
+    .default({ classic: [], h2h: [] }),
   player_first_name: z.string(),
   player_last_name: z.string(),
   summary_overall_points: z.number().int().nullable(),

@@ -3,6 +3,7 @@ import "server-only";
 import { getEntry } from "@/lib/fpl/client";
 import type { Db } from "./client";
 import type { Tables, TablesInsert } from "./types.generated";
+import { saveEntryLeagues } from "./leagues";
 
 /**
  * Registering a manager.
@@ -88,6 +89,15 @@ export async function registerEntry(
   if (error || !data) {
     throw new Error(`Failed to register entry: ${error?.message ?? "no row"}`);
   }
+
+  // Leagues come free in the same payload, so there is no reason to make
+  // anyone type a league id. Head-to-head leagues are recorded alongside
+  // classic ones — the app cannot rank them yet, but knowing they exist is
+  // better than pretending they do not.
+  await saveEntryLeagues(db, entry.id, [
+    ...entry.leagues.classic,
+    ...entry.leagues.h2h,
+  ]);
 
   return { entry: data, created: existing === null };
 }

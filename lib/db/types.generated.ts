@@ -181,6 +181,72 @@ export type Database = {
           },
         ]
       }
+      league_memberships: {
+        Row: {
+          entry_id: number
+          entry_last_rank: number | null
+          entry_rank: number | null
+          league_id: number
+          updated_at: string
+        }
+        Insert: {
+          entry_id: number
+          entry_last_rank?: number | null
+          entry_rank?: number | null
+          league_id: number
+          updated_at?: string
+        }
+        Update: {
+          entry_id?: number
+          entry_last_rank?: number | null
+          entry_rank?: number | null
+          league_id?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "league_memberships_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "league_memberships_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leagues: {
+        Row: {
+          id: number
+          league_type: string
+          name: string
+          scoring: string
+          start_event: number | null
+          updated_at: string
+        }
+        Insert: {
+          id: number
+          league_type: string
+          name: string
+          scoring: string
+          start_event?: number | null
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          league_type?: string
+          name?: string
+          scoring?: string
+          start_event?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       llm_usage: {
         Row: {
           cached_tokens: number

@@ -76,7 +76,7 @@ gate each build phase has to pass.
 | Chip windows | Working — read from `bootstrap-static.chips[]` |
 | Blank and double gameweek detection | Working — counted from the fixture list |
 | Chip timeline (`/chips`) | Working |
-| Database schema | Applied — 14 tables, RLS enabled |
+| Database schema | Applied — 16 tables, RLS enabled |
 | `sync-static` cron route | Working — 20 teams, 595 players, 380 fixtures, daily price and transfer snapshots |
 | `sync-squad` cron route | Built — waits for the first deadline |
 | `sync-results` cron route | Built — waits for a `data_checked` gameweek |
@@ -88,6 +88,7 @@ gate each build phase has to pass.
 | Chip planner | Working — assignment problem over chips and gameweeks |
 | Price momentum | Capturing daily; reports no confidence until roughly GW4 |
 | Multi-manager routing | Working — `/t/{entryId}`, no sign-in, registered on demand |
+| Mini-leagues (`/leagues`) | Working — discovered from your entry, no configuration |
 | Dashboard (`/t/{entryId}`) | Working — this week's actions ranked by what the decision is worth |
 | `/transfers` screen | Working — ranked options with the roll always offered |
 | `/chips` screen | Working — timeline, plan, expiry pressure |
@@ -129,7 +130,7 @@ invented expected-points figure is worse than one that displays nothing.
 
 ## Database
 
-Supabase project `ehfuwpslwzxsjjaatgng`. All five migrations in
+Supabase project `ehfuwpslwzxsjjaatgng`. All six migrations in
 `supabase/migrations/` are applied.
 
 **Access is server-side only, and the schema enforces it.** Every table has RLS
@@ -138,7 +139,7 @@ and write nothing, so all access goes through `SUPABASE_SERVICE_ROLE_KEY`, which
 bypasses RLS. `lib/db/client.ts` imports `server-only`, so a mistaken client
 import is a build error rather than a leaked credential.
 
-Supabase's linter reports `rls_enabled_no_policy` at INFO level for all fourteen
+Supabase's linter reports `rls_enabled_no_policy` at INFO level for all sixteen
 tables. That is the intended state, not a gap to close. If a screen ever needs
 to query from the browser, add a narrow policy for that one table — do not
 disable RLS.
