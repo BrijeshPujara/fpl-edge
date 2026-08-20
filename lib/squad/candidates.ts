@@ -1,6 +1,7 @@
 import { PLAYER_STATUS, POSITION_SHORT, type PositionId } from "@/lib/rules";
 import type { PlayerCandidate } from "@/lib/engine/optimiser";
 import { projectMinutes } from "@/lib/engine/minutes";
+import { readNewsSignal } from "@/lib/engine/news-signal";
 import {
   fixtureContextsFor,
   historyFor,
@@ -107,6 +108,7 @@ export function buildCandidatePool(
       chanceOfPlayingNextRound: player.chance_of_playing_next_round,
       recentStarts: history.map((s) => s.starts > 0),
       recentMinutes: history.map((s) => s.minutes),
+      newsMultiplier: readNewsSignal(player.news).multiplier,
     }).pAppears;
 
     candidates.push({

@@ -130,15 +130,33 @@ And look at what it does not know, all of which is in plain English:
 - that there is a European tie on Tuesday
 - that a new signing is expected to go straight in
 - that a transfer is being finalised
-- `players.news` — **already in the database, and completely unused by the
-  model**
+- `players.news` — already in the database, and unused by the model
 
-An LLM turning that text into a bounded adjustment on the minutes projection is
-doing genuine predictive work, on the model's most sensitive input, using
-information the numeric pipeline structurally cannot represent.
+**Correction, 2026-08-20, after actually reading the field.** The claim above
+overstated `players.news`. Read against live data it is almost entirely a
+restatement of the percentage:
 
-That is where AI raises your points. Everything else it does here is
-presentation.
+| `news` | `chance_of_playing_next_round` |
+|---|---|
+| `Hamstring injury - 75% chance of playing` | 75 |
+| `Knock - 75% chance of playing` | 75 |
+| `Lack of match fitness - 75% chance of playing` | 75 |
+
+The only information the text adds is the CATEGORY, and that turns out to
+matter: "lack of match fitness" and "knock" both appear at 75% and mean
+different things — the first is a substitute, the second is a starter. But a
+category is a small systematic mapping, and the right tool for one of those is a
+calibrated lookup table, not a language model called once per player per day.
+
+That is now `lib/engine/news-signal.ts`, which is deterministic, free and
+covers 22 of the 28 currently doubtful players.
+
+**So the LLM opportunity is real but it is not this field.** It is the sources
+the app does not have yet: press conferences, beat reporters, predicted
+lineups — text that genuinely contains what the percentage cannot. The seam is
+built and waiting (`MinutesInput.newsMultiplier`, and `verifyNewsSignal` for the
+safety checks); what is missing is a source of words worth reading. That is the
+question to answer before writing the LLM call, not after.
 
 ### How to build it safely
 
@@ -187,8 +205,10 @@ Five rules, all of which exist to stop it doing harm:
    decision of the week. It also needs a different loss: MAE rewards
    conservative predictions, and for the armband the ceiling matters more than
    the mean.
-4. **News → minutes.** Buildable now, uses a field already synced, and lands on
-   the model's most sensitive input.
+4. ~~**News → minutes.**~~ The deterministic half is done —
+   `lib/engine/news-signal.ts`. The LLM half is blocked on finding a source of
+   team news richer than `players.news`, which is mostly a restatement of the
+   percentage. Decide the source first.
 5. **Forwards, and the transfer path.** Both want ten or more gameweeks of real
    data first (see `next-steps.md`).
 6. **Multi-user.** When there is a track record worth putting in front of

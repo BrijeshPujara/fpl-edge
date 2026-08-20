@@ -437,3 +437,57 @@ export const CHIP_CONFIDENCE_HALF_LIFE = 5;
  * deliberate refusal to let the discount run to nothing.
  */
 export const CHIP_CONFIDENCE_FLOOR = 0.25;
+
+// ---------------------------------------------------------------------------
+// News signal
+// ---------------------------------------------------------------------------
+
+/**
+ * Bounds on any adjustment derived from team news.
+ *
+ * Deliberately narrow, and the narrowness is the point. Whatever produces the
+ * multiplier — the deterministic classifier in `news-signal.ts` today, a
+ * language model reading a press conference later — it is adjusting the single
+ * most sensitive input in the engine, and it must not be able to make a claim
+ * the evidence cannot support.
+ *
+ * Inside these bounds it can halve a projection or lift it by a fifth. It
+ * cannot turn a bench player into a starter, and it cannot rule out a player
+ * the game says is fit. Both of those need better evidence than a sentence.
+ */
+export const NEWS_MULTIPLIER_BOUNDS = { min: 0.5, max: 1.2 } as const;
+
+/**
+ * Multipliers by what the news actually says, over and above the percentage.
+ *
+ * These exist because FPL's `news` string and `chance_of_playing_next_round`
+ * are nearly redundant — "Hamstring injury - 75% chance of playing" alongside a
+ * chance of 75 — so the only information the text adds is the KIND of problem.
+ * That turns out to matter in one direction and one direction only: some
+ * categories imply a reduced role even when the player is passed fit.
+ *
+ * A player short of match fitness who is cleared to play is a substitute, not a
+ * starter, and the percentage cannot say so. A muscle injury carries
+ * re-aggravation risk and an early substitution that a knock does not.
+ *
+ * All at or below 1.0. Nothing in a news string is grounds for projecting a
+ * player ABOVE what the club's own percentage says — the text is the club's
+ * explanation of that percentage, not a second opinion on it.
+ *
+ * First estimates, uncalibrated. `player_gw_stats` will be able to settle them
+ * once there are enough flagged players with outcomes to measure against.
+ */
+export const NEWS_CATEGORY_MULTIPLIER = {
+  /** Cleared to play but short of fitness — expect minutes off the bench. */
+  matchFitness: 0.7,
+  /** Muscle injuries re-aggravate and get managed. */
+  muscular: 0.9,
+  /** A knock is the mildest flag the game issues. */
+  knock: 1.0,
+  /** Named non-muscular injury: ankle, knee, shoulder. */
+  injury: 0.95,
+  /** Illness clears fast but saps a full ninety. */
+  illness: 0.9,
+  /** Personal reasons, international duty, unspecified. No role inference. */
+  other: 1.0,
+} as const;

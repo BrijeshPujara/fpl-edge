@@ -6,6 +6,7 @@ import {
   START_RATE_WINDOW,
 } from "./constants";
 import { PLAYER_STATUS } from "@/lib/rules";
+import { clampNewsMultiplier } from "./news-signal";
 
 /**
  * The minutes model.
@@ -26,6 +27,16 @@ export interface MinutesInput {
   recentStarts: boolean[];
   /** Minutes played per recent gameweek, most recent first. Same ordering. */
   recentMinutes: number[];
+  /**
+   * Bounded multiplier from team news, defaulting to 1 — no adjustment.
+   *
+   * This is the seam for anything that reads words rather than numbers: the
+   * deterministic classifier in `news-signal.ts`, or a language model reading a
+   * press conference. It is clamped here as well as at the source, because the
+   * most sensitive input in the engine should not depend on a caller
+   * remembering to be careful.
+   */
+  newsMultiplier?: number;
 }
 
 export interface MinutesProjection {
@@ -132,8 +143,14 @@ export function projectMinutes(input: MinutesInput): MinutesProjection {
     cameo: (1 - NO_HISTORY_START_PRIOR) * P_BENCH_CAMEO,
   };
 
-  const pStart = rates.start * fitness;
-  const pCameo = rates.cameo * fitness;
+  // News multiplies fitness rather than replacing it, so a club percentage and
+  // a news category compose: 75% fitness and a match-fitness note is a player
+  // who is both doubtful AND likely to be eased in, and both facts count.
+  const news = clampNewsMultiplier(input.newsMultiplier ?? 1);
+  const adjusted = fitness * news;
+
+  const pStart = rates.start * adjusted;
+  const pCameo = rates.cameo * adjusted;
 
   const pSixty = pStart * P_STARTER_COMPLETES_60;
   const pShort = pStart * (1 - P_STARTER_COMPLETES_60) + pCameo;

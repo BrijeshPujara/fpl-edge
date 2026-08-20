@@ -5,6 +5,7 @@ import {
   type PlayerModelInput,
 } from "@/lib/engine/expected-points";
 import { FORM_WINDOW } from "@/lib/engine/constants";
+import { readNewsSignal } from "@/lib/engine/news-signal";
 import type { PositionId } from "@/lib/rules";
 import type { FixtureLike, PlayerLike, StatLike, TeamLike } from "./view";
 
@@ -161,6 +162,7 @@ export function modelInputFor(
       chanceOfPlayingNextRound: player.chance_of_playing_next_round,
       recentStarts: history.map((s) => s.starts > 0),
       recentMinutes: history.map((s) => s.minutes),
+      newsMultiplier: readNewsSignal(player.news).multiplier,
     },
     recent: recentSamplesFor(history),
     priorSeason: null,
