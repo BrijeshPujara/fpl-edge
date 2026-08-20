@@ -104,7 +104,7 @@ gate each build phase has to pass.
 | `/chips` screen | Working — timeline, plan, expiry pressure |
 | `/captain` screen | Working — the outcome distribution, not just the mean |
 | `/history` screen | Working — decisions recorded pre-deadline, scored after |
-| LLM brief | Not built — see PLAN.md §8 |
+| LLM brief | Built — writes nothing without `ANTHROPIC_API_KEY`, by design |
 
 The journal is the only screen that can embarrass the engine, and it is
 deliberately built so it can. Recommendations are written down **only for the
@@ -148,7 +148,7 @@ invented expected-points figure is worse than one that displays nothing.
 
 ## Database
 
-Supabase project `ehfuwpslwzxsjjaatgng`. All eight migrations in
+Supabase project `ehfuwpslwzxsjjaatgng`. All nine migrations in
 `supabase/migrations/` are applied.
 
 **Reads over 1000 rows must page.** PostgREST caps a response at 1000 rows and

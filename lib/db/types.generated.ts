@@ -26,11 +26,13 @@ export type Database = {
         Row: {
           body: string
           created_at: string
+          entry_id: number
           gw: number
           model: string
         }
         Insert: {
           body: string
+          entry_id: number
           created_at?: string
           gw: number
           model: string
@@ -38,6 +40,7 @@ export type Database = {
         Update: {
           body?: string
           created_at?: string
+          entry_id?: number
           gw?: number
           model?: string
         }
@@ -261,6 +264,7 @@ export type Database = {
         Row: {
           cached_tokens: number
           created_at: string
+          entry_id: number | null
           gw: number | null
           id: string
           input_tokens: number
@@ -271,6 +275,7 @@ export type Database = {
         Insert: {
           cached_tokens?: number
           created_at?: string
+          entry_id?: number | null
           gw?: number | null
           id?: string
           input_tokens: number
@@ -281,6 +286,7 @@ export type Database = {
         Update: {
           cached_tokens?: number
           created_at?: string
+          entry_id?: number | null
           gw?: number | null
           id?: string
           input_tokens?: number

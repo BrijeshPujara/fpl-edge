@@ -13,6 +13,7 @@ import { loadDecisionContext } from "@/lib/db/decision-context";
 import { parseEntryId } from "@/lib/fpl/entry";
 import { DEFAULT_HORIZON } from "@/lib/engine/constants";
 import { DeadlineCountdown } from "@/components/chrome/deadline-countdown";
+import { BriefPanel } from "@/components/dashboard/brief-panel";
 import { FlagPanel, WeekPanels } from "@/components/dashboard/week-panels";
 import { Panel, Row, SectionLabel, StatRow } from "@/components/ui/panel";
 import {
@@ -79,6 +80,7 @@ export default async function DashboardPage({
               <PriorSeasonBasis />
             ) : null}
             <WeekPanels context={context} />
+            <BriefPanel entryId={entryId} gw={context.gw} />
           </>
         ) : (
           <div>

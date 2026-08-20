@@ -262,6 +262,10 @@ pool. That is the intended behaviour, not an outage.
 6. **Form modelling and forwards** — needs ten-plus gameweeks of 2026/27 before
    tuning is anything other than overfitting.
 
+Every screen in PLAN.md §10 is now built. What remains is model quality —
+forwards, the transfer path, team strength from observed xG — plus the two
+pieces of multi-user infrastructure in `multi-user-and-ai.md`.
+
 Auth (gap 5) is not on this list because its urgency is set by when the app
 becomes publicly discoverable, not by the engine's progress. See
 `multi-user-and-ai.md` — it turns out there is no auth to build at all, because
