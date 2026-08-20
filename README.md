@@ -102,7 +102,15 @@ gate each build phase has to pass.
 | Dashboard (`/t/{entryId}`) | Working — this week's actions ranked by what the decision is worth |
 | `/transfers` screen | Working — ranked options with the roll always offered |
 | `/chips` screen | Working — timeline, plan, expiry pressure |
+| `/captain` screen | Working — the outcome distribution, not just the mean |
+| `/history` screen | Working — decisions recorded pre-deadline, scored after |
 | LLM brief | Not built — see PLAN.md §8 |
+
+The journal is the only screen that can embarrass the engine, and it is
+deliberately built so it can. Recommendations are written down **only for the
+gameweek still open** — a recommendation recorded after a deadline is hindsight
+wearing a timestamp, and a journal containing any of those cannot be used to
+judge anything. `npm run sync -- journal` records and scores.
 
 Both decision screens gate on whether any gameweek has been played. Until one
 has, every projection is the same positional prior, so they explain that rather
@@ -140,7 +148,7 @@ invented expected-points figure is worse than one that displays nothing.
 
 ## Database
 
-Supabase project `ehfuwpslwzxsjjaatgng`. All seven migrations in
+Supabase project `ehfuwpslwzxsjjaatgng`. All eight migrations in
 `supabase/migrations/` are applied.
 
 **Reads over 1000 rows must page.** PostgREST caps a response at 1000 rows and

@@ -357,3 +357,36 @@ export async function getSeasonHistoryCodes(db: Db): Promise<Set<number>> {
   );
   return new Set(rows.map((row) => row.player_code));
 }
+
+/**
+ * Actual points per player for one gameweek, summed across fixtures.
+ *
+ * Paged, because a double gameweek is two rows per player and roughly 1,200
+ * rows in total — over the cap. Summed rather than listed because a captain in
+ * a double gameweek is captain for both fixtures.
+ */
+export async function getGameweekPoints(
+  db: Db,
+  gw: number,
+): Promise<Map<number, number>> {
+  const rows = await fetchAll<{ player_id: number; total_points: number }>(
+    (from, to) =>
+      db
+        .from("player_gw_stats")
+        .select("player_id, total_points")
+        .eq("gw", gw)
+        .order("player_id", { ascending: true })
+        .order("fixture_id", { ascending: true })
+        .range(from, to),
+    `gameweek ${gw} points`,
+  );
+
+  const points = new Map<number, number>();
+  for (const row of rows) {
+    points.set(
+      row.player_id,
+      (points.get(row.player_id) ?? 0) + row.total_points,
+    );
+  }
+  return points;
+}

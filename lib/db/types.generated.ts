@@ -47,6 +47,7 @@ export type Database = {
         Row: {
           alternatives: Json
           created_at: string
+          entry_id: number
           gw: number
           id: string
           kind: string
@@ -59,6 +60,7 @@ export type Database = {
         Insert: {
           alternatives?: Json
           created_at?: string
+          entry_id: number
           gw: number
           id?: string
           kind: string
@@ -71,6 +73,7 @@ export type Database = {
         Update: {
           alternatives?: Json
           created_at?: string
+          entry_id?: number
           gw?: number
           id?: string
           kind?: string
@@ -81,6 +84,13 @@ export type Database = {
           source?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "decisions_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "entries"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "decisions_player_in_fkey"
             columns: ["player_in"]

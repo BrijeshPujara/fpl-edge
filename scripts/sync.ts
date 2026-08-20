@@ -28,6 +28,7 @@ import { syncSquad } from "@/lib/db/sync-squad";
 import { syncResults } from "@/lib/db/sync-results";
 import { resolveEntryId } from "@/lib/fpl/entry";
 import { syncHistory } from "@/lib/db/sync-history";
+import { syncJournal } from "@/lib/db/sync-journal";
 
 config({ path: ".env.local", quiet: true });
 config({ quiet: true });
@@ -71,6 +72,22 @@ async function main() {
     } catch (error) {
       failed = true;
       log(`sync-results FAILED: ${(error as Error).message}`);
+    }
+  }
+
+  if (which === "all" || which === "journal") {
+    const teamId = resolveEntryId();
+    if (teamId === null) {
+      log("sync-journal skipped: FPL_TEAM_ID is not set to a valid entry id");
+    } else {
+      try {
+        const started = Date.now();
+        const result = await syncJournal(teamId);
+        log(`sync-journal ${result.status} in ${Date.now() - started}ms`, result);
+      } catch (error) {
+        failed = true;
+        log(`sync-journal FAILED: ${(error as Error).message}`);
+      }
     }
   }
 

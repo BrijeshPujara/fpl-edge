@@ -61,6 +61,18 @@ never make a transfer that does not help, so the floor binds from below and a
 scenario may return fewer changes than asked. That is the correct reading of
 "at most n" and stops the model burning a transfer it does not want.
 
+### ~~Captaincy needs a distribution, not a mean~~ — **done**, 2026-08-20
+
+`lib/engine/distribution.ts` and `lib/engine/captain.ts`. Doubling is linear, so
+it cannot change which player has the highest mean — "highest EP" is only the
+right captain if you are indifferent to risk. The screen now reports the shape:
+median, haul probability, blank probability, and a three-band bar.
+
+Doubles are convolved rather than doubled, because two fixtures produce a
+different shape from one — the ceiling grows faster than the mean and the
+chance of a total blank falls sharply, which is exactly why a double gameweek
+is when captaincy matters most.
+
 ### 3. Forwards lose to the naive baseline
 
 The backtest has forwards at MAE 1.154 against the baseline's 1.110 — the only
