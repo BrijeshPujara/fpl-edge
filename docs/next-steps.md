@@ -198,4 +198,6 @@ pool. That is the intended behaviour, not an outage.
    tuning is anything other than overfitting.
 
 Auth (gap 5) is not on this list because its urgency is set by when the app
-becomes publicly discoverable, not by the engine's progress.
+becomes publicly discoverable, not by the engine's progress. See
+`multi-user-and-ai.md` — it turns out there is no auth to build at all, because
+an FPL team ID is public data rather than a credential.

@@ -158,6 +158,11 @@ an optimisation roadmap ordered by payoff. Start there rather than at PLAN.md
 §11 if you are picking the work up cold — PLAN.md is the spec, that file is the
 state.
 
+`docs/multi-user-and-ai.md` answers two questions deliberately: what it takes to
+let anyone use this with their own team ID (much less than you would think — an
+FPL team ID is public, so there is no login to build), and what an LLM can
+genuinely contribute (one thing, and it is not picking the squad).
+
 ## Data source notes
 
 All data comes from the official unauthenticated API at
