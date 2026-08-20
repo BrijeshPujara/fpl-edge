@@ -15,7 +15,11 @@ import { DEFAULT_HORIZON } from "@/lib/engine/constants";
 import { DeadlineCountdown } from "@/components/chrome/deadline-countdown";
 import { FlagPanel, WeekPanels } from "@/components/dashboard/week-panels";
 import { Panel, Row, SectionLabel, StatRow } from "@/components/ui/panel";
-import { NoEntry, Pending } from "@/components/ui/pending";
+import {
+  NoEntry,
+  Pending,
+  PriorSeasonBasis,
+} from "@/components/ui/pending";
 
 export default async function DashboardPage({
   params,
@@ -70,7 +74,12 @@ export default async function DashboardPage({
     <div className="grid grid-cols-1 items-start gap-4 sm:gap-6 lg:grid-cols-[1fr_340px]">
       <div className="flex flex-col gap-4 sm:gap-6">
         {ready ? (
-          <WeekPanels context={context} />
+          <>
+            {context.state === "ready" && context.basis === "prior-season" ? (
+              <PriorSeasonBasis />
+            ) : null}
+            <WeekPanels context={context} />
+          </>
         ) : (
           <div>
             <SectionLabel meta={`HORIZON ${DEFAULT_HORIZON} GW`}>

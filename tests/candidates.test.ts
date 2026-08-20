@@ -262,3 +262,69 @@ describe("leagueRatings", () => {
     expect(leagueRatings(preSeason).defence).toBeNull();
   });
 });
+
+describe("the projectable gate", () => {
+  const fixtures = [fixture(5, 1, 2)];
+  const base = { gw: 5, horizon: 1, teams, fixtures, players: [player()] };
+
+  const priors = new Map([
+    [1001, { xGper90: 0.5, xAper90: 0.3, bonusPerAppearance: 0.7, defconHitRate: 0 }],
+  ]);
+
+  it("refuses to rank with neither a gameweek nor a prior season", () => {
+    const pool = buildCandidatePool({ ...base, stats: [] });
+    expect(pool.projectable).toBe(false);
+    expect(pool.basis).toBe("none");
+  });
+
+  it("ranks on a prior season before a ball is kicked", () => {
+    // This used to be false. With prior-season rates loaded the model
+    // genuinely separates players, and refusing to rank would be the
+    // dishonest answer rather than the careful one.
+    const pool = buildCandidatePool({
+      ...base,
+      stats: [],
+      priorSeasons: priors,
+    });
+    expect(pool.projectable).toBe(true);
+    expect(pool.basis).toBe("prior-season");
+  });
+
+  it("prefers this season once one exists", () => {
+    const pool = buildCandidatePool({
+      ...base,
+      stats: [stat(1, 4)],
+      priorSeasons: priors,
+    });
+    expect(pool.basis).toBe("this-season");
+  });
+
+  it("a prior season actually changes the projection", () => {
+    const without = buildCandidatePool({ ...base, stats: [] });
+    const withPrior = buildCandidatePool({
+      ...base,
+      stats: [],
+      priorSeasons: priors,
+    });
+    expect(withPrior.candidates[0].ep).toBeGreaterThan(
+      without.candidates[0].ep,
+    );
+  });
+
+  it("ignores a prior belonging to a different player", () => {
+    // Keyed on code, and the fixture's code is 1001 — 1 is its id. A lookup
+    // that confused the two would silently attach a stranger's rates.
+    const wrongKey = new Map([
+      [1, { xGper90: 9, xAper90: 9, bonusPerAppearance: 9, defconHitRate: 0 }],
+    ]);
+    const pool = buildCandidatePool({
+      ...base,
+      stats: [],
+      priorSeasons: wrongKey,
+    });
+    expect(pool.basis).toBe("prior-season");
+    // Present in the map, but not for this player, so nothing is applied.
+    const plain = buildCandidatePool({ ...base, stats: [] });
+    expect(pool.candidates[0].ep).toBeCloseTo(plain.candidates[0].ep, 10);
+  });
+});

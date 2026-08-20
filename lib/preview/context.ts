@@ -390,6 +390,7 @@ export async function loadPreviewContext(
       // must not quietly do.
       priceDeltas: new Map(),
       projectable: pool.projectable,
+      basis: pool.basis,
     },
     matched,
     stats,

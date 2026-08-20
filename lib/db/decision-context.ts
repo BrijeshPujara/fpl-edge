@@ -55,10 +55,12 @@ export interface ReadyDecisionContext {
    */
   priceDeltas: Map<number, number>;
   /**
-   * False when no gameweek has been played. Every projection is then the same
-   * positional prior and nothing may be ranked — see `CandidatePool`.
+   * False only when the model has nothing to separate players with at all —
+   * neither a played gameweek nor a prior season. See `CandidatePool`.
    */
   projectable: boolean;
+  /** What the projections rest on, so the UI can say so. */
+  basis: "none" | "prior-season" | "this-season";
 }
 
 export type DecisionContext =
@@ -154,6 +156,7 @@ export async function loadDecisionContext(
       [...projections].map(([id, p]) => [id, p.realisableDelta]),
     ),
     projectable: pool.projectable,
+    basis: pool.basis,
   };
 }
 

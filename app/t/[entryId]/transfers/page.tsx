@@ -4,7 +4,11 @@ import { parseEntryId } from "@/lib/fpl/entry";
 import { DEFAULT_HORIZON } from "@/lib/engine/constants";
 import { TransferBoard } from "@/components/transfers/transfer-board";
 import { SectionLabel } from "@/components/ui/panel";
-import { NoEntry, Pending } from "@/components/ui/pending";
+import {
+  NoEntry,
+  Pending,
+  PriorSeasonBasis,
+} from "@/components/ui/pending";
 
 /**
  * Ranked transfer options.
@@ -88,5 +92,10 @@ export default async function TransfersPage({
     );
   }
 
-  return <TransferBoard context={context} />;
+  return (
+    <>
+      {context.basis === "prior-season" ? <PriorSeasonBasis /> : null}
+      <TransferBoard context={context} />
+    </>
+  );
 }

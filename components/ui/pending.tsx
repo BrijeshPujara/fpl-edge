@@ -52,3 +52,28 @@ export function NoEntry() {
     </Pending>
   );
 }
+
+/**
+ * A caveat, not a refusal.
+ *
+ * Shown above a screen that IS ranking things, when the ranking rests on last
+ * season alone. The numbers are real; what is missing is any idea of who will
+ * actually start, and a ranking that quietly hides that would be worse than
+ * one that says it.
+ */
+export function PriorSeasonBasis() {
+  return (
+    <div className="mb-4 border border-edge-strong bg-panel px-3.5 py-2.5 sm:mb-6">
+      <div className="font-mono text-tiny tracking-[0.14em] text-warn">
+        RANKED ON LAST SEASON
+      </div>
+      <div className="mt-1.5 max-w-prose text-small leading-relaxed text-muted text-pretty">
+        No gameweek has been played, so attacking rates come from last season
+        and are real — but <span className="text-tertiary">minutes are not</span>.
+        Every player carries the same flat starting probability, so this ranks
+        quality rather than who is in the eleven. Treat a nailed starter and a
+        rotation risk as indistinguishable here until results land.
+      </div>
+    </div>
+  );
+}

@@ -19,7 +19,11 @@ import type { ChipWindow } from "@/lib/fpl/gameweek";
 import { ep as formatEp } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { Panel, Row, SectionLabel } from "@/components/ui/panel";
-import { NoEntry, Pending } from "@/components/ui/pending";
+import {
+  NoEntry,
+  Pending,
+  PriorSeasonBasis,
+} from "@/components/ui/pending";
 
 /**
  * Which gameweek to play each chip.
@@ -82,7 +86,12 @@ export async function ChipAdvisories({ entryId }: { entryId: number }) {
     );
   }
 
-  return <ChipPlanPanels context={context} />;
+  return (
+    <>
+      {context.basis === "prior-season" ? <PriorSeasonBasis /> : null}
+      <ChipPlanPanels context={context} />
+    </>
+  );
 }
 
 /**

@@ -44,15 +44,26 @@ export interface Candidate {
 export interface CandidatePool {
   candidates: Candidate[];
   /**
-   * Whether ANY gameweek history exists to project from.
+   * Whether the model has anything to tell players apart with.
    *
-   * This is the honesty gate for both screens. With an empty
-   * `player_gw_stats` the model has nothing to tell players apart with, so
-   * every projection collapses toward the same positional prior and a ranked
-   * transfer table would be pure noise dressed as analysis. Callers must check
-   * this and render an explanation instead of a table.
+   * The honesty gate for every ranked screen. It used to mean "a gameweek has
+   * been played", which was right when the only source of rates was this
+   * season — with nothing played, every projection collapsed to the same
+   * positional prior and a ranked table would have been noise dressed as
+   * analysis.
+   *
+   * Prior-season rates changed that. With them loaded the model separates
+   * Haaland from a fringe forward before a ball is kicked, so refusing to rank
+   * would now be the dishonest answer.
    */
   projectable: boolean;
+  /**
+   * What the projections currently rest on. The UI needs this to be truthful
+   * about a real limitation: with no gameweek played, ATTACKING rates are
+   * real but MINUTES are a flat prior for everyone, so the ordering reflects
+   * quality rather than who is going to start.
+   */
+  basis: "none" | "prior-season" | "this-season";
   /** The gameweeks projected, ascending. */
   gameweeks: number[];
 }
@@ -104,6 +115,16 @@ export function buildCandidatePool(
     ]),
   );
 
+  // This season outranks last: once real gameweeks exist the shrinkage
+  // schedule is already blending them, and `basis` describes the stronger of
+  // the two rather than both.
+  const basis: CandidatePool["basis"] =
+    input.stats.length > 0
+      ? "this-season"
+      : (input.priorSeasons?.size ?? 0) > 0
+        ? "prior-season"
+        : "none";
+
   const candidates: Candidate[] = [];
   for (const player of input.players) {
     const history = historyFor(player.id, byPlayer);
@@ -144,7 +165,8 @@ export function buildCandidatePool(
 
   return {
     candidates,
-    projectable: input.stats.length > 0,
+    projectable: basis !== "none",
+    basis,
     gameweeks,
   };
 }
