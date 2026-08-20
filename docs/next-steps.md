@@ -67,24 +67,30 @@ Protection, or a minimal auth gate.
 
 ## Optimisation roadmap
 
-### 1. Set-piece and penalty duties — cheapest real win
+### 1. ~~Set-piece and penalty duties~~ — **done**, 2026-08-20
 
-`bootstrap-static.elements[]` already carries `penalties_order` and
-`corners_and_indirect_freekicks_order`, and the model ignores both. A penalty
-taker at a mid-table club is worth more than a better forward who does not take
-them, and this is a hard signal in data already being synced.
+`lib/engine/set-pieces.ts`, migration `0002_set_piece_duty.sql`. All three
+orders are synced (`penalties_order`, `corners_order`,
+`direct_freekicks_order`); penalties and corners are modelled, direct free kicks
+stored but not — the term would be smaller than the noise in the other two.
 
-Unlike everything else here it discriminates **immediately** rather than needing
-weeks of history to warm up — which matters most in the early season, exactly
-when the model is otherwise weakest.
+The design problem was not the arithmetic, it was **double counting**: Opta xG
+includes penalties, so a naive additive term charges a regular taker twice.
+Solved with a credit that decays to zero as the form window fills, which the
+backtest vindicates — a floor under the decay makes MAE monotonically worse,
+and worse specifically for midfielders and forwards.
 
-- Add both columns to `players` and the sync.
-- Add a penalty-share term to `expectedPoints`: `P(penalty awarded) × P(taker) ×
-  P(scored) × goalPoints(position)`.
-- Estimate `P(penalty awarded)` per team from historical rate; it is roughly
-  0.15–0.25 per match for most sides.
+Live effect at GW1, where nobody has history and the credit is at full: a
+first-choice penalty-taking midfielder gains 0.17 EP, and one who also takes
+corners 0.31. Both roughly double once a nailed starter's minutes replace the
+0.5 no-history prior.
 
-Effort: a few hours. Verify against the backtest.
+**What is still open here.** The backtest starts at GW7 and therefore cannot
+measure a thin-history term at all; it confirms no harm, not the gain. The real
+test is the first six gameweeks of 2026/27. `PENALTIES_PER_TEAM_PER_MATCH` and
+the two share tables are league-average estimates, not per-club — a side that
+attacks more wins more penalties, and that is derivable from `player_gw_stats`
+once there is a season of it.
 
 ### 2. Plan the transfer *path*, not the transfer
 
@@ -149,9 +155,9 @@ ratings is the likely fix, and it is directly testable against the backtest.
 
 ## Suggested order
 
-1. **Set-piece duties** — hours, immediate signal, no dependency on data volume.
+1. ~~**Set-piece duties**~~ — done 2026-08-20.
 2. **`transfers_balance` capture** — unblocks a whole objective term that is
-   currently dead weight.
+   currently dead weight. **Next up.**
 3. **Chip assignment** — turns the vaguest part of the spec into something
    exact, reuses the existing solver.
 4. **`suggestTransfers` cardinality** — small, and needed before `/transfers`

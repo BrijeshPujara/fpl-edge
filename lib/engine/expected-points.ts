@@ -27,6 +27,12 @@ import {
   SHRINKAGE_INITIAL_WEIGHT,
 } from "./constants";
 import { projectMinutes, type MinutesInput } from "./minutes";
+import {
+  NO_SET_PIECE_DUTY,
+  setPieceCredit,
+  setPiecePointsPer90,
+  type SetPieceDuty,
+} from "./set-pieces";
 
 /**
  * The expected points model. The heart of the project.
@@ -39,6 +45,7 @@ import { projectMinutes, type MinutesInput } from "./minutes";
  *   + xG90_adj  x minutesScale x goalPoints(position)
  *   + xA90_adj  x minutesScale x 3
  *   + P(clean sheet) x cleanSheetPoints(position)
+ *   + E(set-piece duty) x minutesScale     // penalties and corners, see below
  *   + E(defcon) + E(bonus)
  *   - E(goals conceded penalty)     // GK and DEF only
  *   - E(cards)
@@ -76,6 +83,12 @@ export interface PlayerModelInput {
   /** Recent gameweeks, most recent first. */
   recent: GameweekSample[];
   priorSeason?: PriorSeasonRates | null;
+  /**
+   * Who takes the penalties and corners. Optional because the backtest and the
+   * older fixtures predate the columns; absent means "no listed duty", which is
+   * the right answer for most players and a mildly pessimistic one for the rest.
+   */
+  setPieces?: SetPieceDuty | null;
 }
 
 /**
@@ -105,6 +118,13 @@ export interface ExpectedPointsBreakdown {
   goals: number;
   assists: number;
   cleanSheet: number;
+  /**
+   * Penalty and corner duty, kept as its own line rather than folded into
+   * `goals` and `assists` so the UI can say why a mid-table taker outranks a
+   * better forward. Frequently zero, and zero by construction for anyone with a
+   * full form window behind them — see `set-pieces.ts` on double counting.
+   */
+  setPieces: number;
   defcon: number;
   bonus: number;
   goalsConceded: number;
@@ -257,6 +277,7 @@ export function expectedPoints(
     goals: 0,
     assists: 0,
     cleanSheet: 0,
+    setPieces: 0,
     defcon: 0,
     bonus: 0,
     goalsConceded: 0,
@@ -323,18 +344,37 @@ export function expectedPoints(
       GOALS_CONCEDED_PENALTY
     : 0;
 
+  // Set-piece duty. Scaled by the attacking adjustment for the same reason the
+  // open-play rates are — penalties and corners both come out of territorial
+  // dominance, so a soft opponent yields more of each.
+  const duty = player.setPieces ?? NO_SET_PIECE_DUTY;
+  const setPieces =
+    setPiecePointsPer90(duty, position) *
+    minutesScale *
+    attackAdj *
+    setPieceCredit(player.recent.filter((s) => s.minutes > 0).length);
+
   const defcon = expectedDefcon(player, minutes.pAppears);
   const bonus = expectedBonus(player, minutes.pAppears, fixture.gw);
   const cards = expectedCards(player, minutes.expectedMinutes);
 
   const total =
-    appearance + goals + assists + cleanSheet + defcon + bonus + goalsConceded + cards;
+    appearance +
+    goals +
+    assists +
+    cleanSheet +
+    setPieces +
+    defcon +
+    bonus +
+    goalsConceded +
+    cards;
 
   return {
     appearance,
     goals,
     assists,
     cleanSheet,
+    setPieces,
     defcon,
     bonus,
     goalsConceded,

@@ -33,6 +33,12 @@ export interface PlayerLike {
   status: string;
   chance_of_playing_next_round: number | null;
   news: string;
+  // Optional so existing test literals and any caller selecting a narrower
+  // column set keep compiling. Absent reads as "no listed duty", which is
+  // correct for most players.
+  penalties_order?: number | null;
+  corners_order?: number | null;
+  direct_freekicks_order?: number | null;
 }
 
 export interface TeamLike {
@@ -291,6 +297,11 @@ export function buildSquadView(input: BuildSquadViewInput): SquadView {
         },
         recent,
         priorSeason: null,
+        setPieces: {
+          penaltiesOrder: player.penalties_order ?? null,
+          cornersOrder: player.corners_order ?? null,
+          directFreekicksOrder: player.direct_freekicks_order ?? null,
+        },
       },
       fixture,
     );

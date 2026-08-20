@@ -16,7 +16,9 @@ const db = getDb();
 
 const { data: players } = await db
   .from("players")
-  .select("id, web_name, position, now_cost, status, chance_of_playing_next_round, team_id");
+  // One literal, not a concatenation: supabase-js infers the row type from the
+  // string itself, and a `+` defeats that and lands you in GenericStringError.
+  .select("id, web_name, position, now_cost, status, chance_of_playing_next_round, team_id, penalties_order, corners_order, direct_freekicks_order");
 const { data: teams } = await db.from("teams").select("id, short_name");
 
 if (!players || !teams) throw new Error("no data");
@@ -44,20 +46,25 @@ const scored = players.map((p) => {
       },
       recent: [],
       priorSeason: null,
+      setPieces: {
+        penaltiesOrder: p.penalties_order,
+        cornersOrder: p.corners_order,
+        directFreekicksOrder: p.direct_freekicks_order,
+      },
     },
     neutral,
   );
-  return { ...p, ep: ep.total, pMin: ep.pMinutes };
+  return { ...p, ep: ep.total, pMin: ep.pMinutes, sp: ep.setPieces };
 });
 
 scored.sort((a, b) => b.ep - a.ep);
 
-console.log("TOP 10 BY EP (no history, no ratings — appearance + defcon floor only)");
+console.log("TOP 10 BY EP (no history, no ratings — appearance, defcon and set-piece duty only)");
 for (const p of scored.slice(0, 10)) {
   console.log(
     `  ${p.web_name.padEnd(16)} ${POSITION_SHORT[p.position as PositionId]} ` +
     `${(teamName.get(p.team_id) ?? "").padEnd(4)} ` +
-    `ep=${p.ep.toFixed(2)} pMin=${p.pMin.toFixed(2)}`,
+    `ep=${p.ep.toFixed(2)} pMin=${p.pMin.toFixed(2)} setPieces=${p.sp.toFixed(2)}`,
   );
 }
 

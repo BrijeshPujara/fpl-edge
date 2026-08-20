@@ -142,6 +142,18 @@ export const elementSchema = z.object({
   starts: z.number().int(),
   // Present from 2025/26 onward. Older datasets lack it, so it is optional.
   defensive_contribution: z.number().int().optional().default(0),
+  // Set-piece duty, as a per-club ordering: 1 is the designated taker, null is
+  // no listed duty. Optional because these are absent from older datasets, and
+  // nullable-with-default rather than defaulted-to-1 because "nobody listed" and
+  // "first choice" are opposite claims.
+  penalties_order: z.number().int().nullable().optional().default(null),
+  corners_and_indirect_freekicks_order: z
+    .number()
+    .int()
+    .nullable()
+    .optional()
+    .default(null),
+  direct_freekicks_order: z.number().int().nullable().optional().default(null),
   ep_this: nullableNumericString,
   ep_next: nullableNumericString,
 });

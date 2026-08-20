@@ -98,6 +98,9 @@ export async function syncStatic(db: Db): Promise<SyncStaticResult> {
       chance_of_playing_next_round: element.chance_of_playing_next_round,
       news: element.news,
       selected_by_percent: element.selected_by_percent,
+      penalties_order: element.penalties_order,
+      corners_order: element.corners_and_indirect_freekicks_order,
+      direct_freekicks_order: element.direct_freekicks_order,
       updated_at: now,
     }),
   );

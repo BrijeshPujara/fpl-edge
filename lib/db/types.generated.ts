@@ -323,10 +323,13 @@ export type Database = {
         Row: {
           chance_of_playing_next_round: number | null
           code: number
+          corners_order: number | null
+          direct_freekicks_order: number | null
           first_name: string
           id: number
           news: string
           now_cost: number
+          penalties_order: number | null
           position: number
           second_name: string
           selected_by_percent: number
@@ -338,10 +341,13 @@ export type Database = {
         Insert: {
           chance_of_playing_next_round?: number | null
           code: number
+          corners_order?: number | null
+          direct_freekicks_order?: number | null
           first_name: string
           id: number
           news?: string
           now_cost: number
+          penalties_order?: number | null
           position: number
           second_name: string
           selected_by_percent?: number
@@ -353,10 +359,13 @@ export type Database = {
         Update: {
           chance_of_playing_next_round?: number | null
           code?: number
+          corners_order?: number | null
+          direct_freekicks_order?: number | null
           first_name?: string
           id?: number
           news?: string
           now_cost?: number
+          penalties_order?: number | null
           position?: number
           second_name?: string
           selected_by_percent?: number

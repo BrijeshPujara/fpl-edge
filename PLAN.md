@@ -170,6 +170,7 @@ EP(player, fixture) =
   + xG_per90_adj × P(minutes)/90 × goalPoints(position)
   + xA_per90_adj × P(minutes)/90 × 3
   + P(clean sheet) × cleanSheetPoints(position)
+  + E(set-piece duty) × P(minutes)/90 × credit(appearances)
   + E(defcon points)
   + E(bonus points)
   − E(goals conceded penalty)      // GK/DEF only
@@ -183,6 +184,11 @@ EP(player, fixture) =
 - `P(clean sheet)` — Poisson on the opponent's expected goals: `P(0 goals) = exp(-λ)` where λ is derived from the opponent's attack strength versus the player's team defence strength, home/away adjusted.
 - `E(defcon)` — 2 × P(hitting threshold), estimated as the player's historical rate of reaching 10 (DEF) or 12 (MID/FWD) defensive actions. Strongly position- and role-dependent; centre-backs and defensive midfielders dominate here.
 - `E(bonus)` — historical bonus per appearance × the positional correction factor from §3.
+- `E(set-piece duty)` — `lib/engine/set-pieces.ts`. `bootstrap-static` reports who takes penalties and corners as a per-club ordering, and the model prices both: penalties as `penaltiesPerMatch × takerShare × (conversion × goalPoints − missCost)`, corners as a delivery count times an assist rate. A first-choice penalty-taking midfielder is worth about 0.46 points a match from that duty alone, and a penalty-taking *defender* more still, since a goal pays six.
+
+  The `credit(appearances)` factor is the load-bearing part. Opta xG **includes penalties** and expected assists credit set-piece deliveries, so for a player with a full form window the duty is already inside the observed rates and adding it again double-counts. The credit therefore decays linearly from 1 with no history to 0 at a full window: the flag supplies what observation cannot — *who takes them now* — and stands down once observation can answer for itself.
+
+  This is measured, not asserted. Putting a floor under the decay makes the backtest monotonically worse (MAE 1.010 → 1.013 at a floor of 1.0, the naive "just add it" implementation), and worse specifically for midfielders and forwards, where penalty takers live. Goalkeepers, who take none, are unmoved at every floor — the control behaved like a control.
 
 Build a **multi-gameweek EP** function that sums EP over the next N fixtures (default 5), handling doubles (two fixtures in one GW) and blanks (zero). Optimise on this, not on single gameweeks — that is what stops you chasing last week's points.
 
@@ -203,6 +209,8 @@ Three things this exposed, all worth keeping in mind before trusting the numbers
 - **Minutes dominate everything.** 62% of player-gameweek rows are non-appearances. The first run *lost* to the baseline by 16.2% purely because a fixed cameo probability was applied to every non-starter, handing appearance points to reserves who had not played in six weeks. Deriving the cameo rate from observed appearances instead moved the model from −16.2% to +2.6% in one change. No other single constant comes close to mattering this much.
 - **The opponent adjustment barely earns its place.** Disabling it entirely costs only 0.4pp (2.6% → 2.2%). Either the strength ratings carry little signal or §5's formulation underuses them. Worth revisiting before adding complexity elsewhere.
 - **Forwards are still worse than the baseline.** Their scoring is the most goal-dependent and therefore the most skewed, and MAE rewards conservative predictions on skewed distributions. This is the open problem in the model.
+
+A fourth, learned when set-piece duty was added: **this backtest cannot see the early season.** It starts at GW7 because the form window needs six gameweeks behind it, so any term that exists to compensate for thin history is invisible to it by construction. Set-piece duty is exactly such a term — it reaches only 51% of the rows with a listed duty here, and none of GW1–6, which is where it matters most. A flat MAE for that feature is evidence of no harm, not evidence of no help. Read the two differently.
 
 The margin overall is real but thin. Treat it as "not worse than doing nothing obvious", not as a validated edge.
 

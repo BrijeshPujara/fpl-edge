@@ -22,6 +22,10 @@
  *    gameweeks use ratings that partly encode the future. That FLATTERS the
  *    opponent adjustment slightly. Run with `--neutral` to disable it entirely
  *    and see the model without that help.
+ *  - Set-piece duty likewise comes from the season-end players_raw.csv, so a
+ *    duty that changed hands in March is credited from GW1. Milder than it
+ *    sounds — duty is far more stable across a season than form is — but it
+ *    FLATTERS the set-piece term. Run with `--no-set-pieces` to remove it.
  */
 
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -31,8 +35,13 @@ import {
   type FixtureContext,
   type GameweekSample,
 } from "@/lib/engine/expected-points";
+import { setPieceCredit } from "@/lib/engine/set-pieces";
 import { POSITION, POSITION_SHORT, type PositionId } from "@/lib/rules";
 import { FORM_WINDOW } from "@/lib/engine/constants";
+import {
+  NO_SET_PIECE_DUTY,
+  type SetPieceDuty,
+} from "@/lib/engine/set-pieces";
 
 const BASE =
   "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2025-26";
@@ -44,6 +53,7 @@ const START_GW = FORM_WINDOW + 1;
 const BASELINE_WINDOW = 4;
 
 const NEUTRAL = process.argv.includes("--neutral");
+const NO_SET_PIECES = process.argv.includes("--no-set-pieces");
 
 // --- CSV -------------------------------------------------------------------
 
@@ -154,6 +164,24 @@ async function main() {
     });
   }
 
+  // Set-piece duty, from the season-end player snapshot. See the caveat above.
+  const duties = new Map<number, SetPieceDuty>();
+  if (!NO_SET_PIECES) {
+    const order = (v: string | undefined) => {
+      const x = Number.parseInt(v ?? "", 10);
+      return Number.isFinite(x) && x > 0 ? x : null;
+    };
+    for (const r of parseCsv(
+      await cached("/players_raw.csv", "players_raw.csv"),
+    )) {
+      duties.set(n(r.id), {
+        penaltiesOrder: order(r.penalties_order),
+        cornersOrder: order(r.corners_and_indirect_freekicks_order),
+        directFreekicksOrder: order(r.direct_freekicks_order),
+      });
+    }
+  }
+
   const byGw = new Map<number, Row[]>();
   for (let gw = 1; gw <= TOTAL_GWS; gw++) {
     const text = await cached(`/gws/gw${gw}.csv`, `gw${gw}.csv`);
@@ -198,6 +226,14 @@ async function main() {
     }
   };
   for (let gw = 1; gw < START_GW; gw++) pushHistory(byGw.get(gw) ?? []);
+
+  // How far the set-piece term actually reaches. It is a prior that decays to
+  // nothing once a player has a full form window behind him, and this backtest
+  // starts at GW7 — by which point most regulars have exactly that. Counted so
+  // a near-identical MAE reads as "the term barely fired here", which is true,
+  // rather than "the term does nothing", which is not.
+  let dutyRows = 0;
+  let dutyCredited = 0;
 
   const overall = acc();
   const perPosition = new Map<PositionId, Acc>();
@@ -252,9 +288,18 @@ async function main() {
           },
           recent,
           priorSeason: null,
+          setPieces: duties.get(row.element) ?? NO_SET_PIECE_DUTY,
         },
         fixture,
       ).total;
+
+      const duty = duties.get(row.element);
+      if (duty && (duty.penaltiesOrder !== null || duty.cornersOrder !== null)) {
+        dutyRows += 1;
+        if (setPieceCredit(recent.filter((s) => s.minutes > 0).length) > 0) {
+          dutyCredited += 1;
+        }
+      }
 
       const baseline = mean(past.slice(0, BASELINE_WINDOW).map((s) => s.points));
 
@@ -306,6 +351,9 @@ async function main() {
   console.log(
     `Opponent adjustment: ${NEUTRAL ? "DISABLED (--neutral)" : "enabled (season-end ratings)"}`,
   );
+  console.log(
+    `Set-piece duty:      ${NO_SET_PIECES ? "DISABLED (--no-set-pieces)" : `enabled (${duties.size} players, season-end snapshot)`}`,
+  );
   console.log(`Baseline: mean points over the previous ${BASELINE_WINDOW} gameweeks\n`);
 
   console.log(line("ALL", overall));
@@ -325,6 +373,18 @@ async function main() {
     `  baseline bias       model ${(overall.sumBase / overall.count).toFixed(3)} vs actual ` +
     `${(overall.sumActual / overall.count).toFixed(3)}`,
   );
+  if (!NO_SET_PIECES) {
+    const reach = dutyRows === 0 ? 0 : (dutyCredited / dutyRows) * 100;
+    console.log(
+      `  set-piece duty      ${dutyRows} rows have a listed duty; the credit ` +
+      `reached ${dutyCredited} of them (${reach.toFixed(1)}%)`,
+    );
+    console.log(
+      "                      the term is a thin-history prior, and this " +
+      "backtest starts at GW7 — it cannot see where the term earns most",
+    );
+  }
+
   const dnp = overall.blankCount / overall.count;
   console.log(
     `  did NOT play        ${overall.blankCount} rows (${(dnp * 100).toFixed(1)}% of all)  ` +

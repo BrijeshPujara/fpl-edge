@@ -312,3 +312,87 @@ export const MAX_PROJECTED_PRICE_DELTA = 3;
  * fitted. Below this the curve is noise dressed up as a benchmark.
  */
 export const FRONTIER_MIN_SAMPLE = 8;
+
+// ---------------------------------------------------------------------------
+// Set-piece and penalty duty
+// ---------------------------------------------------------------------------
+
+/**
+ * Penalties awarded to one team per match.
+ *
+ * The Premier League has run close to 100 penalties across 380 matches in each
+ * of the last few seasons — 0.26 per match, so 0.13 per team. VAR nudged this
+ * up and then back down again; 0.13 is the stable centre.
+ */
+export const PENALTIES_PER_TEAM_PER_MATCH = 0.13;
+
+/** Premier League penalty conversion, long-run. Roughly four in five. */
+export const PENALTY_CONVERSION = 0.79;
+
+/**
+ * Probability the nth-listed penalty taker takes a penalty GIVEN that he is on
+ * the pitch when one is awarded.
+ *
+ * Note the conditioning: the reason a second and third name exist at all is
+ * that the first is often absent, and absence is already handled by the minutes
+ * model. What is left is the residual — a first-choice taker occasionally
+ * defers, and someone on a hat-trick occasionally takes the ball off him. The
+ * shares are therefore top-heavy and sum to approximately one across a club.
+ */
+export const PENALTY_TAKER_SHARE = [0.8, 0.15, 0.04] as const;
+
+/**
+ * Corners plus indirect free kicks delivered by one team per match.
+ *
+ * Premier League corners run at about 5.2 per team per match; indirect free
+ * kicks in delivery positions add roughly one more. Both go to the same name on
+ * the team sheet, which is why the API reports them as a single order.
+ */
+export const SET_PIECE_DELIVERIES_PER_TEAM_PER_MATCH = 6.2;
+
+/**
+ * Probability that one delivery becomes a goal the deliverer is credited with
+ * assisting. Around 2.3% of corners are scored from directly; treating indirect
+ * free kicks as comparable is a simplification that errs low.
+ */
+export const SET_PIECE_DELIVERY_ASSIST_RATE = 0.023;
+
+/** Delivery share by listed order. Same conditioning as PENALTY_TAKER_SHARE. */
+export const SET_PIECE_TAKER_SHARE = [0.75, 0.18, 0.05] as const;
+
+/**
+ * Appearances after which set-piece duty stops contributing anything.
+ *
+ * This is the anti-double-counting term, and it is the reason this feature is
+ * not simply additive. FPL's `expected_goals` is Opta xG, which INCLUDES
+ * penalties at ~0.79 apiece, and `expected_assists` credits set-piece
+ * deliveries like any other. A player with a full form window of appearances
+ * therefore already has his penalty and corner output inside the observed
+ * rates, and adding a duty term on top would charge it twice.
+ *
+ * What the duty flags genuinely add is information the observed window does not
+ * have: who takes them *now*. That matters most when the window is empty or
+ * thin — a new season, a new signing, a duty that just changed hands — and by
+ * construction matters not at all once the window is full of the player's own
+ * penalties. So the credit decays linearly from full to zero across a complete
+ * form window.
+ *
+ * Set to FORM_WINDOW deliberately: the credit and the observation it would
+ * otherwise duplicate are measured over exactly the same span.
+ *
+ * MEASURED, not assumed. Backtesting a floor under the decay — i.e. crediting
+ * duty even to players with a full window — makes the model monotonically
+ * worse, and worse precisely where penalty takers live:
+ *
+ *   floor   overall MAE   MID       FWD
+ *   0.00    1.010         +2.4%     -3.9%
+ *   0.50    1.012         .         .
+ *   1.00    1.013         +1.9%     -4.2%
+ *
+ * A floor of 1.0 is the naive "just add the penalty term" implementation.
+ * Goalkeepers are unmoved at every floor, which is the control: they take no
+ * penalties, so nothing about them should change, and nothing does.
+ *
+ * Reproduce with `SP_FLOOR` wired into `setPieceCredit` and `npm run backtest`.
+ */
+export const SET_PIECE_CREDIT_APPEARANCES = FORM_WINDOW;

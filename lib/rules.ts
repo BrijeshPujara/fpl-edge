@@ -95,6 +95,12 @@ export const CLEAN_SHEET_POINTS: Record<PositionId, number> = {
 export const GOALS_CONCEDED_PENALTY = -1;
 export const GOALS_CONCEDED_PER_PENALTY = 2;
 
+/**
+ * A missed penalty costs the taker two points — the goal it did not become is
+ * simply absent, so this is the whole downside, not an addition to it.
+ */
+export const PENALTY_MISS_POINTS = -2;
+
 export const CARD_POINTS = { yellow: -1, red: -3 } as const;
 
 /**
