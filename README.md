@@ -4,6 +4,12 @@ A data-driven Fantasy Premier League decision engine. It ingests official FPL
 data, computes expected points, optimises transfers under FPL's constraints,
 tracks every decision against its outcome, and produces a weekly brief.
 
+**[How the engine thinks](https://claude.ai/code/artifact/33678294-5060-4a74-8f0a-84faed44b8c5)**
+— a plain-English explanation of what the engine is for and how it calculates,
+written for someone who does not read code. Source at
+`docs/engine-explainer.html`; republish that file passing the URL above as
+`url` to update the page in place rather than creating a second one.
+
 The full specification is in [PLAN.md](./PLAN.md). This README covers only how
 to run what exists.
 
@@ -42,11 +48,19 @@ gate each build phase has to pass.
 | Chip windows | Working — read from `bootstrap-static.chips[]` |
 | Blank and double gameweek detection | Working — counted from the fixture list |
 | Chip timeline (`/chips`) | Working |
-| Database schema | Applied — 11 tables, RLS enabled |
-| `sync-static` cron route | Working — 20 teams, 595 players, 380 fixtures synced |
+| Database schema | Applied — 13 tables, RLS enabled |
+| `sync-static` cron route | Working — 20 teams, 595 players, 380 fixtures, daily price and transfer snapshots |
 | `sync-squad` cron route | Built — waits for the first deadline |
+| `sync-results` cron route | Built — waits for a `data_checked` gameweek |
 | Free-transfer accounting | Working — derived, since the API does not report it |
-| EP model, optimiser, brief | Not built — see PLAN.md phases 2–6 |
+| Expected-points model | Working — beats the naive baseline by 2.6% over 2025/26; loses on forwards |
+| Set-piece and penalty duty | Working — synced and priced, without double-counting penalty xG |
+| Squad optimiser | Working — MIP for the fifteen, LP relaxation for the budget shadow price |
+| Transfer suggestions | Working — each transfer count pinned by a retention floor |
+| Chip planner | Working — assignment problem over chips and gameweeks |
+| Price momentum | Capturing daily; reports no confidence until roughly GW4 |
+| `/transfers` and `/chips` screens | Not built — the engine behind both is done |
+| LLM brief | Not built — see PLAN.md §8 |
 
 Screens whose engine does not exist yet render an explicit "awaiting phase N"
 state. They never render placeholder numbers: a decision tool that displays an
@@ -54,8 +68,8 @@ invented expected-points figure is worse than one that displays nothing.
 
 ## Database
 
-Supabase project `ehfuwpslwzxsjjaatgng`. The schema in
-`supabase/migrations/0001_core_schema.sql` is applied.
+Supabase project `ehfuwpslwzxsjjaatgng`. All three migrations in
+`supabase/migrations/` are applied.
 
 **Access is server-side only, and the schema enforces it.** Every table has RLS
 enabled with *no policies* — a deliberate deny-all. The publishable key can read
@@ -63,7 +77,7 @@ and write nothing, so all access goes through `SUPABASE_SERVICE_ROLE_KEY`, which
 bypasses RLS. `lib/db/client.ts` imports `server-only`, so a mistaken client
 import is a build error rather than a leaked credential.
 
-Supabase's linter reports `rls_enabled_no_policy` at INFO level for all eleven
+Supabase's linter reports `rls_enabled_no_policy` at INFO level for all thirteen
 tables. That is the intended state, not a gap to close. If a screen ever needs
 to query from the browser, add a narrow policy for that one table — do not
 disable RLS.
@@ -87,6 +101,11 @@ curl -s -H "Authorization: Bearer $CRON_SECRET" \
 It is idempotent — running it twice changes nothing but `updated_at`. Prices are
 snapshotted only when they actually move, so `price_history` stays a record of
 changes rather than 250,000 rows of unchanged daily readings.
+
+Transfer counters follow the opposite policy, deliberately: a row per player per
+day whether anything moved or not. They are season-cumulative, and the momentum
+series is recovered by differencing consecutive days — which needs the days
+where nothing happened. See `supabase/migrations/0003_transfer_snapshots.sql`.
 
 `/api/cron/sync-squad` does the same for your own team. It returns 200 with
 `status: "no-picks-yet"` until a gameweek deadline has passed, because

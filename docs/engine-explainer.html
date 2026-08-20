@@ -1,0 +1,820 @@
+<title>How the Engine Thinks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&display=swap">
+
+<style>
+  /* ---------------------------------------------------------------------
+     Tokens lifted from the application's own globals.css, so this page and
+     the product are unmistakably the same thing. Committed dark: FPL Edge is
+     a dark terminal tool, and a light rendering would misrepresent it.
+     --------------------------------------------------------------------- */
+  :root {
+    --page:        #08090a;
+    --panel:       #0d0f11;
+    --sunken:      #0b0d0e;
+    --tile:        #0f1113;
+
+    --border:        #17191c;
+    --border-strong: #1b1e21;
+    --border-faint:  #121517;
+
+    --ink:      #e6e4e1;
+    --ink-2:    #d4d1cd;
+    --muted:    #8b9096;
+    --dim:      #7d838a;
+    --label:    #5c6167;
+
+    --accent:       oklch(0.78 0.13 158);
+    --accent-dim:   oklch(0.62 0.10 158);
+    --accent-ghost: oklch(0.78 0.13 158 / 0.10);
+    --warn:         oklch(0.78 0.15 72);
+    --warn-ghost:   oklch(0.78 0.15 72 / 0.10);
+
+    --sans:  "IBM Plex Sans", Helvetica, Arial, sans-serif;
+    --serif: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+    --mono:  "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --measure: 34rem;
+    --gutter: 1.5rem;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 1.0625rem;
+    line-height: 1.68;
+    margin: 0;
+    padding: 0 var(--gutter) 6rem;
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* One reading column; panels break out of it via .wide. */
+  .col {
+    max-width: var(--measure);
+    margin-inline: auto;
+  }
+  .wide {
+    max-width: 52rem;
+    margin-inline: auto;
+  }
+
+  p { margin: 0 0 1.15em; }
+  p + p { margin-top: -0.15em; }
+
+  strong { font-weight: 500; color: #fff; }
+  em { font-style: italic; color: var(--ink-2); }
+
+  a {
+    color: var(--accent);
+    text-decoration-color: var(--accent-dim);
+    text-underline-offset: 3px;
+  }
+  a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  /* --- Masthead -------------------------------------------------------- */
+
+  .masthead {
+    padding: 5rem 0 2.5rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 3.5rem;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--label);
+    margin: 0 0 1.75rem;
+  }
+  .masthead h1 {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: clamp(2.1rem, 6.5vw, 3.1rem);
+    line-height: 1.06;
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+    margin: 0 0 1.5rem;
+  }
+  .standfirst {
+    font-size: 1.1875rem;
+    line-height: 1.6;
+    color: var(--muted);
+    margin: 0;
+    text-wrap: pretty;
+  }
+
+  /* --- Structure ------------------------------------------------------- */
+
+  section { margin-bottom: 4rem; }
+
+  h2 {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 1.5rem;
+    line-height: 1.2;
+    letter-spacing: -0.018em;
+    text-wrap: balance;
+    margin: 0 0 1.25rem;
+  }
+  h3 {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 1.0625rem;
+    letter-spacing: -0.008em;
+    margin: 2.5rem 0 0.7rem;
+  }
+
+  /* The part marker is used for exactly two things, because the page has
+     exactly two parts. Numbering anything else would be decoration. */
+  .part {
+    display: flex;
+    align-items: baseline;
+    gap: 0.85rem;
+    margin-bottom: 1.25rem;
+  }
+  .part-num {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    color: var(--accent);
+    border: 1px solid var(--accent-dim);
+    border-radius: 2px;
+    padding: 0.2rem 0.45rem;
+    flex: none;
+    line-height: 1;
+  }
+  .part h2 { margin: 0; }
+
+  /* --- Data panels ----------------------------------------------------- */
+
+  figure {
+    margin: 2.75rem 0;
+    background: var(--panel);
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+    padding: 1.75rem 1.5rem 1.5rem;
+  }
+  figcaption {
+    font-family: var(--sans);
+    font-size: 0.8125rem;
+    line-height: 1.55;
+    color: var(--muted);
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+  .panel-label {
+    font-family: var(--mono);
+    font-size: 0.625rem;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--label);
+    margin: 0 0 1.5rem;
+  }
+
+  .scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Big single figures. Numbers are the hero, per the house brief. */
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 1.75rem;
+  }
+  .stat-n {
+    font-family: var(--mono);
+    font-size: clamp(2rem, 7vw, 2.75rem);
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--ink);
+    display: block;
+  }
+  .stat-n.pos { color: var(--accent); }
+  .stat-n.neg { color: var(--warn); }
+  .stat-k {
+    font-family: var(--sans);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--muted);
+    margin-top: 0.6rem;
+    display: block;
+  }
+
+  /* --- Distribution chart ---------------------------------------------- */
+
+  .dist {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0.5rem;
+    align-items: end;
+    height: 11rem;
+    min-width: 20rem;
+    position: relative;
+  }
+  .dist-bar { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; gap: 0.5rem; }
+  .dist-fill {
+    background: var(--accent-ghost);
+    border: 1px solid var(--accent-dim);
+    border-bottom: none;
+    border-radius: 2px 2px 0 0;
+  }
+  .dist-p {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    color: var(--dim);
+    text-align: center;
+  }
+  .dist-axis {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--border-strong);
+    min-width: 20rem;
+  }
+  .dist-x {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    color: var(--muted);
+    text-align: center;
+  }
+  .dist-x span { display: block; color: var(--label); font-size: 0.625rem; margin-top: 0.2rem; }
+
+  .mean-bar {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    padding: 0.85rem 1rem;
+    background: var(--sunken);
+    border: 1px solid var(--border-strong);
+    border-left: 2px solid var(--accent);
+    border-radius: 2px;
+  }
+  .mean-bar .k {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--label);
+  }
+  .mean-bar .v {
+    font-family: var(--mono);
+    font-size: 1.375rem;
+    font-weight: 500;
+    color: var(--accent);
+    margin-left: auto;
+  }
+
+  /* --- Two-up comparison ------------------------------------------------ */
+
+  .twoup {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 1px;
+    background: var(--border-strong);
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .twoup > div { background: var(--tile); padding: 1.35rem 1.25rem; }
+  .twoup .amt {
+    font-family: var(--mono);
+    font-size: 1.5rem;
+    font-weight: 500;
+    color: var(--ink);
+    display: block;
+  }
+  .twoup .verdict {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin: 0.85rem 0 0.6rem;
+    display: block;
+  }
+  .twoup .go   { color: var(--accent); }
+  .twoup .stop { color: var(--warn); }
+  .twoup p {
+    font-family: var(--sans);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  /* --- Chip timeline ---------------------------------------------------- */
+
+  .timeline { min-width: 30rem; }
+  .tl-track {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 0.3rem;
+    align-items: end;
+    height: 6.5rem;
+  }
+  .tl-bar {
+    background: var(--tile);
+    border: 1px solid var(--border-strong);
+    border-bottom: none;
+    border-radius: 2px 2px 0 0;
+  }
+  .tl-bar.peak {
+    background: var(--accent-ghost);
+    border-color: var(--accent);
+  }
+  .tl-axis {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 0.3rem;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-strong);
+  }
+  .tl-gw {
+    font-family: var(--mono);
+    font-size: 0.625rem;
+    color: var(--label);
+    text-align: center;
+  }
+  .tl-marks {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 0.3rem;
+    margin-top: 0.75rem;
+  }
+  .tl-mark {
+    font-family: var(--mono);
+    font-size: 0.5625rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-align: center;
+    line-height: 1.3;
+    padding: 0.25rem 0.1rem;
+    border-radius: 2px;
+  }
+  .tl-mark.rule { background: var(--warn-ghost); color: var(--warn); }
+  .tl-mark.plan { background: var(--accent-ghost); color: var(--accent); }
+
+  /* --- Layered build (the forecast stack) -------------------------------- */
+
+  .layers { list-style: none; margin: 0; padding: 0; }
+  .layers > li {
+    border-top: 1px solid var(--border);
+    padding: 1.15rem 0;
+    display: grid;
+    grid-template-columns: 1.75rem 1fr;
+    gap: 0.9rem;
+  }
+  .layers > li:last-child { border-bottom: 1px solid var(--border); }
+  .layers .idx {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    color: var(--label);
+    padding-top: 0.35rem;
+  }
+  .layers h4 {
+    font-family: var(--sans);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    margin: 0 0 0.3rem;
+    color: var(--ink);
+  }
+  .layers p {
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  /* --- Pull quote -------------------------------------------------------- */
+
+  blockquote {
+    margin: 2.5rem 0;
+    padding: 0 0 0 1.25rem;
+    border-left: 2px solid var(--accent-dim);
+    font-family: var(--sans);
+    font-size: 1.1875rem;
+    line-height: 1.45;
+    font-weight: 500;
+    color: var(--ink);
+    letter-spacing: -0.012em;
+    text-wrap: pretty;
+  }
+
+  /* --- Close ------------------------------------------------------------- */
+
+  .close {
+    margin-top: 5rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+    font-family: var(--sans);
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    color: var(--dim);
+  }
+  .close p { margin: 0 0 0.6em; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .dist-fill, .tl-bar { transition: none; }
+  }
+</style>
+
+<header class="masthead">
+  <div class="col">
+    <p class="eyebrow">FPL Edge · How it works</p>
+    <h1>How the engine thinks</h1>
+    <p class="standfirst">
+      Fantasy football is a shopping problem wearing a football shirt. Here is
+      how a machine goes about solving it — and the one thing it turned out to
+      be badly wrong about.
+    </p>
+  </div>
+</header>
+
+<main>
+
+  <section class="col">
+    <h2>Only two questions</h2>
+    <p>
+      You have £100m. You buy fifteen players. Eleven of them score each week,
+      and there are rules about how many you can take from any one club.
+    </p>
+    <p>
+      That is the entire game, and it contains exactly two questions:
+    </p>
+    <p>
+      <strong>How many points will each player score?</strong> That is a
+      forecasting problem. <strong>Given that, which fifteen should I own?</strong>
+      That is a shopping problem.
+    </p>
+    <p>
+      Most people mash the two together and end up buying whoever did well last
+      Saturday. Keeping them apart is the whole design.
+    </p>
+  </section>
+
+  <section class="wide">
+    <div class="col">
+      <div class="part">
+        <span class="part-num">ONE</span>
+        <h2>The forecast</h2>
+      </div>
+      <p>
+        The engine never predicts that a player <em>will</em> score. It predicts
+        <strong>expected points</strong> — the average across every way the match
+        could go.
+      </p>
+      <p>
+        It is the same idea as a weather forecast. "70% chance of rain" is not a
+        promise that it rains; it is a summary of many possible days. When the
+        engine says a player is worth 6.2 points, it means: replay this fixture a
+        thousand times, and he averages 6.2.
+      </p>
+    </div>
+
+    <figure>
+      <p class="panel-label">One player · one fixture · every outcome</p>
+      <div class="scroll-x">
+        <div class="dist">
+          <div class="dist-bar"><div class="dist-p">8%</div><div class="dist-fill" style="height:27%"></div></div>
+          <div class="dist-bar"><div class="dist-p">30%</div><div class="dist-fill" style="height:100%"></div></div>
+          <div class="dist-bar"><div class="dist-p">22%</div><div class="dist-fill" style="height:73%"></div></div>
+          <div class="dist-bar"><div class="dist-p">20%</div><div class="dist-fill" style="height:67%"></div></div>
+          <div class="dist-bar"><div class="dist-p">14%</div><div class="dist-fill" style="height:47%"></div></div>
+          <div class="dist-bar"><div class="dist-p">6%</div><div class="dist-fill" style="height:20%"></div></div>
+        </div>
+        <div class="dist-axis">
+          <div class="dist-x">0<span>didn't play</span></div>
+          <div class="dist-x">2<span>played</span></div>
+          <div class="dist-x">5<span>clean sheet</span></div>
+          <div class="dist-x">8<span>goal</span></div>
+          <div class="dist-x">13<span>goal + more</span></div>
+          <div class="dist-x">18<span>haul</span></div>
+        </div>
+      </div>
+      <div class="mean-bar">
+        <span class="k">Expected points</span>
+        <span class="v">6.2</span>
+      </div>
+      <figcaption>
+        Not one of these outcomes is a prediction. The single number underneath
+        them is. It is the only figure that can be fairly compared against
+        another player, because it already contains the disasters.
+      </figcaption>
+    </figure>
+
+    <div class="col">
+      <h3>What goes into it</h3>
+      <ol class="layers">
+        <li>
+          <span class="idx">01</span>
+          <div>
+            <h4>Will he even be on the pitch?</h4>
+            <p>By a distance the biggest question, and the one the engine was
+            originally worst at. More on that below.</p>
+          </div>
+        </li>
+        <li>
+          <span class="idx">02</span>
+          <div>
+            <h4>If he plays, how likely is he to score?</h4>
+            <p>Not "did he score last week" — that is mostly noise. It uses shot
+            quality: how many chances he gets and how good they are. A striker
+            who missed three sitters had a <em>good</em> week by this measure,
+            because next week he gets three more.</p>
+          </div>
+        </li>
+        <li>
+          <span class="idx">03</span>
+          <div>
+            <h4>Will his team keep a clean sheet?</h4>
+            <p>Defenders and goalkeepers earn most of their points this way, so
+            this leans heavily on who they happen to be playing.</p>
+          </div>
+        </li>
+        <li>
+          <span class="idx">04</span>
+          <div>
+            <h4>Does he take the penalties and the corners?</h4>
+            <p>A penalty is the most valuable event in football, and roughly one
+            team in the league gets one every eight matches. Knowing who picks up
+            the ball is worth about half a point a match — genuinely more than
+            being a somewhat better footballer.</p>
+          </div>
+        </li>
+      </ol>
+      <p style="margin-top:1.75rem">
+        Then all of it is scaled back down by how likely he is to actually be out
+        there. A brilliant player with a 40% chance of starting is worth less
+        than a modest one who is guaranteed ninety minutes.
+      </p>
+    </div>
+  </section>
+
+  <section class="wide">
+    <div class="col">
+      <h2>The thing it was wrong about</h2>
+      <p>
+        Football models are supposed to be about football. This one's largest
+        error had nothing to do with football at all.
+      </p>
+      <p>
+        Across a full season of records, most rows are not a performance. They
+        are a player who did not appear: injured, benched, rotated, forgotten.
+        The first version of the engine assumed anyone in a squad had a fair
+        chance of coming on for twenty minutes.
+      </p>
+    </div>
+
+    <figure>
+      <p class="panel-label">Measured against a deliberately stupid benchmark</p>
+      <div class="stat-row">
+        <div>
+          <span class="stat-n">62%</span>
+          <span class="stat-k">of all player-weeks are somebody who did not play</span>
+        </div>
+        <div>
+          <span class="stat-n neg">−16.2%</span>
+          <span class="stat-k">worse than the benchmark, with a flat guess at substitutes</span>
+        </div>
+        <div>
+          <span class="stat-n pos">+2.6%</span>
+          <span class="stat-k">better than it, after that one assumption was fixed</span>
+        </div>
+      </div>
+      <figcaption>
+        The benchmark is "just average their last four scores" — the laziest
+        forecast available. Getting beaten by it is the correct verdict on a
+        model that has misunderstood something fundamental.
+      </figcaption>
+    </figure>
+
+    <div class="col">
+      <blockquote>
+        Deciding who is on the pitch turned out to matter more than everything
+        the model knows about football, combined.
+      </blockquote>
+      <p>
+        This is worth dwelling on, because it is the reason to build a thing like
+        this at all. Nobody's intuition would have ranked "am I sure he plays"
+        above shot quality, fixture difficulty and form put together. The season
+        of data says otherwise, and it says so unambiguously.
+      </p>
+    </div>
+  </section>
+
+  <section class="wide">
+    <div class="col">
+      <div class="part">
+        <span class="part-num">TWO</span>
+        <h2>The shopping</h2>
+      </div>
+      <p>
+        Here it stops being a spreadsheet.
+      </p>
+      <p>
+        The obvious move is to rank all 600 players and buy the top fifteen. That
+        fails immediately, because you would exhaust the budget in about four
+        signings. What you actually want is the best <em>combination</em> you can
+        afford, which is a completely different question.
+      </p>
+      <p>
+        Think of packing a suitcase with a weight limit. You do not pack your
+        fifteen favourite things. You pack the set that is worth the most in
+        total while the lid still closes.
+      </p>
+      <p>
+        The difficulty is scale.
+      </p>
+    </div>
+
+    <figure>
+      <p class="panel-label">Squads with a legal shape</p>
+      <div class="stat-row">
+        <div>
+          <span class="stat-n">2.8 × 10<sup style="font-size:0.55em">27</sup></span>
+          <span class="stat-k">ways to pick two keepers, five defenders, five midfielders and three forwards</span>
+        </div>
+        <div>
+          <span class="stat-n">~7 × 10<sup style="font-size:0.55em">27</sup></span>
+          <span class="stat-k">atoms in a human body, for comparison</span>
+        </div>
+      </div>
+      <figcaption>
+        And that is before the budget and the three-per-club rule are applied.
+        Checking these one at a time is not slow — it is impossible. The universe
+        would end first.
+      </figcaption>
+    </figure>
+
+    <div class="col">
+      <p>
+        So the engine uses a <strong>solver</strong>: a piece of mathematics from
+        the same family that plans airline schedules and delivery routes. It does
+        not try every combination. It eliminates enormous regions in a single
+        step — <em>no squad containing this player can possibly be the best one</em>
+        — and closes in on what remains.
+      </p>
+      <p>
+        The important part is not that it is fast. It is that it does not return
+        <em>a good</em> squad. It returns <strong>provably the best one</strong>,
+        given the forecast it was handed.
+      </p>
+    </div>
+  </section>
+
+  <section class="wide">
+    <div class="col">
+      <h2>Two things a spreadsheet cannot do</h2>
+      <h3>It tells you what money is worth today</h3>
+      <p>
+        Having chosen a squad, the engine asks a second question: <em>if I had one
+        more £0.1m, how many extra points could I buy with it?</em>
+      </p>
+      <p>
+        The answer moves around far more than people expect. Identical money in
+        the bank, opposite advice:
+      </p>
+    </div>
+
+    <figure>
+      <p class="panel-label">£0.5m in the bank · two different squads</p>
+      <div class="twoup">
+        <div>
+          <span class="amt">£0.5m</span>
+          <span class="verdict go">Spend it</span>
+          <p>You are one small upgrade short of a much better forward. This half
+          a million is the difference between the two.</p>
+        </div>
+        <div>
+          <span class="amt">£0.5m</span>
+          <span class="verdict stop">Stop hoarding</span>
+          <p>Nothing on the market improves this squad at any price you can
+          reach. The money is doing nothing and will keep doing nothing.</p>
+        </div>
+      </div>
+      <figcaption>
+        Managers routinely bank money for a rainy day that the numbers say will
+        never come. Knowing which of these two you are in is worth more than the
+        money itself.
+      </figcaption>
+    </figure>
+
+    <div class="col">
+      <h3>It works out when to use your chips</h3>
+      <p>
+        Chips are one-shot power-ups that expire if unused. The tempting approach
+        is a rule: <em>use Triple Captain when someone is projected above 8.5
+        points</em>.
+      </p>
+      <p>
+        But a rule cannot answer the only question that matters — <strong>is this
+        week good enough, or is a better one coming before it expires?</strong> A
+        rule fires on the first decent week and burns the chip in October, when a
+        December fixture would have paid twice as much.
+      </p>
+    </div>
+
+    <figure>
+      <p class="panel-label">Best captain, by gameweek</p>
+      <div class="scroll-x">
+        <div class="timeline">
+          <div class="tl-track">
+            <div class="tl-bar" style="height:56%"></div>
+            <div class="tl-bar" style="height:41%"></div>
+            <div class="tl-bar" style="height:38%"></div>
+            <div class="tl-bar" style="height:52%"></div>
+            <div class="tl-bar" style="height:44%"></div>
+            <div class="tl-bar" style="height:35%"></div>
+            <div class="tl-bar" style="height:48%"></div>
+            <div class="tl-bar peak" style="height:100%"></div>
+            <div class="tl-bar" style="height:43%"></div>
+            <div class="tl-bar" style="height:39%"></div>
+            <div class="tl-bar" style="height:46%"></div>
+            <div class="tl-bar" style="height:37%"></div>
+          </div>
+          <div class="tl-axis">
+            <div class="tl-gw">5</div><div class="tl-gw">6</div><div class="tl-gw">7</div>
+            <div class="tl-gw">8</div><div class="tl-gw">9</div><div class="tl-gw">10</div>
+            <div class="tl-gw">11</div><div class="tl-gw">12</div><div class="tl-gw">13</div>
+            <div class="tl-gw">14</div><div class="tl-gw">15</div><div class="tl-gw">16</div>
+          </div>
+          <div class="tl-marks">
+            <div class="tl-mark rule">RULE<br>FIRES</div>
+            <div></div><div></div><div></div><div></div><div></div><div></div>
+            <div class="tl-mark plan">ENGINE<br>WAITS</div>
+            <div></div><div></div><div></div><div></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>
+        Gameweek 5 clears the threshold, so the rule spends the chip there.
+        Gameweek 12 is a double — the team plays twice — and is worth roughly
+        twice as much. The engine can see it coming and holds.
+      </figcaption>
+    </figure>
+
+    <div class="col">
+      <p>
+        So chips are treated as a scheduling problem instead: every chip, every
+        remaining week, one chip per week, find the best arrangement of the lot.
+      </p>
+      <p>
+        And it shows you the runner-up. If this week beats the next-best by a
+        wide margin, play it with confidence. If the margin is slim, it is a coin
+        flip and worth revisiting in seven days.
+      </p>
+    </div>
+  </section>
+
+  <section class="col">
+    <h2>What it cannot do</h2>
+    <p>
+      It does not watch football. It has never seen a press conference, does not
+      know a manager hinted at rotation, and cannot tell that a player looked
+      exhausted on Saturday.
+    </p>
+    <p>
+      It also refuses to pretend. Early in a season, before there is enough
+      evidence to say anything useful, it reports that it does not know rather
+      than guessing convincingly. That is a deliberate choice and occasionally an
+      irritating one — but a tool that manufactures confidence it has not earned
+      is worse than no tool.
+    </p>
+    <blockquote>
+      A very well-informed second opinion. Not an oracle. The decision stays
+      yours.
+    </blockquote>
+
+    <div class="close">
+      <p>
+        FPL Edge · the engine is roughly 2,900 lines of forecasting and
+        optimisation, covered by 206 tests, and measured against a full season of
+        historical results rather than against intuition.
+      </p>
+      <p>
+        Every number on this page is one the model actually produces, including
+        the unflattering ones.
+      </p>
+    </div>
+  </section>
+
+</main>
