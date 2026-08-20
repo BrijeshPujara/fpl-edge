@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getDb, isDbConfigured } from "@/lib/db/client";
 import { getEntryRow } from "@/lib/db/entries";
 import { parseEntryId } from "@/lib/fpl/entry";
+import { RefreshSquad } from "@/components/chrome/refresh-squad";
 import { SwitchTeam } from "@/components/chrome/switch-team";
 
 /**
@@ -45,7 +46,10 @@ export default async function EntryLayout({
             #{entryId}
           </div>
         </div>
-        <SwitchTeam />
+        <div className="flex shrink-0 items-baseline gap-4">
+          <RefreshSquad entryId={entryId} />
+          <SwitchTeam />
+        </div>
       </div>
       {children}
     </div>

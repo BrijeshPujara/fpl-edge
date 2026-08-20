@@ -2,7 +2,7 @@ import "server-only";
 
 import { getElementSummary } from "@/lib/fpl/client";
 import type { Db } from "./client";
-import { getAllPlayers } from "./queries";
+import { getAllPlayers, getSeasonHistoryCodes } from "./queries";
 import type { TablesInsert } from "./types.generated";
 
 /**
@@ -52,16 +52,9 @@ export async function syncHistory(
 
   // Who already has history. Keyed on code, because that is what the table is
   // keyed on and what survives FPL renumbering ids between seasons.
-  const known = new Set<number>();
-  if (!options.force) {
-    const { data, error } = await db
-      .from("player_season_history")
-      .select("player_code");
-    if (error) {
-      throw new Error(`Failed to read existing history: ${error.message}`);
-    }
-    for (const row of data ?? []) known.add(row.player_code);
-  }
+  const known = options.force
+    ? new Set<number>()
+    : await getSeasonHistoryCodes(db);
 
   const pending = players.filter((p) => !known.has(p.code));
 

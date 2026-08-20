@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb, isDbConfigured } from "@/lib/db/client";
 import { registerEntry } from "@/lib/db/entries";
@@ -86,11 +87,24 @@ export async function forgetTeam(): Promise<void> {
 /**
  * Re-pull a manager's squad on request.
  *
- * The nightly cron only syncs the deployment's own `FPL_TEAM_ID`; every other
- * manager's squad is refreshed here, when someone is actually looking at it.
+ * Two reasons this is a button rather than only a cron.
+ *
+ * The nightly job syncs the deployment's own FPL_TEAM_ID; every other manager
+ * is only ever refreshed here, when someone is actually looking at them.
+ *
+ * And the cron cannot be timed to a deadline. Picks appear the moment a
+ * deadline passes — 18:30 on a Friday — while the squad job runs at 06:00 UTC,
+ * so a squad locked on Friday evening does not arrive until Saturday morning.
+ * That gap is most of a matchday, and this closes it.
+ *
+ * Takes FormData rather than a number so it can be a form action directly.
  */
-export async function refreshSquad(entryId: number): Promise<void> {
-  if (!isDbConfigured()) return;
+export async function refreshSquad(formData: FormData): Promise<void> {
+  const entryId = parseEntryId(String(formData.get("entryId") ?? ""));
+  if (entryId === null || !isDbConfigured()) return;
+
   await syncSquad(getDb(), entryId).catch(() => null);
-  redirect(`/t/${entryId}`);
+  // Revalidate rather than redirect: the user is already on the page they want
+  // and a redirect would scroll them back to the top of it.
+  revalidatePath(`/t/${entryId}`, "layout");
 }

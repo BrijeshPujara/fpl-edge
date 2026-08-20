@@ -3,6 +3,7 @@ import "server-only";
 import { getBootstrapStatic, getFixtures } from "@/lib/fpl/client";
 import type { Db } from "./client";
 import type { TablesInsert } from "./types.generated";
+import { getLatestPrices } from "./queries";
 
 /**
  * Syncing FPL reference data into Postgres.
@@ -236,21 +237,7 @@ async function snapshotPrices(
   elements: { id: number; now_cost: number }[],
   recordedAt: string,
 ): Promise<number> {
-  const { data: latest, error } = await db
-    .from("price_history")
-    .select("player_id, cost, recorded_at")
-    .order("recorded_at", { ascending: false });
-
-  if (error) {
-    throw new Error(`Failed to read price history: ${error.message}`);
-  }
-
-  // The query returns newest first, so the first row seen per player is the
-  // most recent one.
-  const lastKnown = new Map<number, number>();
-  for (const row of latest ?? []) {
-    if (!lastKnown.has(row.player_id)) lastKnown.set(row.player_id, row.cost);
-  }
+  const lastKnown = await getLatestPrices(db);
 
   const changed: TablesInsert<"price_history">[] = elements
     .filter((e) => lastKnown.get(e.id) !== e.now_cost)

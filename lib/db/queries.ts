@@ -307,3 +307,53 @@ export async function getSeasonHistory(
     "season history",
   );
 }
+
+/**
+ * The most recent recorded cost per player.
+ *
+ * Paged, and it has to be. `price_history` grows by a row per player per actual
+ * price change — a few thousand a season — and an unpaged read of it degrades
+ * in a way that ACCELERATES: a player truncated out of the result looks like a
+ * player with no known price, so a snapshot is written for them, which adds a
+ * row, which makes the next truncation worse.
+ */
+export async function getLatestPrices(db: Db): Promise<Map<number, number>> {
+  const rows = await fetchAll<{ player_id: number; cost: number }>(
+    (from, to) =>
+      db
+        .from("price_history")
+        .select("player_id, cost, recorded_at")
+        .order("recorded_at", { ascending: false })
+        .order("player_id", { ascending: true })
+        .range(from, to),
+    "price history",
+  );
+
+  // Newest first, so the first row seen for a player is their current price.
+  const latest = new Map<number, number>();
+  for (const row of rows) {
+    if (!latest.has(row.player_id)) latest.set(row.player_id, row.cost);
+  }
+  return latest;
+}
+
+/**
+ * Player codes that already have season history recorded.
+ *
+ * Paged: the table holds over two thousand rows already, so an unpaged read
+ * sees under half of them and the "skip players we have" check re-fetches
+ * hundreds of players from the FPL API on every run.
+ */
+export async function getSeasonHistoryCodes(db: Db): Promise<Set<number>> {
+  const rows = await fetchAll<{ player_code: number }>(
+    (from, to) =>
+      db
+        .from("player_season_history")
+        .select("player_code")
+        .order("player_code", { ascending: true })
+        .order("season_name", { ascending: false })
+        .range(from, to),
+    "season history codes",
+  );
+  return new Set(rows.map((row) => row.player_code));
+}
