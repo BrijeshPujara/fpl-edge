@@ -133,27 +133,25 @@ consequence rather than a special case.
 Do this **after** a few gameweeks of real data, so the projections it plans on
 are worth planning on.
 
-### 3. Chip timing as an assignment problem
+### 3. ~~Chip timing as an assignment problem~~ — **done**, 2026-08-20
 
-PLAN.md §7 specifies rules-based triggers with thresholds — "fire Triple Captain
-above 8.5 EP". That is a guess dressed as a rule. Chip timing is exactly
-solvable with the solver already in the repo.
+`lib/engine/chips.ts`. PLAN.md §7 rewritten: the threshold triggers are gone,
+replaced by a bipartite assignment over chips and gameweeks solved with the
+existing solver. `planChips` returns, per assignment, the next-best gameweek
+for that same chip and the margin over it — the answer a threshold structurally
+cannot give. Unplayed chips report why rather than vanishing.
 
-For each chip and each eligible gameweek, the marginal gain is computable:
+`benchBoostGain` and `tripleCaptainGain` are here too. The second is the one
+worth knowing about: Triple Captain's gain is **one** further multiple of
+captain EP, not three, because the armband is already paying double.
 
-| Chip | Gain in gameweek *g* |
-|---|---|
-| Bench Boost | bench EP in *g* |
-| Triple Captain | captain EP in *g* |
-| Free Hit | optimal one-week squad EP − current squad EP |
-| Wildcard | optimal rebuild EP over the remaining horizon − current |
-
-Then maximise total gain subject to: one chip per gameweek, each chip inside its
-API-reported window (`resolveChipWindows`), each chip used at most once per set.
-
-This answers the question a threshold cannot — *"is this week good enough, or is
-a better one coming before the window closes?"* — and it is where the existing
-blank/double detection finally earns out.
+**Still open.** The Free Hit and Wildcard gains need a solve against a candidate
+pool and a budget, so they are the caller's job — `optimalFreeHit` and
+`optimalWildcard` produce them, and the difference against the current squad is
+the gain. Nothing calls `planChips` yet because `/chips` is not built. And gains
+are treated as independent across chips, which they are not: a Wildcard changes
+what a Bench Boost is worth the week after. That is the transfer-path MILP's
+problem, below.
 
 ### 4. Better form modelling
 
@@ -175,10 +173,9 @@ ratings is the likely fix, and it is directly testable against the backtest.
 
 1. ~~**Set-piece duties**~~ — done 2026-08-20.
 2. ~~**`transfers_balance` capture**~~ — done 2026-08-20.
-3. **Chip assignment** — turns the vaguest part of the spec into something
-   exact, reuses the existing solver. **Next up.**
+3. ~~**Chip assignment**~~ — done 2026-08-20.
 4. **`suggestTransfers` cardinality** — small, and needed before `/transfers`
-   can be trusted.
+   can be trusted. **Next up.**
 5. **Transfer-path MILP** — biggest win, biggest job, wants real data first.
 6. **Form modelling and forwards** — needs ten-plus gameweeks of 2026/27 before
    tuning is anything other than overfitting.

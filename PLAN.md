@@ -341,14 +341,36 @@ Always return the top 3–5 options with these deltas, not a single answer. The 
 
 ## 7. Chip strategy engine
 
-`lib/engine/chips.ts`. Rules-based triggers, evaluated weekly, surfaced as advisories with confidence levels.
+`lib/engine/chips.ts`. **An assignment problem, not a set of thresholds.**
 
-- **Triple Captain** — fire when a candidate's single-GW EP exceeds a threshold (start at 8.5) *and* it is the season maximum so far, weighted by how few gameweeks remain before expiry. In the second half, prioritise double gameweeks.
-- **Bench Boost** — fire when total 15-man EP peaks, typically the week after a Wildcard when the bench was deliberately built strong, or in a double gameweek.
-- **Wildcard** — fire on a squad-health score: count of flagged players, players with sub-4.0 EP, and cumulative value lost to price drops. Also flag the gameweek after an international break, when information is richest.
-- **Free Hit** — fire on blank gameweeks (detected automatically: count fixtures per team per GW from the `fixtures` table), or when your squad's fixture set for one week is exceptionally bad.
+This section originally specified rules-based triggers — "fire Triple Captain above 8.5 EP". That was a guess dressed as a rule, and it cannot answer the only question that decides a chip:
 
-**Expiry pressure:** every advisory carries an urgency score that rises as GW19 approaches. Surface a persistent countdown in the UI. An unused first-half chip is a wasted asset.
+> is this week good enough, or is a better one coming before the window closes?
+
+A threshold has no idea. It fires on the first week clearing the bar even when a double gameweek four weeks out pays twice as much, and in a quiet season it never fires at all — leaving the chip to expire unused, which is strictly the worst outcome available.
+
+The question is exactly a bipartite assignment. Chips on one side, gameweeks on the other, a gain on each edge, maximise the matching:
+
+| Chip | Gain in gameweek *g* |
+|---|---|
+| Bench Boost | bench EP in *g* — `benchBoostGain` |
+| Triple Captain | **one further multiple** of captain EP — `tripleCaptainGain` |
+| Free Hit | optimal one-week squad EP − current squad EP |
+| Wildcard | optimal rebuild EP over the remaining horizon − current |
+
+Subject to: at most one chip per gameweek (the real rule, and the constraint that makes this an assignment rather than four independent choices); each chip instance used at most once; every gameweek inside the chip's API-reported window (`resolveChipWindows`) and not already behind us.
+
+Three things worth noting:
+
+- **Triple Captain's gain is 1×, not 3×.** The armband already pays double, so the chip buys the step from doubling to tripling. Reading it as 3× overstates the chip threefold and burns it on any decent week.
+- **"At most once", never "exactly once".** A chip whose every remaining week is a poor bet is better held, and forcing an assignment would manufacture a recommendation to waste it. Negative-gain edges — a Free Hit into a week your own squad handles better — are dropped rather than used to fill an idle gameweek.
+- **The constraint matrix is an assignment polytope**, hence totally unimodular, so the relaxation is integral and the answer is genuinely optimal rather than a good-enough heuristic. The same solver as §6.
+
+**What it returns.** Each assignment carries `nextBestGw` and `marginOverNextBest` — the best *other* week for that same chip, and by how much the chosen one wins. That is the part a threshold cannot produce and the part worth putting in front of a user: a wide margin means play it with confidence, a margin near zero means the call is close and worth revisiting next week. Chips that go unplayed report *why* — `already-played`, `window-closed`, `no-projections`, `no-positive-gain`, or `gameweek-taken` — because a chip that silently vanishes from a plan is indistinguishable from one the model decided to hold, and those mean opposite things.
+
+**What it does not model.** Gains are treated as independent across chips, and they are not: a Wildcard changes the squad, and therefore changes what a Bench Boost is worth the week after. That interaction belongs to the transfer-path MILP (`docs/next-steps.md`), and pretending to solve it here would be worse than saying so. Callers who care can price it into the gains they pass in.
+
+**Expiry pressure:** `chipUrgency` rises as a window closes and returns zero once a chip has a week booked — the thing worth shouting about is a Bench Boost with three gameweeks left and *no plan*, not one with three gameweeks left and a good week chosen.
 
 ---
 
