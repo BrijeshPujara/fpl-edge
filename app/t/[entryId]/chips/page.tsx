@@ -1,4 +1,6 @@
+import { notFound } from "next/navigation";
 import { getFixtures } from "@/lib/fpl/client";
+import { parseEntryId } from "@/lib/fpl/entry";
 import { getSeasonContext } from "@/lib/fpl/season";
 import {
   classifyGameweek,
@@ -23,7 +25,14 @@ import { ChipAdvisories } from "@/components/chips/advisories";
  * solved rather than triggered, and depend on the expected-points model. See
  * `components/chips/advisories.tsx`.
  */
-export default async function ChipsPage() {
+export default async function ChipsPage({
+  params,
+}: {
+  params: Promise<{ entryId: string }>;
+}) {
+  const entryId = parseEntryId((await params).entryId);
+  if (entryId === null) notFound();
+
   const season = await getSeasonContext();
   if (!season.available) {
     return (
@@ -180,7 +189,7 @@ export default async function ChipsPage() {
       ) : null}
 
       <div className="mt-6">
-        <ChipAdvisories />
+        <ChipAdvisories entryId={entryId} />
       </div>
     </div>
   );

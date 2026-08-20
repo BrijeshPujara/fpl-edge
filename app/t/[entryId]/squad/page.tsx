@@ -8,11 +8,12 @@ import {
   getTeams,
 } from "@/lib/db/queries";
 import { buildSquadView } from "@/lib/squad/view";
-import { resolveEntryId } from "@/lib/fpl/entry";
+import { notFound } from "next/navigation";
+import { parseEntryId } from "@/lib/fpl/entry";
 import { FORM_WINDOW } from "@/lib/engine/constants";
 import { ep as formatEp, money } from "@/lib/format";
 import { Panel, SectionLabel, StatRow } from "@/components/ui/panel";
-import { NoEntry, Pending } from "@/components/ui/pending";
+import { Pending } from "@/components/ui/pending";
 import { FixtureDifficultyKey } from "@/components/ui/fixture-strip";
 import { Bench, Pitch } from "@/components/squad/pitch";
 
@@ -23,7 +24,14 @@ import { Bench, Pitch } from "@/components/squad/pitch";
  * publicly until a gameweek's deadline has passed, so before the first deadline
  * there is genuinely nothing to render.
  */
-export default async function SquadPage() {
+export default async function SquadPage({
+  params,
+}: {
+  params: Promise<{ entryId: string }>;
+}) {
+  const entryId = parseEntryId((await params).entryId);
+  if (entryId === null) notFound();
+
   const season = await getSeasonContext();
 
   if (!season.available) {
@@ -47,9 +55,6 @@ export default async function SquadPage() {
       </Pending>
     );
   }
-
-  const entryId = resolveEntryId();
-  if (entryId === null) return <NoEntry />;
 
   const { target } = season.gameweek;
   const db = getDb();

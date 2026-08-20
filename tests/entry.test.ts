@@ -38,3 +38,34 @@ describe("parseEntryId", () => {
     expect(parseEntryId("999999999999")).toBeNull();
   });
 });
+
+describe("entryBaseFrom — the tab strip's view of the URL", () => {
+  // Reimplemented here rather than imported: the component is a client module
+  // and this is the parsing rule, which is what can silently break.
+  const entryBaseFrom = (pathname: string): string | null => {
+    const [, root, entryId] = pathname.split("/");
+    if (root !== "t" || !entryId || !/^\d+$/.test(entryId)) return null;
+    return `/t/${entryId}`;
+  };
+
+  it("finds the team in a team route", () => {
+    expect(entryBaseFrom("/t/4278347")).toBe("/t/4278347");
+    expect(entryBaseFrom("/t/4278347/transfers")).toBe("/t/4278347");
+  });
+
+  it("finds no team on the landing page", () => {
+    expect(entryBaseFrom("/")).toBeNull();
+  });
+
+  it("finds no team in the preview harness", () => {
+    // The preview renders the same screens with no manager behind them, and a
+    // tab strip there would point at routes that 404.
+    expect(entryBaseFrom("/preview/transfers")).toBeNull();
+  });
+
+  it("refuses a malformed segment rather than building a broken link", () => {
+    for (const path of ["/t/banana", "/t/", "/t", "/t/12abc/squad"]) {
+      expect(entryBaseFrom(path)).toBeNull();
+    }
+  });
+});

@@ -97,6 +97,30 @@ export type Database = {
           },
         ]
       }
+      entries: {
+        Row: {
+          created_at: string
+          id: number
+          last_synced_at: string
+          manager_name: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id: number
+          last_synced_at?: string
+          manager_name: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          last_synced_at?: string
+          manager_name?: string
+          name?: string
+        }
+        Relationships: []
+      }
       fixtures: {
         Row: {
           away_difficulty: number
@@ -540,6 +564,13 @@ export type Database = {
           vice_captain_id?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "squads_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "entries"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "squads_captain_id_fkey"
             columns: ["captain_id"]

@@ -70,12 +70,28 @@ function fakeDb() {
   const db = {
     from(table: string) {
       return {
+        // Only `entries` is read back, by registerEntry checking whether this
+        // manager is already known. Returning null means "never seen", which
+        // is the path worth exercising.
+        select() {
+          return {
+            eq: () => ({
+              maybeSingle: async () => {
+                calls.push({ op: "select", table });
+                return { data: null, error: null };
+              },
+            }),
+          };
+        },
         upsert(payload: unknown) {
           calls.push({ op: "upsert", table, payload });
           return {
             select: () => ({
               single: async () => ({
-                data: { id: "squad-uuid-1" },
+                data:
+                  table === "entries"
+                    ? { id: 4278347, name: "Test", manager_name: "A Manager" }
+                    : { id: "squad-uuid-1" },
                 error: null,
               }),
             }),
@@ -102,7 +118,12 @@ function fakeDb() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.getEntry.mockResolvedValue({ id: 4278347, name: "Test" });
+  mocks.getEntry.mockResolvedValue({
+    id: 4278347,
+    name: "Test",
+    player_first_name: "A",
+    player_last_name: "Manager",
+  });
   mocks.getEntryHistory.mockResolvedValue({ current: [], chips: [] });
 });
 
@@ -116,8 +137,14 @@ describe("syncSquad", () => {
     const result = await syncSquad(db, 4278347);
 
     expect(result.status).toBe("no-picks-yet");
-    // Nothing must be written in this state.
-    expect(calls).toHaveLength(0);
+    // The MANAGER is registered even here — deliberately, since a squad cannot
+    // be written for an unknown entry and waiting until the first deadline
+    // would leave every team anonymous until then. No squad or picks, though.
+    expect(calls.filter((c) => c.table === "squads")).toHaveLength(0);
+    expect(calls.filter((c) => c.table === "squad_picks")).toHaveLength(0);
+    expect(calls.some((c) => c.op === "upsert" && c.table === "entries")).toBe(
+      true,
+    );
     expect(mocks.getEntryPicksIfAvailable).not.toHaveBeenCalled();
   });
 
@@ -131,7 +158,8 @@ describe("syncSquad", () => {
     const result = await syncSquad(db, 4278347);
 
     expect(result).toMatchObject({ status: "no-picks-yet", gw: 1 });
-    expect(calls).toHaveLength(0);
+    // The manager is registered; nothing about a squad is written.
+    expect(calls.filter((c) => c.table.startsWith("squad"))).toHaveLength(0);
   });
 
   it("writes the squad and all fifteen picks", async () => {
@@ -165,13 +193,20 @@ describe("syncSquad", () => {
 
     // Picks must be cleared before reinsertion, or the unique constraint on
     // (squad_id, position) collides when a player changes bench slot.
+    // Registration comes first — a squad cannot reference an unknown entry.
     expect(calls.map((c) => `${c.op}:${c.table}`)).toEqual([
+      "select:entries",
+      "upsert:entries",
       "upsert:squads",
       "delete:squad_picks",
       "insert:squad_picks",
     ]);
 
-    const inserted = calls[2].payload as { squad_id: string; position: number }[];
+    // Found by table rather than by index, so inserting another write earlier
+    // in the sequence does not silently retarget this assertion.
+    const inserted = calls.find(
+      (c) => c.op === "insert" && c.table === "squad_picks",
+    )!.payload as { squad_id: string; position: number }[];
     expect(inserted).toHaveLength(15);
     expect(inserted.every((p) => p.squad_id === "squad-uuid-1")).toBe(true);
     expect(inserted.map((p) => p.position)).toEqual(

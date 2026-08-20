@@ -12,6 +12,7 @@ import {
 } from "@/lib/engine/free-transfers";
 import type { Db } from "./client";
 import type { TablesInsert } from "./types.generated";
+import { registerEntry } from "./entries";
 
 /**
  * Syncing your own squad.
@@ -53,6 +54,25 @@ export async function syncSquad(
     getBootstrapStatic({ revalidate: 0 }),
     getEntryHistory(teamId, { revalidate: 0 }),
   ]);
+
+  // The manager first, and before any early return.
+  //
+  // Two reasons, and the second is the one that bites. `squads.entry_id` is a
+  // foreign key onto `entries`, so a squad cannot be written for a manager the
+  // app has never looked up — skipping this is a constraint violation, not a
+  // missing team name. And registering only alongside a successful squad sync
+  // would leave every manager anonymous until the first deadline, because
+  // that is when this function starts returning early.
+  //
+  // registerEntry has its own freshness window, so the nightly job pays for
+  // the lookup once rather than daily.
+  const registered = await registerEntry(db, teamId);
+  if (registered === null) {
+    throw new Error(
+      `FPL has no entry ${teamId}. It is the number in the My Team URL, ` +
+        `e.g. /entry/1234567/event/1.`,
+    );
+  }
 
   const gameweek = resolveGameweekState(bootstrap.events);
 

@@ -28,6 +28,34 @@ Two conventions follow from that and are worth stating up front:
 - **Money is an integer in tenths of a million** everywhere, matching the API.
   It becomes a `£` string only in `lib/format.ts`.
 
+## Routes
+
+Every screen belongs to a manager and lives under their entry id:
+
+```
+/                      landing — takes a team id, or redirects if one is known
+/?switch=1             the landing page again, bypassing the redirect
+/t/{entryId}           dashboard
+/t/{entryId}/squad     pitch view
+/t/{entryId}/transfers ranked options
+/t/{entryId}/chips     timeline and plan
+/preview/*             dev-only harness, no manager behind it
+```
+
+**There is no sign-in, and there is not going to be one.** An FPL entry id is
+public: `entry/{id}/` is unauthenticated and the FPL site reads it for every
+mini-league table. A password would protect nothing and imply the opposite.
+
+`/` resolves a team in this order: the `fpl_entry` cookie, then `FPL_TEAM_ID`.
+The cookie wins on purpose — a configured `FPL_TEAM_ID` is the deployment's
+default, not a lock, so a personal install still opens straight on your own team
+while anyone who has deliberately chosen another keeps landing on it.
+
+Entering an id looks the manager up once, registers them in `entries`, pulls
+their squad, and redirects. `registerEntry` will not re-ask the FPL API about
+the same manager within fifteen minutes, which is what stops a refreshed page
+turning into traffic on someone else's server.
+
 ## Running it
 
 ```bash
@@ -48,7 +76,7 @@ gate each build phase has to pass.
 | Chip windows | Working — read from `bootstrap-static.chips[]` |
 | Blank and double gameweek detection | Working — counted from the fixture list |
 | Chip timeline (`/chips`) | Working |
-| Database schema | Applied — 13 tables, RLS enabled |
+| Database schema | Applied — 14 tables, RLS enabled |
 | `sync-static` cron route | Working — 20 teams, 595 players, 380 fixtures, daily price and transfer snapshots |
 | `sync-squad` cron route | Built — waits for the first deadline |
 | `sync-results` cron route | Built — waits for a `data_checked` gameweek |
@@ -59,7 +87,8 @@ gate each build phase has to pass.
 | Transfer suggestions | Working — each transfer count pinned by a retention floor |
 | Chip planner | Working — assignment problem over chips and gameweeks |
 | Price momentum | Capturing daily; reports no confidence until roughly GW4 |
-| Dashboard (`/`) | Working — this week's actions ranked by what the decision is worth |
+| Multi-manager routing | Working — `/t/{entryId}`, no sign-in, registered on demand |
+| Dashboard (`/t/{entryId}`) | Working — this week's actions ranked by what the decision is worth |
 | `/transfers` screen | Working — ranked options with the roll always offered |
 | `/chips` screen | Working — timeline, plan, expiry pressure |
 | LLM brief | Not built — see PLAN.md §8 |
@@ -100,7 +129,7 @@ invented expected-points figure is worse than one that displays nothing.
 
 ## Database
 
-Supabase project `ehfuwpslwzxsjjaatgng`. All three migrations in
+Supabase project `ehfuwpslwzxsjjaatgng`. All five migrations in
 `supabase/migrations/` are applied.
 
 **Access is server-side only, and the schema enforces it.** Every table has RLS
@@ -109,7 +138,7 @@ and write nothing, so all access goes through `SUPABASE_SERVICE_ROLE_KEY`, which
 bypasses RLS. `lib/db/client.ts` imports `server-only`, so a mistaken client
 import is a build error rather than a leaked credential.
 
-Supabase's linter reports `rls_enabled_no_policy` at INFO level for all thirteen
+Supabase's linter reports `rls_enabled_no_policy` at INFO level for all fourteen
 tables. That is the intended state, not a gap to close. If a screen ever needs
 to query from the browser, add a narrow policy for that one table — do not
 disable RLS.

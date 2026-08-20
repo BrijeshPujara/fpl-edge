@@ -1,4 +1,6 @@
+import { notFound } from "next/navigation";
 import { loadDecisionContext } from "@/lib/db/decision-context";
+import { parseEntryId } from "@/lib/fpl/entry";
 import { DEFAULT_HORIZON } from "@/lib/engine/constants";
 import { TransferBoard } from "@/components/transfers/transfer-board";
 import { SectionLabel } from "@/components/ui/panel";
@@ -14,8 +16,15 @@ import { NoEntry, Pending } from "@/components/ui/pending";
  * This route only decides WHICH state to render. The board itself lives in
  * `components/transfers/transfer-board.tsx`, shared with the dev preview.
  */
-export default async function TransfersPage() {
-  const context = await loadDecisionContext(DEFAULT_HORIZON);
+export default async function TransfersPage({
+  params,
+}: {
+  params: Promise<{ entryId: string }>;
+}) {
+  const entryId = parseEntryId((await params).entryId);
+  if (entryId === null) notFound();
+
+  const context = await loadDecisionContext(entryId, DEFAULT_HORIZON);
 
   if (context.state === "no-api") {
     return (

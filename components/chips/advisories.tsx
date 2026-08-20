@@ -29,8 +29,8 @@ import { NoEntry, Pending } from "@/components/ui/pending";
  * chosen week is than the next-best week for the same chip. A wide margin is a
  * decision; a narrow one is a coin flip that should be revisited next week.
  */
-export async function ChipAdvisories() {
-  const context = await loadDecisionContext(CHIP_SCAN_HORIZON);
+export async function ChipAdvisories({ entryId }: { entryId: number }) {
+  const context = await loadDecisionContext(entryId, CHIP_SCAN_HORIZON);
 
   if (context.state === "no-api") {
     return (

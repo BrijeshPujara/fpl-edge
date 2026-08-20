@@ -41,13 +41,27 @@ Only two tables are per-user, and only one column is missing:
 
 | Change | Effort |
 |---|---|
-| ~~`squads.entry_id`, and the key becomes `(entry_id, gw)`~~ | **done 2026-08-20** |
-| `entries` table caching team name and last sync | 30 minutes |
-| Routes become `/t/{entryId}/...`, with a cookie remembering the last one | half a day |
-| A landing page that takes an ID and redirects | an hour |
-| `sync-squad` becomes on-demand per entry rather than a nightly job for one | half a day |
-| Per-IP rate limiting on first sync of a new ID | an hour |
-| Cache the optimiser result per `(entry, gw)` | half a day |
+| ~~`squads.entry_id`, and the key becomes `(entry_id, gw)`~~ | **done** |
+| ~~`entries` table caching team name and last sync~~ | **done** |
+| ~~Routes become `/t/{entryId}/...`, with a cookie remembering the last one~~ | **done** |
+| ~~A landing page that takes an ID and redirects~~ | **done** |
+| ~~`sync-squad` on demand per entry~~ | **done** — on registration, and via `refreshSquad` |
+| Per-IP rate limiting | partly — see below |
+| Cache the optimiser result per `(entry, gw)` | still open |
+
+**Done 2026-08-20**, except the last two lines.
+
+What is left, and why neither blocks using it. Registration is bounded by
+`ENTRY_REFRESH_MS` — the same manager cannot cause a second FPL lookup within
+fifteen minutes — which handles the accidental case (a refreshed page) but not
+a deliberate one (a script walking through ids). A per-IP limit is the missing
+piece and needs somewhere to keep counters that survives a serverless cold
+start, so it is a small piece of infrastructure rather than a small piece of
+code.
+
+Optimiser results are still recomputed per render: ~175ms for transfers, ~700ms
+for a dashboard. Fine for one person, worth caching on `(entry, gw, projection
+date)` before this is in front of many.
 
 Call it two days of honest work. Nothing in it is difficult.
 

@@ -13,7 +13,6 @@ import { projectPriceChanges } from "@/lib/engine/price-model";
 import { FORM_WINDOW } from "@/lib/engine/constants";
 import { buildCandidatePool, type Candidate } from "@/lib/squad/candidates";
 import { getSeasonContext } from "@/lib/fpl/season";
-import { resolveEntryId } from "@/lib/fpl/entry";
 import type { ChipWindow } from "@/lib/fpl/gameweek";
 
 /**
@@ -70,7 +69,15 @@ export type DecisionContext =
   | { state: "no-squad"; gw: number; gwName: string }
   | ReadyDecisionContext;
 
+/**
+ * `entryId` is a parameter rather than something this function resolves.
+ *
+ * It used to read the environment. That worked while the app served one
+ * manager and would have been exactly the wrong shape the moment it served
+ * two — the answer belongs to the request, not to the deployment.
+ */
 export async function loadDecisionContext(
+  entryId: number,
   horizon: number,
 ): Promise<DecisionContext> {
   const season = await getSeasonContext();
@@ -78,9 +85,6 @@ export async function loadDecisionContext(
     return { state: "no-api", reason: season.reason };
   }
   if (!isDbConfigured()) return { state: "no-db" };
-
-  const entryId = resolveEntryId();
-  if (entryId === null) return { state: "no-entry" };
 
   const { target } = season.gameweek;
   const db = getDb();
