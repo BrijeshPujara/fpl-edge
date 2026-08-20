@@ -4,6 +4,12 @@ A data-driven Fantasy Premier League decision engine. It ingests official FPL
 data, computes expected points, optimises transfers under FPL's constraints,
 tracks every decision against its outcome, and produces a weekly brief.
 
+`docs/data-and-calculations.md` answers what data goes in, what is computed
+from it, and whether the FPL API is sufficient. Short answer to the last one:
+yes, and the app is not yet using all of it — `element-summary/{id}` carries
+four seasons of prior history that the model's shrinkage schedule is currently
+blending toward `null`.
+
 **[How the engine thinks](https://claude.ai/code/artifact/33678294-5060-4a74-8f0a-84faed44b8c5)**
 — a plain-English explanation of what the engine is for and how it calculates,
 written for someone who does not read code. Source at
@@ -33,8 +39,8 @@ Two conventions follow from that and are worth stating up front:
 Every screen belongs to a manager and lives under their entry id:
 
 ```
-/                      landing — takes a team id, or redirects if one is known
-/?switch=1             the landing page again, bypassing the redirect
+/                      landing — how it works, and the way in
+/?switch=1             the landing page, forcing the team-id form
 /t/{entryId}           dashboard
 /t/{entryId}/squad     pitch view
 /t/{entryId}/transfers ranked options
@@ -46,10 +52,12 @@ Every screen belongs to a manager and lives under their entry id:
 public: `entry/{id}/` is unauthenticated and the FPL site reads it for every
 mini-league table. A password would protect nothing and imply the opposite.
 
-`/` resolves a team in this order: the `fpl_entry` cookie, then `FPL_TEAM_ID`.
-The cookie wins on purpose — a configured `FPL_TEAM_ID` is the deployment's
-default, not a lock, so a personal install still opens straight on your own team
-while anyone who has deliberately chosen another keeps landing on it.
+`/` explains what the tool does and offers a way in. A known team — the
+`fpl_entry` cookie first, then `FPL_TEAM_ID` — becomes a button rather than a
+redirect. It used to redirect automatically, which made the landing page
+invisible to everyone arriving for the first time; one click is worth the page
+existing. The cookie outranks the environment on purpose: a configured
+`FPL_TEAM_ID` is the deployment's default, not a lock.
 
 Entering an id looks the manager up once, registers them in `entries`, pulls
 their squad, and redirects. `registerEntry` will not re-ask the FPL API about
@@ -87,6 +95,7 @@ gate each build phase has to pass.
 | Transfer suggestions | Working — each transfer count pinned by a retention floor |
 | Chip planner | Working — assignment problem over chips and gameweeks |
 | Price momentum | Capturing daily; reports no confidence until roughly GW4 |
+| Landing page (`/`) | Working — what it does, what data it uses, and its limits |
 | Multi-manager routing | Working — `/t/{entryId}`, no sign-in, registered on demand |
 | Mini-leagues (`/leagues`) | Working — discovered from your entry, no configuration |
 | Dashboard (`/t/{entryId}`) | Working — this week's actions ranked by what the decision is worth |

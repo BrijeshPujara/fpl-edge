@@ -199,6 +199,22 @@ ratings is the likely fix, and it is directly testable against the backtest.
 
 ---
 
+## The highest-value change available right now
+
+**`element-summary/{id}.history_past` → `priorSeason`.**
+
+The model has a shrinkage schedule that blends toward prior-season rates at
+GW1–6, weighted 0.7 at GW1. `priorSeason` is passed as `null` everywhere in
+production, so for exactly the gameweeks the schedule exists to cover, it
+blends toward nothing.
+
+FPL already publishes four seasons of per-player `minutes`, `starts`,
+`expected_goals`, `expected_assists`, `defensive_contribution` and `bonus`.
+No new API, no key, no scraper — one request per player, once, since
+`history_past` only changes between seasons.
+
+See `data-and-calculations.md`.
+
 ## Suggested order
 
 1. ~~**Set-piece duties**~~ — done 2026-08-20.
