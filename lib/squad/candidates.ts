@@ -1,5 +1,6 @@
 import { PLAYER_STATUS, POSITION_SHORT, type PositionId } from "@/lib/rules";
 import type { PlayerCandidate } from "@/lib/engine/optimiser";
+import type { PriorSeasonRates } from "@/lib/engine/expected-points";
 import { projectMinutes } from "@/lib/engine/minutes";
 import { readNewsSignal } from "@/lib/engine/news-signal";
 import {
@@ -64,6 +65,14 @@ export interface BuildCandidatePoolInput {
   teams: TeamLike[];
   fixtures: FixtureLike[];
   stats: StatLike[];
+  /**
+   * Last season's rates, by player CODE — stable across seasons, unlike id.
+   *
+   * Optional, and absent means the model falls back to its own priors. That is
+   * what production did for every player until this was wired up, which made
+   * the whole early-season shrinkage schedule inert.
+   */
+  priorSeasons?: Map<number, PriorSeasonRates>;
 }
 
 function flagFor(player: PlayerLike): Candidate["flag"] {
@@ -99,7 +108,13 @@ export function buildCandidatePool(
   for (const player of input.players) {
     const history = historyFor(player.id, byPlayer);
     const contexts = contextsByTeam.get(player.team_id) ?? [];
-    const projection = projectPlayer(player, history, contexts, gameweeks);
+    const projection = projectPlayer(
+      player,
+      history,
+      contexts,
+      gameweeks,
+      input.priorSeasons?.get(player.code) ?? null,
+    );
 
     // Drives the optimiser's nailed-bench constraint: a bench slot is only
     // real cover if the player in it actually plays.

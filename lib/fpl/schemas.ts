@@ -312,6 +312,40 @@ export const elementHistorySchema = z.object({
 
 export type FplElementHistory = z.infer<typeof elementHistorySchema>;
 
+/**
+ * One completed season for one player, from `element-summary/{id}.history_past`.
+ *
+ * The key is `element_code`, not `id`. FPL renumbers player ids every season;
+ * the code is the stable identity, and it is the only thing that lets last
+ * season's rates find this season's player.
+ *
+ * xG and xA are optional because the API did not publish them before 2022/23.
+ * A season without them is a season the model cannot use, which is the correct
+ * outcome rather than a zero.
+ */
+export const seasonHistorySchema = z.object({
+  season_name: z.string(),
+  element_code: z.number().int(),
+  total_points: z.number().int(),
+  minutes: z.number().int(),
+  starts: z.number().int().optional().default(0),
+  goals_scored: z.number().int(),
+  assists: z.number().int(),
+  clean_sheets: z.number().int(),
+  goals_conceded: z.number().int().optional().default(0),
+  expected_goals: numericString.optional(),
+  expected_assists: numericString.optional(),
+  // A season TOTAL of defensive actions, not a count of threshold hits. See
+  // lib/engine/prior-season.ts for why that distinction ends the idea of
+  // deriving a DefCon rate from it.
+  defensive_contribution: z.number().int().optional().default(0),
+  bonus: z.number().int(),
+  start_cost: z.number().int(),
+  end_cost: z.number().int(),
+});
+
+export type FplSeasonHistory = z.infer<typeof seasonHistorySchema>;
+
 export const elementSummarySchema = z.object({
   fixtures: z.array(
     z.object({
@@ -325,21 +359,7 @@ export const elementSummarySchema = z.object({
     }),
   ),
   history: z.array(elementHistorySchema),
-  history_past: z.array(
-    z.object({
-      season_name: z.string(),
-      total_points: z.number().int(),
-      minutes: z.number().int(),
-      goals_scored: z.number().int(),
-      assists: z.number().int(),
-      clean_sheets: z.number().int(),
-      expected_goals: numericString.optional(),
-      expected_assists: numericString.optional(),
-      bonus: z.number().int(),
-      start_cost: z.number().int(),
-      end_cost: z.number().int(),
-    }),
-  ),
+  history_past: z.array(seasonHistorySchema),
 });
 
 // ---------------------------------------------------------------------------

@@ -27,6 +27,12 @@ import {
 
 export interface PlayerLike {
   id: number;
+  /**
+   * `element_code` — the identity that survives between seasons. FPL renumbers
+   * `id` every year, so this is the only thing that can attach last season's
+   * rates to this season's player.
+   */
+  code: number;
   web_name: string;
   team_id: number;
   position: number;

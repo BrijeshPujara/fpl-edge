@@ -6,6 +6,7 @@ import {
 } from "@/lib/engine/expected-points";
 import { FORM_WINDOW } from "@/lib/engine/constants";
 import { readNewsSignal } from "@/lib/engine/news-signal";
+import type { PriorSeasonRates } from "@/lib/engine/expected-points";
 import type { PositionId } from "@/lib/rules";
 import type { FixtureLike, PlayerLike, StatLike, TeamLike } from "./view";
 
@@ -152,6 +153,7 @@ export function statsByPlayer(stats: StatLike[]): Map<number, StatLike[]> {
 export function modelInputFor(
   player: PlayerLike,
   history: StatLike[],
+  priorSeason: PriorSeasonRates | null = null,
 ): PlayerModelInput {
   return {
     playerId: player.id,
@@ -165,7 +167,7 @@ export function modelInputFor(
       newsMultiplier: readNewsSignal(player.news).multiplier,
     },
     recent: recentSamplesFor(history),
-    priorSeason: null,
+    priorSeason,
     setPieces: {
       penaltiesOrder: player.penalties_order ?? null,
       cornersOrder: player.corners_order ?? null,
@@ -195,8 +197,9 @@ export function projectPlayer(
   history: StatLike[],
   fixtures: FixtureContext[],
   gameweeks: number[],
+  priorSeason: PriorSeasonRates | null = null,
 ): ProjectionResult {
-  const input = modelInputFor(player, history);
+  const input = modelInputFor(player, history, priorSeason);
   const discounted = expectedPointsOverHorizon(input, fixtures, gameweeks);
 
   const perGameweek = gameweeks.map((gw) => {

@@ -18,6 +18,9 @@ const teams: TeamLike[] = [
 function player(id: number, position: number, over: Partial<PlayerLike> = {}): PlayerLike {
   return {
     id,
+    // Deliberately not equal to id — the two are different numbers in reality,
+    // and a fixture where they match would hide a mix-up between them.
+    code: 100_000 + id,
     web_name: `P${id}`,
     team_id: 1,
     position,

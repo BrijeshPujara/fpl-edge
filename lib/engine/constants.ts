@@ -491,3 +491,39 @@ export const NEWS_CATEGORY_MULTIPLIER = {
   /** Personal reasons, international duty, unspecified. No role inference. */
   other: 1.0,
 } as const;
+
+// ---------------------------------------------------------------------------
+// Prior season
+// ---------------------------------------------------------------------------
+
+/**
+ * Minimum minutes before a completed season is trusted as a prior.
+ *
+ * Roughly ten full matches. Below that a per-90 rate is one good afternoon
+ * multiplied up — and it would arrive weighted at SHRINKAGE_INITIAL_WEIGHT in
+ * gameweek one, so a fringe player who scored in his only substitute appearance
+ * would open the season projected as elite.
+ *
+ * Deliberately not higher. The players this term exists to help are exactly the
+ * ones with thin current-season evidence, and a threshold set at a full season
+ * would exclude the rotation players and January signings who need it most.
+ */
+export const PRIOR_SEASON_MIN_MINUTES = 900;
+
+/**
+ * The first season FPL published expected goals.
+ *
+ * A fact about the data source, not a tunable. Seasons before this one are
+ * present in `history_past` and report `expected_goals: 0.00` for EVERY player
+ * — verified against live data, where 2021/22 and earlier have a maximum xG of
+ * zero across the league while 2022/23 peaks at 28.54.
+ *
+ * Without this guard a player whose last substantial season was 2021/22 would
+ * be modelled as having no attacking threat whatsoever, weighted at 0.7 in
+ * gameweek one. Absence of data is not evidence of absence, and the two look
+ * identical in this field.
+ *
+ * Compared with localeCompare, which orders "2021/22" before "2022/23"
+ * correctly because FPL writes seasons zero-padded and year-first.
+ */
+export const FIRST_XG_SEASON = "2022/23";

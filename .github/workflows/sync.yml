@@ -36,7 +36,7 @@ on:
         required: false
         default: all
         type: choice
-        options: [all, static, squad, results]
+        options: [all, static, squad, results, history]
 
 concurrency:
   # Two overlapping syncs would race on the same upsert. Queue, do not cancel:

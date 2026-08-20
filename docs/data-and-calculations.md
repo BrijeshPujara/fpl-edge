@@ -134,6 +134,20 @@ means a £0.4m rise is £0.2m in your pocket, while a fall is borne in full.
 
 **Yes — and the more useful finding is that it is not being fully used.**
 
+### ~~The gap that matters~~ — closed 2026-08-20
+
+**Done.** `npm run sync -- history` pulls `history_past` into
+`player_season_history`, keyed on `element_code` because FPL renumbers player
+ids every season. 346 of 595 players now carry a usable prior, and the GW1
+ranking went from flat to recognisable — Haaland from 5.5 to 16.7.
+
+Two things it exposed: seasons before 2022/23 report zero xG for everyone
+rather than omitting it, and PostgREST silently truncates any response over
+1000 rows. The second was the more dangerous, because `getRecentStats` would
+have hit it as soon as gameweeks were played.
+
+The original write-up follows.
+
 ### The gap that matters: four seasons already sitting there
 
 `element-summary/{id}` returns `history_past`: per-season `minutes`, `starts`,

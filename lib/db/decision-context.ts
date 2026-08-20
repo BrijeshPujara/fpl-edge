@@ -1,18 +1,22 @@
 import "server-only";
 
-import { getDb, isDbConfigured } from "./client";
+import { getDb, isDbConfigured, type Db } from "./client";
 import {
   getAllPlayers,
   getFixturesFrom,
   getLatestSquad,
   getRecentStats,
+  getSeasonHistory,
   getTeams,
+  type PlayerRow,
 } from "./queries";
 import { loadPriceMomentumInputs } from "./price-momentum";
 import { projectPriceChanges } from "@/lib/engine/price-model";
 import { FORM_WINDOW } from "@/lib/engine/constants";
 import { buildCandidatePool, type Candidate } from "@/lib/squad/candidates";
 import { getSeasonContext } from "@/lib/fpl/season";
+import { mostRecentRates } from "@/lib/engine/prior-season";
+import type { PriorSeasonRates } from "@/lib/engine/expected-points";
 import type { ChipWindow } from "@/lib/fpl/gameweek";
 
 /**
@@ -107,6 +111,8 @@ export async function loadDecisionContext(
     Math.max(1, target.id - FORM_WINDOW),
   );
 
+  const priorSeasons = await loadPriorSeasons(db, players);
+
   const pool = buildCandidatePool({
     gw: target.id,
     horizon,
@@ -114,6 +120,7 @@ export async function loadDecisionContext(
     teams,
     fixtures,
     stats,
+    priorSeasons,
   });
 
   // Price movement, attached to the candidates the optimiser will weigh. Before
@@ -148,4 +155,44 @@ export async function loadDecisionContext(
     ),
     projectable: pool.projectable,
   };
+}
+
+/**
+ * Last season's rates for every player, keyed by CODE.
+ *
+ * Keyed on code and not id, because FPL renumbers ids between seasons and the
+ * whole point of this table is to reach across that boundary.
+ *
+ * A player with no usable season simply has no entry, and the model falls back
+ * to its own priors — which is what every player did before this existed.
+ */
+async function loadPriorSeasons(
+  db: Db,
+  players: PlayerRow[],
+): Promise<Map<number, PriorSeasonRates>> {
+  const rows = await getSeasonHistory(
+    db,
+    players.map((p) => p.code),
+  );
+
+  const byCode = new Map<number, typeof rows>();
+  for (const row of rows) {
+    byCode.set(row.player_code, [...(byCode.get(row.player_code) ?? []), row]);
+  }
+
+  const rates = new Map<number, PriorSeasonRates>();
+  for (const [code, seasons] of byCode) {
+    const resolved = mostRecentRates(
+      seasons.map((season) => ({
+        seasonName: season.season_name,
+        minutes: season.minutes,
+        starts: season.starts,
+        expectedGoals: season.expected_goals,
+        expectedAssists: season.expected_assists,
+        bonus: season.bonus,
+      })),
+    );
+    if (resolved !== null) rates.set(code, resolved);
+  }
+  return rates;
 }

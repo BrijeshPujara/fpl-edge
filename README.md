@@ -84,11 +84,12 @@ gate each build phase has to pass.
 | Chip windows | Working — read from `bootstrap-static.chips[]` |
 | Blank and double gameweek detection | Working — counted from the fixture list |
 | Chip timeline (`/chips`) | Working |
-| Database schema | Applied — 16 tables, RLS enabled |
+| Database schema | Applied — 17 tables, RLS enabled |
 | `sync-static` cron route | Working — 20 teams, 595 players, 380 fixtures, daily price and transfer snapshots |
 | `sync-squad` cron route | Built — waits for the first deadline |
 | `sync-results` cron route | Built — waits for a `data_checked` gameweek |
 | Free-transfer accounting | Working — derived, since the API does not report it |
+| Prior-season rates | Working — `history_past`, 346 players, feeds the GW1–6 shrinkage |
 | Expected-points model | Working — beats the naive baseline by 2.6% over 2025/26; loses on forwards |
 | Set-piece and penalty duty | Working — synced and priced, without double-counting penalty xG |
 | Squad optimiser | Working — MIP for the fifteen, LP relaxation for the budget shadow price |
@@ -139,8 +140,14 @@ invented expected-points figure is worse than one that displays nothing.
 
 ## Database
 
-Supabase project `ehfuwpslwzxsjjaatgng`. All six migrations in
+Supabase project `ehfuwpslwzxsjjaatgng`. All seven migrations in
 `supabase/migrations/` are applied.
+
+**Reads over 1000 rows must page.** PostgREST caps a response at 1000 rows and
+does so silently — no error. `fetchAll` in `lib/db/queries.ts` exists for that,
+and season history, recent stats and transfer snapshots all use it. A new query
+that can exceed a thousand rows and does not page will not fail; it will just
+make the model quietly worse.
 
 **Access is server-side only, and the schema enforces it.** Every table has RLS
 enabled with *no policies* — a deliberate deny-all. The publishable key can read
@@ -148,8 +155,8 @@ and write nothing, so all access goes through `SUPABASE_SERVICE_ROLE_KEY`, which
 bypasses RLS. `lib/db/client.ts` imports `server-only`, so a mistaken client
 import is a build error rather than a leaked credential.
 
-Supabase's linter reports `rls_enabled_no_policy` at INFO level for all sixteen
-tables. That is the intended state, not a gap to close. If a screen ever needs
+Supabase's linter reports `rls_enabled_no_policy` at INFO level for all
+seventeen tables. That is the intended state, not a gap to close. If a screen ever needs
 to query from the browser, add a narrow policy for that one table — do not
 disable RLS.
 

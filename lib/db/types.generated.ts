@@ -424,6 +424,57 @@ export type Database = {
         }
         Relationships: []
       }
+      player_season_history: {
+        Row: {
+          assists: number
+          bonus: number
+          clean_sheets: number
+          defensive_contribution: number
+          expected_assists: number | null
+          expected_goals: number | null
+          goals_conceded: number
+          goals_scored: number
+          minutes: number
+          player_code: number
+          season_name: string
+          starts: number
+          total_points: number
+          updated_at: string
+        }
+        Insert: {
+          assists?: number
+          bonus?: number
+          clean_sheets?: number
+          defensive_contribution?: number
+          expected_assists?: number | null
+          expected_goals?: number | null
+          goals_conceded?: number
+          goals_scored?: number
+          minutes?: number
+          player_code: number
+          season_name: string
+          starts?: number
+          total_points?: number
+          updated_at?: string
+        }
+        Update: {
+          assists?: number
+          bonus?: number
+          clean_sheets?: number
+          defensive_contribution?: number
+          expected_assists?: number | null
+          expected_goals?: number | null
+          goals_conceded?: number
+          goals_scored?: number
+          minutes?: number
+          player_code?: number
+          season_name?: string
+          starts?: number
+          total_points?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       player_transfer_snapshots: {
         Row: {
           captured_on: string

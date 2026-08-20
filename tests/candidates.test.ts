@@ -27,7 +27,7 @@ const teams: TeamLike[] = [
 
 function player(over: Partial<PlayerLike> = {}): PlayerLike {
   return {
-    id: 1, web_name: "Saka", team_id: 1, position: POSITION.MID,
+    id: 1, code: 1001, web_name: "Saka", team_id: 1, position: POSITION.MID,
     now_cost: 95, status: "a", chance_of_playing_next_round: null, news: "",
     ...over,
   };

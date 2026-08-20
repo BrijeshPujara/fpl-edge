@@ -27,6 +27,7 @@ import { syncStatic } from "@/lib/db/sync";
 import { syncSquad } from "@/lib/db/sync-squad";
 import { syncResults } from "@/lib/db/sync-results";
 import { resolveEntryId } from "@/lib/fpl/entry";
+import { syncHistory } from "@/lib/db/sync-history";
 
 config({ path: ".env.local", quiet: true });
 config({ quiet: true });
@@ -70,6 +71,17 @@ async function main() {
     } catch (error) {
       failed = true;
       log(`sync-results FAILED: ${(error as Error).message}`);
+    }
+  }
+
+  if (which === "all" || which === "history") {
+    try {
+      const started = Date.now();
+      const result = await syncHistory(db, { force: process.argv.includes("--force") });
+      log(`sync-history ${result.status} in ${Date.now() - started}ms`, result);
+    } catch (error) {
+      failed = true;
+      log(`sync-history FAILED: ${(error as Error).message}`);
     }
   }
 

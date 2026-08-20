@@ -11,6 +11,47 @@ import type { Tables } from "./types.generated";
  * testable without a database.
  */
 
+/**
+ * PostgREST caps a response at 1000 rows by default, and it does so SILENTLY —
+ * no error, no flag, just fewer rows than the table holds.
+ *
+ * That is the worst possible failure mode for this application. Two queries
+ * here exceed it: season history (2,039 rows today) and recent gameweek stats
+ * (595 players x 6 gameweeks is ~3,570 once a season is running). Both feed
+ * the model directly, so a truncated read does not break anything visibly — it
+ * just quietly makes every projection worse, for the players who happened to
+ * sort last.
+ *
+ * Found by counting: a query expected to return 506 players' history returned
+ * exactly 1000 rows covering 147 of them.
+ */
+const PAGE_SIZE = 1000;
+
+/**
+ * Read every row of a query, a page at a time.
+ *
+ * `fetchPage` receives an inclusive range and must apply it with `.range()`.
+ * Paging stops when a page comes back short, which is the only reliable signal
+ * PostgREST gives that there is nothing left.
+ */
+async function fetchAll<T>(
+  fetchPage: (from: number, to: number) => PromiseLike<{
+    data: T[] | null;
+    error: { message: string } | null;
+  }>,
+  label: string,
+): Promise<T[]> {
+  const all: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await fetchPage(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(`Failed to read ${label}: ${error.message}`);
+
+    const page = data ?? [];
+    all.push(...page);
+    if (page.length < PAGE_SIZE) return all;
+  }
+}
+
 export type PlayerRow = Tables<"players">;
 export type TeamRow = Tables<"teams">;
 export type FixtureRow = Tables<"fixtures">;
@@ -116,15 +157,22 @@ export async function getRecentStats(
   sinceGw: number,
 ): Promise<Tables<"player_gw_stats">[]> {
   if (playerIds.length === 0) return [];
-  const { data, error } = await db
-    .from("player_gw_stats")
-    .select("*")
-    .in("player_id", playerIds)
-    .gte("gw", sinceGw)
-    .order("gw", { ascending: false });
 
-  if (error) throw new Error(`Failed to read player stats: ${error.message}`);
-  return data ?? [];
+  // Paged: six gameweeks across the whole league is roughly 3,570 rows, well
+  // past the 1000-row cap. An unpaged read here would silently drop most of
+  // the form data the model runs on.
+  return fetchAll(
+    (from, to) =>
+      db
+        .from("player_gw_stats")
+        .select("*")
+        .in("player_id", playerIds)
+        .gte("gw", sinceGw)
+        .order("gw", { ascending: false })
+        .order("player_id", { ascending: true })
+        .range(from, to),
+    "player stats",
+  );
 }
 
 /**
@@ -149,17 +197,20 @@ export async function getTransferSnapshots(
     .toISOString()
     .slice(0, 10);
 
-  const { data, error } = await db
-    .from("player_transfer_snapshots")
-    .select("*")
-    .in("player_id", playerIds)
-    .gte("captured_on", since)
-    .order("captured_on", { ascending: true });
-
-  if (error) {
-    throw new Error(`Failed to read transfer snapshots: ${error.message}`);
-  }
-  return data ?? [];
+  // The largest read in the app once it has run for a while: 595 players by up
+  // to 56 days is over 30,000 rows.
+  return fetchAll(
+    (from, to) =>
+      db
+        .from("player_transfer_snapshots")
+        .select("*")
+        .in("player_id", playerIds)
+        .gte("captured_on", since)
+        .order("captured_on", { ascending: true })
+        .order("player_id", { ascending: true })
+        .range(from, to),
+    "transfer snapshots",
+  );
 }
 
 /**
@@ -224,4 +275,35 @@ export async function getChipsPlayed(
       r.chip_played !== null,
     )
     .map((r) => ({ gw: r.gw, chip: r.chip_played }));
+}
+
+export type SeasonHistoryRow = Tables<"player_season_history">;
+
+/**
+ * Completed seasons for a set of players, by CODE rather than id.
+ *
+ * `players.code` is stable across seasons; `players.id` is not. Callers hold
+ * ids, so they have to map through the player rows first — which is friction,
+ * and the right kind: it is exactly the step that stops last season's rates
+ * being attached to whoever inherited a number.
+ */
+export async function getSeasonHistory(
+  db: Db,
+  playerCodes: number[],
+): Promise<SeasonHistoryRow[]> {
+  if (playerCodes.length === 0) return [];
+
+  // Ordered as well as paged. Paging without a stable sort can repeat or skip
+  // rows between pages, because the server is free to return them in any order.
+  return fetchAll(
+    (from, to) =>
+      db
+        .from("player_season_history")
+        .select("*")
+        .in("player_code", playerCodes)
+        .order("player_code", { ascending: true })
+        .order("season_name", { ascending: false })
+        .range(from, to),
+    "season history",
+  );
 }

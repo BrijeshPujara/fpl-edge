@@ -199,23 +199,42 @@ ratings is the likely fix, and it is directly testable against the backtest.
 
 ---
 
-## The highest-value change available right now
+## ~~The highest-value change available right now~~ — done, 2026-08-20
 
-**`element-summary/{id}.history_past` → `priorSeason`.**
+**`element-summary/{id}.history_past` → `priorSeason`.** Migration
+`0007_player_season_history.sql`, `lib/engine/prior-season.ts`,
+`lib/db/sync-history.ts`. Run it with `npm run sync -- history`.
 
-The model has a shrinkage schedule that blends toward prior-season rates at
-GW1–6, weighted 0.7 at GW1. `priorSeason` is passed as `null` everywhere in
-production, so for exactly the gameweeks the schedule exists to cover, it
-blends toward nothing.
+2,039 seasons for 595 players in 27 seconds, no failures. 346 players now have
+a usable prior; the rest are new signings, promoted-club players and youth
+under the minutes threshold, which is correct.
 
-FPL already publishes four seasons of per-player `minutes`, `starts`,
-`expected_goals`, `expected_assists`, `defensive_contribution` and `bonus`.
-No new API, no key, no scraper — one request per player, once, since
-`history_past` only changes between seasons.
+The effect at GW1 is not subtle. Before, every player projected between about
+5 and 7 over a five-gameweek horizon and the ordering was essentially
+arbitrary. After, the top of the list is Bruno Fernandes, Haaland, Isak,
+Cherki, Saka, Palmer — **Haaland moved from 5.5 to 16.7**. That is a sanity
+check rather than a measurement: the backtest starts at GW7 and the shrinkage
+weight is zero from GW6, so it cannot see this change at all. Same blind spot
+as set-piece duty, and for the same structural reason.
 
-See `data-and-calculations.md`.
+Two traps found on the way, both of which would have quietly degraded the model
+rather than breaking it:
 
-## Suggested order
+**Seasons before 2022/23 report `expected_goals: 0.00` for every player.** FPL
+did not publish xG then. Verified against live data — 2021/22 and earlier have
+a league-wide maximum of zero while 2022/23 peaks at 28.54. Without the
+`FIRST_XG_SEASON` guard, a player whose last substantial season predates xG
+would be modelled as no attacking threat at all, weighted at 0.7 in gameweek
+one.
+
+**PostgREST silently caps a response at 1000 rows.** No error, no flag. The
+season-history read asked for 506 players and got exactly 1000 rows covering
+147 of them. This was a bug class rather than a bug: `getRecentStats` would
+have hit it the moment a season was running (595 players by six gameweeks is
+~3,570 rows), silently throwing away most of the form data the model runs on,
+and `getTransferSnapshots` grows past 30,000. All three now page.
+
+## Suggested order## Suggested order
 
 1. ~~**Set-piece duties**~~ — done 2026-08-20.
 2. ~~**`transfers_balance` capture**~~ — done 2026-08-20.
