@@ -4,6 +4,11 @@ import { Panel, Row, SectionLabel } from "@/components/ui/panel";
 
 const SCREENS = [
   {
+    href: "/preview/dashboard",
+    name: "Dashboard",
+    note: "This week's ranked actions and the squad's EP distribution",
+  },
+  {
     href: "/preview/squad",
     name: "Squad",
     note: "Pitch view, per-player EP, fixture difficulty strips",

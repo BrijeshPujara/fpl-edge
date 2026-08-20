@@ -8,7 +8,10 @@ import {
 } from "@/lib/fpl/gameweek";
 import { CHIP_LABEL, type ChipName } from "@/lib/rules";
 import { deadlineStamp } from "@/lib/format";
+import { loadDecisionContext } from "@/lib/db/decision-context";
+import { DEFAULT_HORIZON } from "@/lib/engine/constants";
 import { DeadlineCountdown } from "@/components/chrome/deadline-countdown";
+import { FlagPanel, WeekPanels } from "@/components/dashboard/week-panels";
 import { Panel, Row, SectionLabel, StatRow } from "@/components/ui/panel";
 import { Pending } from "@/components/ui/pending";
 
@@ -40,6 +43,11 @@ export default async function DashboardPage() {
           ).get(target.id),
         );
 
+  // The squad-dependent half of the screen. Everything above this point works
+  // from the API alone and renders whatever happens here.
+  const context = await loadDecisionContext(DEFAULT_HORIZON);
+  const ready = context.state === "ready" && context.projectable;
+
   const chipUrgency = (["wildcard", "freehit", "3xc", "bboost"] as ChipName[])
     .map((name) => ({
       name,
@@ -50,27 +58,41 @@ export default async function DashboardPage() {
   return (
     <div className="grid grid-cols-1 items-start gap-4 sm:gap-6 lg:grid-cols-[1fr_340px]">
       <div className="flex flex-col gap-4 sm:gap-6">
-        <div>
-          <SectionLabel meta="ENGINE NOT YET BUILT">
-            RECOMMENDED ACTIONS
-          </SectionLabel>
-          <Pending phase="phase 3 — optimiser">
-            Transfer, captain and bench recommendations come from the optimiser
-            running over multi-gameweek expected points. Until the expected
-            points model is calibrated against a backtest, this panel stays
-            empty rather than guessing.
-          </Pending>
-        </div>
-
-        <div>
-          <SectionLabel meta="ENGINE NOT YET BUILT">
-            SQUAD EP DISTRIBUTION · {target.name.toUpperCase()}
-          </SectionLabel>
-          <Pending phase="phase 2 — expected points">
-            Per-player expected points across the squad, ranked. Requires both
-            the EP model and a synced squad.
-          </Pending>
-        </div>
+        {ready ? (
+          <WeekPanels context={context} />
+        ) : (
+          <div>
+            <SectionLabel meta={`HORIZON ${DEFAULT_HORIZON} GW`}>
+              RECOMMENDED ACTIONS
+            </SectionLabel>
+            {context.state === "no-db" ? (
+              <Pending phase="configuration">
+                Supabase is not configured, so there is no squad to advise on.
+              </Pending>
+            ) : context.state === "no-squad" ? (
+              <Pending phase="the first deadline">
+                The engine is built and waiting. FPL only publishes a
+                manager&apos;s picks once a gameweek deadline has passed, so
+                there is no squad to advise on until{" "}
+                <span className="text-tertiary">{target.name}</span> locks.
+              </Pending>
+            ) : (
+              <Pending phase="gameweek 1">
+                The engine is built and your squad is loaded, but no gameweek
+                has been played. Expected points need appearance history, and
+                without it every player projects the same — so a ranked list of
+                actions would be an ordering of nothing.
+                <br />
+                <br />
+                To watch the screen work before then, run{" "}
+                <code className="font-mono text-tertiary">npm run backtest</code>{" "}
+                once and open{" "}
+                <code className="font-mono text-tertiary">/preview</code> in
+                development.
+              </Pending>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-4 sm:gap-6">
@@ -126,9 +148,14 @@ export default async function DashboardPage() {
 
         <div>
           <SectionLabel>FLAGS</SectionLabel>
-          <Pending phase="phase 1 — squad sync">
-            Fitness flags for your own 15. Needs FPL_TEAM_ID and a synced squad.
-          </Pending>
+          {context.state === "ready" ? (
+            <FlagPanel squad={context.squad} />
+          ) : (
+            <Pending phase="the first deadline">
+              Fitness flags for your own fifteen. Needs a synced squad, which
+              needs a deadline to have passed.
+            </Pending>
+          )}
         </div>
       </div>
     </div>

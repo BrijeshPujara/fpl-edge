@@ -59,6 +59,7 @@ gate each build phase has to pass.
 | Transfer suggestions | Working — each transfer count pinned by a retention floor |
 | Chip planner | Working — assignment problem over chips and gameweeks |
 | Price momentum | Capturing daily; reports no confidence until roughly GW4 |
+| Dashboard (`/`) | Working — this week's actions ranked by what the decision is worth |
 | `/transfers` screen | Working — ranked options with the roll always offered |
 | `/chips` screen | Working — timeline, plan, expiry pressure |
 | LLM brief | Not built — see PLAN.md §8 |

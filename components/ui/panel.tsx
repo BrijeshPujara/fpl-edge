@@ -66,6 +66,10 @@ export function Panel({
  * A fixed-height row inside a panel. The design uses a small set of heights
  * (30px for dense lists, 34px for tables, 44px for two-line rows) — keeping
  * them named stops the vertical rhythm drifting screen to screen.
+ *
+ * "auto" is the exception, for rows carrying wrapping prose. The fixed heights
+ * clip rather than grow, so a three-line row inside a 44px slot overlaps the
+ * row beneath it instead of pushing it down.
  */
 export function Row({
   children,
@@ -75,7 +79,7 @@ export function Row({
 }: {
   children: ReactNode;
   className?: string;
-  height?: "dense" | "table" | "tall";
+  height?: "dense" | "table" | "tall" | "auto";
   hover?: boolean;
 }) {
   return (
@@ -87,6 +91,7 @@ export function Row({
         height === "dense" && "min-h-11 md:h-[30px] md:min-h-0",
         height === "table" && "min-h-11 md:h-[34px] md:min-h-0",
         height === "tall" && "min-h-11 md:h-[44px] md:min-h-0",
+        height === "auto" && "min-h-11 py-2.5",
         hover && "hover:bg-panel-hover",
         className,
       )}
