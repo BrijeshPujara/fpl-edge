@@ -43,6 +43,7 @@ because retries and manual triggers both happen.
 | `/api/cron/sync-static` | Daily 02:00 UTC | bootstrap-static + fixtures, price and transfer snapshots | Built |
 | `/api/cron/sync-squad` | Daily 06:00 | Entry, picks, derived free transfers | Built |
 | `/api/cron/sync-results` | Daily 08:00 | Played-gameweek results into `player_gw_stats` | Built |
+| journal | Daily 09:00 | Record this gameweek's advice, score last gameweek's | Built |
 | `/api/cron/weekly-brief` | Thu 09:00 | Run engine, generate brief, persist decisions | Not built |
 | `/api/cron/resolve-outcomes` | Tue 09:00 | Score last gameweek's decisions | Not built |
 
@@ -62,6 +63,16 @@ the samples where nothing happened.
 deadline has passed. That is the expected state through pre-season, not a
 failure — alerting on a non-200 would otherwise cry wolf every morning until
 the first deadline. Alert on `ok: false` instead.
+
+The journal runs **last of the four, and the order is the whole point.** It
+records what the engine advises for the gameweek still open, which needs the
+squad (06:00) and the day's prices (02:00) already in; and it scores past
+decisions, which needs results (08:00). Run earlier it would either record
+stale advice or resolve nothing.
+
+It records only for the gameweek that is still OPEN. A recommendation written
+after a deadline is hindsight wearing a timestamp, and a journal containing any
+of those cannot be used to judge anything.
 
 `sync-results` only writes gameweeks the API reports as both `finished` AND
 `data_checked`. Bonus points and stats stay provisional until the second flag,

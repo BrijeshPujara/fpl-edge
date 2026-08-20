@@ -28,6 +28,14 @@ on:
     # been confirmed and the API has set data_checked; the job skips anything
     # still provisional, so an early run is wasted rather than wrong.
     - cron: "0 8 * * *"
+    # 09:00, for the decision journal — deliberately LAST.
+    #
+    # It does two things whose order matters. It records what the engine
+    # advises for the gameweek still open, which needs the squad (06:00) and
+    # the day's prices (02:00) to be in already. And it scores past decisions,
+    # which needs results (08:00). Running it before any of those would either
+    # record stale advice or fail to resolve anything.
+    - cron: "0 9 * * *"
   # Lets you trigger a sync by hand from the Actions tab.
   workflow_dispatch:
     inputs:
@@ -72,6 +80,8 @@ jobs:
             echo "value=squad" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event.schedule }}" = "0 8 * * *" ]; then
             echo "value=results" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 9 * * *" ]; then
+            echo "value=journal" >> "$GITHUB_OUTPUT"
           else
             echo "value=static" >> "$GITHUB_OUTPUT"
           fi
@@ -81,4 +91,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           FPL_TEAM_ID: ${{ secrets.FPL_TEAM_ID }}
+          # Only the journal job uses this, and only to write the weekly brief.
+          # Absent, everything else runs exactly as before and the brief is
+          # simply not written — which is a configuration state, not a failure.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: npm run sync -- ${{ steps.target.outputs.value }}

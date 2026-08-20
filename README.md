@@ -106,6 +106,20 @@ gate each build phase has to pass.
 | `/history` screen | Working — decisions recorded pre-deadline, scored after |
 | LLM brief | Built — writes nothing without `ANTHROPIC_API_KEY`, by design |
 
+### Where the key goes
+
+`ANTHROPIC_API_KEY` is needed in exactly two places, and **Vercel is not one of
+them**:
+
+| | Needs it | Why |
+|---|---|---|
+| `.env.local` | to run `brief:check` locally | writes the brief |
+| GitHub Actions secret | yes | the nightly journal job writes the brief |
+| Vercel | **no** | the app only READS briefs from the database |
+
+Briefs are written by the sync job and read by the app. Those are different
+processes on different machines, and the app has no use for a key.
+
 To check the brief, put a key in `.env.local` and run `npm run brief:check`. It
 exercises the real call against the preview harness, so it works before a squad
 exists — otherwise the brief could not be tested until a deadline had passed.

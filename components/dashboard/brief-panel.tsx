@@ -1,14 +1,20 @@
 import { getBrief } from "@/lib/llm/brief";
-import { isLlmConfigured } from "@/lib/llm/client";
 import { Panel, SectionLabel } from "@/components/ui/panel";
 
 /**
  * The written brief, when one exists.
  *
- * Renders nothing at all without a key. That is deliberate and it is the
- * architectural rule the whole project is built on: the engine works with no
- * LLM present, and a screen full of real numbers should not carry an apology
- * about a missing one.
+ * Renders nothing when there is no brief. That is the architectural rule the
+ * whole project rests on: the engine works with no LLM present, and a screen
+ * full of real numbers should not carry an apology about a missing one.
+ *
+ * Note what it does NOT check: whether THIS process has an API key.
+ *
+ * Briefs are written by the sync job and read by the app, and those are
+ * different processes on different machines — the job runs in CI with a key,
+ * the app renders on Vercel without needing one. Gating the read on a key
+ * would hide a brief that had already been written and paid for, and would
+ * make the app appear to need a credential it has no use for.
  */
 export async function BriefPanel({
   entryId,
@@ -17,8 +23,6 @@ export async function BriefPanel({
   entryId: number;
   gw: number;
 }) {
-  if (!isLlmConfigured()) return null;
-
   const brief = await getBrief(entryId, gw);
   if (!brief) return null;
 
