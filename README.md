@@ -1,68 +1,181 @@
 # FPL Edge
 
-A data-driven Fantasy Premier League decision engine. It ingests official FPL
-data, computes expected points, optimises transfers under FPL's constraints,
-tracks every decision against its outcome, and produces a weekly brief.
+A Fantasy Premier League decision engine. It forecasts what every player is
+worth, solves for the best squad the budget allows, and shows the number behind
+every recommendation — including when the recommendation is to do nothing.
 
-`docs/data-and-calculations.md` answers what data goes in, what is computed
-from it, and whether the FPL API is sufficient. Short answer to the last one:
-yes, and the app is not yet using all of it — `element-summary/{id}` carries
-four seasons of prior history that the model's shrinkage schedule is currently
-blending toward `null`.
+Built for one manager, usable by anyone with a team id. No sign-in: an FPL team
+id is public data, not a credential.
 
-**[How the engine thinks](https://claude.ai/code/artifact/33678294-5060-4a74-8f0a-84faed44b8c5)**
-— a plain-English explanation of what the engine is for and how it calculates,
-written for someone who does not read code. Source at
-`docs/engine-explainer.html`; republish that file passing the URL above as
-`url` to update the page in place rather than creating a second one.
+![The dashboard](docs/screenshots/dashboard.jpg)
 
-The full specification is in [PLAN.md](./PLAN.md). This README covers only how
-to run what exists.
+*Ranked by what the decision is worth, not by the biggest number. Haaland's 8.2
+is the largest figure on the screen, but Enzo sits at 6.0 behind him — so the
+armband is worth +4.5 and ranks third.*
 
-## Architectural rule
+---
 
-The deterministic engine — the expected-points model and the optimiser — must
-work with no LLM key present. The LLM is a presentation layer that explains
-numbers the engine has already computed. If `ANTHROPIC_API_KEY` is unset, the
-app renders the raw analysis and skips the commentary.
+## Only two questions
 
-Two conventions follow from that and are worth stating up front:
+Fantasy football is a shopping problem wearing a football shirt. £100m, fifteen
+players, eleven of whom score. There are exactly two questions in it, and
+keeping them apart is the whole design:
 
-- **`lib/engine/**` is pure.** No database calls, no `fetch`, no environment
-  access. Everything is passed in. This is what makes the model testable and
-  what makes the backtest possible.
-- **Money is an integer in tenths of a million** everywhere, matching the API.
-  It becomes a `£` string only in `lib/format.ts`.
+1. **What is each player worth?** A forecasting problem. The answer is an
+   average across every way the match could go — never a prediction that
+   someone *will* score.
+2. **Given that, which fifteen should I own?** A shopping problem. Not the
+   fifteen highest scorers; the best *combination* inside the budget and the
+   squad rules. About 2.8 × 10²⁷ legal squads, so it is solved rather than
+   searched.
 
-## Routes
+Most tools mash the two together and end up recommending whoever did well last
+Saturday.
 
-Every screen belongs to a manager and lives under their entry id:
+---
 
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph external["Outside"]
+        FPL["FPL API<br/><i>unauthenticated</i>"]
+        LLM["Anthropic API<br/><i>optional</i>"]
+    end
+
+    subgraph jobs["Scheduled jobs — GitHub Actions"]
+        direction LR
+        J1["02:00 static<br/>prices, transfers"]
+        J2["06:00 squad<br/>your picks"]
+        J3["08:00 results<br/>played gameweeks"]
+        J4["09:00 journal<br/>record + score"]
+        J1 --> J2 --> J3 --> J4
+    end
+
+    DB[("Postgres — Supabase<br/>RLS deny-all, service role only")]
+
+    subgraph engine["lib/engine — pure, no I/O"]
+        direction TB
+        MIN["minutes.ts<br/><i>the dominant input</i>"]
+        EP["expected-points.ts"]
+        DIST["distribution.ts<br/><i>shape, not centre</i>"]
+        OPT["optimiser.ts<br/><i>MIP + LP dual</i>"]
+        MIN --> EP
+        EP --> DIST
+        EP --> OPT
+    end
+
+    subgraph screens["Screens — Next.js, server-rendered"]
+        direction LR
+        S1["/squad"]
+        S2["/transfers"]
+        S3["/captain"]
+        S4["/chips"]
+        S5["/history"]
+    end
+
+    FPL -->|"sync"| jobs
+    jobs -->|"upsert"| DB
+    DB -->|"rows"| engine
+    engine -->|"projections"| screens
+    J4 -.->|"context"| LLM
+    LLM -.->|"prose only"| DB
+
+    GLPK["glpk.js<br/><i>WASM solver</i>"] -.->|"injected"| OPT
+
+    style engine fill:#0d1f17,stroke:#2f6b4f
+    style external fill:#1f1a0d,stroke:#6b5a2f
+    style DB fill:#0d1417,stroke:#2f5a6b
 ```
-/                      landing — how it works, and the way in
-/?switch=1             the landing page, forcing the team-id form
-/t/{entryId}           dashboard
-/t/{entryId}/squad     pitch view
-/t/{entryId}/transfers ranked options
-/t/{entryId}/chips     timeline and plan
-/preview/*             dev-only harness, no manager behind it
-```
 
-**There is no sign-in, and there is not going to be one.** An FPL entry id is
-public: `entry/{id}/` is unauthenticated and the FPL site reads it for every
-mini-league table. A password would protect nothing and imply the opposite.
+Three rules hold the shape:
 
-`/` explains what the tool does and offers a way in. A known team — the
-`fpl_entry` cookie first, then `FPL_TEAM_ID` — becomes a button rather than a
-redirect. It used to redirect automatically, which made the landing page
-invisible to everyone arriving for the first time; one click is worth the page
-existing. The cookie outranks the environment on purpose: a configured
-`FPL_TEAM_ID` is the deployment's default, not a lock.
+**`lib/engine/**` is pure.** No database, no `fetch`, no environment. Everything
+is passed in and everything comes back as a value. That is what makes the model
+unit-testable and what makes `scripts/backtest.ts` able to replay a whole season
+through it. The solver is WASM and needs async init, so it is injected through
+an interface rather than imported.
 
-Entering an id looks the manager up once, registers them in `entries`, pulls
-their squad, and redirects. `registerEntry` will not re-ask the FPL API about
-the same manager within fifteen minutes, which is what stops a refreshed page
-turning into traffic on someone else's server.
+**The LLM never touches the objective.** It receives numbers the engine has
+already computed and is forbidden from inventing or recomputing any. With no
+API key the engine works exactly as before and the brief simply does not render.
+
+**Game rules and model constants are different things.** `lib/rules.ts` holds
+facts about FPL — goal points, budget, hit cost — and is never tuned.
+`lib/engine/constants.ts` holds tunables, each with a comment on where the
+number came from, tuned against the backtest rather than intuition.
+
+---
+
+## What is built
+
+### Screens
+
+| Screen | What it does |
+|---|---|
+| `/` | Landing page — what it does, the data, the calculations, and the limits |
+| `/t/{id}` | This week's actions, ranked by what the decision is worth |
+| `/t/{id}/squad` | Pitch view, per-player EP, five-fixture difficulty strips, flags |
+| `/t/{id}/transfers` | Roll / 1 / 2 / 3 moves, each with gain, hit, net, and the budget shadow price |
+| `/t/{id}/captain` | The outcome *distribution* — haul, blank, ceiling, floor |
+| `/t/{id}/chips` | 38-week timeline, and which gameweek to play each chip |
+| `/t/{id}/history` | Decisions recorded before the deadline, scored after |
+| `/t/{id}/leagues` | Mini-leagues, discovered from your entry |
+| `/preview/*` | Dev-only harness — 404s in production |
+
+### The engine
+
+| Module | What it solves |
+|---|---|
+| `minutes.ts` | Will he play? The highest-leverage input in the project |
+| `expected-points.ts` | Appearance, xG, xA, clean sheets, defcon, bonus, cards |
+| `set-pieces.ts` | Penalty and corner duty, without double-counting penalty xG |
+| `prior-season.ts` | Last season's rates, for the gameweeks before form exists |
+| `news-signal.ts` | What team news says that the percentage does not |
+| `distribution.ts` | The shape of an outcome, by convolution |
+| `captain.ts` | Because doubling is linear and cannot change a ranking by mean |
+| `optimiser.ts` | MIP for the fifteen, LP relaxation for what £0.1m buys |
+| `transfers.ts` | Each transfer count pinned by a retention floor, compared after hits |
+| `chips.ts` | Chip timing as a bipartite assignment, not a threshold |
+| `best-xi.ts` | Eleven from fifteen, by enumeration — seven legal formations |
+| `free-transfers.ts` | Derived, because the API never reports it |
+| `price-model.ts` | Price movement from transfer momentum, halved for the sell-on fee |
+| `frontier.ts` | Isotonic value curve — a diagnostic that must never enter the objective |
+
+402 tests. `npm run check` runs typecheck, lint and the suite.
+
+---
+
+## Screens
+
+### Captain — the one that is genuinely different
+
+![Captaincy](docs/screenshots/captain.jpg)
+
+Every other screen ranks on expected points. Doubling is linear, so it cannot
+change which player has the highest mean — "highest EP" is only the right
+captain if you are indifferent to risk. Defending a lead wants the highest
+floor; chasing wants the fattest tail. The shape bar is blank / ordinary / haul.
+
+### Transfers
+
+![Transfers](docs/screenshots/transfers.jpg)
+
+Every transfer count is its own solve, pinned by a retention floor, compared
+*after* the four-point hit. Rolling needs no solve at all and is always offered.
+
+### Squad
+
+![Squad](docs/screenshots/squad.jpg)
+
+### Landing
+
+![Landing](docs/screenshots/landing.jpg)
+
+*Screenshots are from the dev preview harness — real players, real fixtures,
+last season's form replayed as gameweek eight.*
+
+---
 
 ## Running it
 
@@ -72,77 +185,12 @@ cp .env.example .env.local   # fill in what you have; the app degrades without i
 npm run dev
 ```
 
-`npm run check` runs the typecheck, the linter and the test suite. That is the
-gate each build phase has to pass.
+`npm run check` runs the typecheck, the linter and the test suite.
 
-## What works today
+### Seeing the screens before a gameweek exists
 
-| Area | State |
-|---|---|
-| FPL API client, Zod-validated | Working |
-| Gameweek / deadline resolution | Working — read from `bootstrap-static.events[]` |
-| Chip windows | Working — read from `bootstrap-static.chips[]` |
-| Blank and double gameweek detection | Working — counted from the fixture list |
-| Chip timeline (`/chips`) | Working |
-| Database schema | Applied — 17 tables, RLS enabled |
-| `sync-static` cron route | Working — 20 teams, 595 players, 380 fixtures, daily price and transfer snapshots |
-| `sync-squad` cron route | Built — waits for the first deadline |
-| `sync-results` cron route | Built — waits for a `data_checked` gameweek |
-| Free-transfer accounting | Working — derived, since the API does not report it |
-| Prior-season rates | Working — `history_past`, 346 players, feeds the GW1–6 shrinkage |
-| Expected-points model | Working — beats the naive baseline by 2.6% over 2025/26; loses on forwards |
-| Set-piece and penalty duty | Working — synced and priced, without double-counting penalty xG |
-| Squad optimiser | Working — MIP for the fifteen, LP relaxation for the budget shadow price |
-| Transfer suggestions | Working — each transfer count pinned by a retention floor |
-| Chip planner | Working — assignment problem over chips and gameweeks |
-| Price momentum | Capturing daily; reports no confidence until roughly GW4 |
-| Landing page (`/`) | Working — what it does, what data it uses, and its limits |
-| Multi-manager routing | Working — `/t/{entryId}`, no sign-in, registered on demand |
-| Mini-leagues (`/leagues`) | Working — discovered from your entry, no configuration |
-| Dashboard (`/t/{entryId}`) | Working — this week's actions ranked by what the decision is worth |
-| `/transfers` screen | Working — ranked options with the roll always offered |
-| `/chips` screen | Working — timeline, plan, expiry pressure |
-| `/captain` screen | Working — the outcome distribution, not just the mean |
-| `/history` screen | Working — decisions recorded pre-deadline, scored after |
-| LLM brief | Built — writes nothing without `ANTHROPIC_API_KEY`, by design |
-
-### Where the key goes
-
-`ANTHROPIC_API_KEY` is needed in exactly two places, and **Vercel is not one of
-them**:
-
-| | Needs it | Why |
-|---|---|---|
-| `.env.local` | to run `brief:check` locally | writes the brief |
-| GitHub Actions secret | yes | the nightly journal job writes the brief |
-| Vercel | **no** | the app only READS briefs from the database |
-
-Briefs are written by the sync job and read by the app. Those are different
-processes on different machines, and the app has no use for a key.
-
-To check the brief, put a key in `.env.local` and run `npm run brief:check`. It
-exercises the real call against the preview harness, so it works before a squad
-exists — otherwise the brief could not be tested until a deadline had passed.
-`npm run brief:check -- --prompt-only` prints what would be sent without
-sending it, which is also the fastest way to see exactly what the model is and
-is not told.
-
-The journal is the only screen that can embarrass the engine, and it is
-deliberately built so it can. Recommendations are written down **only for the
-gameweek still open** — a recommendation recorded after a deadline is hindsight
-wearing a timestamp, and a journal containing any of those cannot be used to
-judge anything. `npm run sync -- journal` records and scores.
-
-Both decision screens gate on whether any gameweek has been played. Until one
-has, every projection is the same positional prior, so they explain that rather
-than ranking noise. That gate is `projectable` on the candidate pool, and it is
-the single most important line of code on either screen.
-
-### Seeing the screens before the season starts
-
-That gate means nobody can watch the decision screens work until real results
-exist. `/preview/squad`, `/preview/transfers` and `/preview/chips` fill the gap
-in development:
+Every ranked screen refuses to rank until the model has something to tell
+players apart with. To see them working before then:
 
 ```bash
 npm run backtest   # once, to populate .backtest-cache/
@@ -151,32 +199,87 @@ npm run dev        # then open /preview
 
 The preview replays **real 2025/26 results**, matched onto this season's players
 by name — around three quarters match, and the rest are new signings and
-promoted-club players who genuinely have no Premier League history, so the model
-rating them low is correct rather than a gap. Fixtures and prices are this
-season's; the squad is invented, picked on last season's points the way a person
-would rather than on the model's own expected points, so the optimiser has real
-disagreements to show.
+promoted-club players who genuinely have no Premier League history. Fixtures and
+prices are this season's; the squad is invented, picked on last season's points
+the way a person would, so the optimiser has real disagreements to show.
 
-Three fences keep it out of the running app: `app/preview/layout.tsx` returns a
-404 when `NODE_ENV` is production, nothing under `lib/preview/` writes to the
-database, and every preview page carries a banner saying what it is. The real
-routes never import from `lib/preview/`, so there is no flag to leave switched
-on by accident.
+Three fences keep it out of production: `app/preview/layout.tsx` returns 404
+when `NODE_ENV` is production, nothing under `lib/preview/` writes to the
+database, and every preview page carries a banner. The real routes never import
+from `lib/preview/`.
 
-Screens whose engine does not exist yet render an explicit "awaiting phase N"
-state. They never render placeholder numbers: a decision tool that displays an
-invented expected-points figure is worse than one that displays nothing.
+### Checking the brief
+
+```bash
+npm run brief:check                  # the real call, against the preview
+npm run brief:check -- --prompt-only # what would be sent, without sending it
+```
+
+The dry run is the fastest way to audit exactly what the model is and is not
+told — which matters, because the whole safety argument is that it only ever
+sees numbers the engine already computed.
+
+---
+
+## Routes and sign-in
+
+```
+/                      landing — how it works, and the way in
+/?switch=1             the landing page, forcing the team-id form
+/t/{entryId}           dashboard, squad, transfers, captain, chips, history, leagues
+/preview/*             dev-only harness
+```
+
+**There is no sign-in, and there is not going to be one.** An FPL entry id is
+public: `entry/{id}/` is unauthenticated and the FPL site reads it for every
+mini-league table. A password would protect nothing and imply the opposite.
+
+`/` resolves a team from the `fpl_entry` cookie, then `FPL_TEAM_ID`. The cookie
+wins on purpose — a configured team id is the deployment's default, not a lock.
+
+### Where the keys go
+
+| | Supabase pair | `FPL_TEAM_ID` | `ANTHROPIC_API_KEY` |
+|---|---|---|---|
+| `.env.local` | yes | optional | to run `brief:check` |
+| GitHub Actions | yes | yes | to write the brief |
+| **Vercel** | **yes** | optional | **no** |
+
+Briefs are *written* by the sync job and *read* by the app. Those are different
+processes on different machines, and the app has no use for a key.
+
+---
+
+## Scheduled jobs
+
+Four, on GitHub Actions rather than Vercel Cron — see `docs/cron.md` for why.
+The order is not arbitrary:
+
+| UTC | Job | Needs |
+|---|---|---|
+| 02:00 | `static` | after the 01:30 UK price change, in both BST and GMT |
+| 06:00 | `squad` | — |
+| 08:00 | `results` | late enough that bonus is confirmed and `data_checked` is set |
+| 09:00 | `journal` | the squad, the day's prices, *and* results |
+
+`journal` runs last because it does two things whose inputs differ: it records
+what the engine advises for the gameweek still **open**, and it scores decisions
+for gameweeks whose results have landed.
+
+Recording only ever happens for the open gameweek. A recommendation written
+after a deadline is hindsight wearing a timestamp, and a journal containing any
+of those cannot be used to judge anything.
+
+`npm run sync -- history` is manual: it pulls four seasons of per-player history
+and skips anyone already recorded, so the first run is ~600 requests and every
+run after it is a handful.
+
+---
 
 ## Database
 
 Supabase project `ehfuwpslwzxsjjaatgng`. All nine migrations in
 `supabase/migrations/` are applied.
-
-**Reads over 1000 rows must page.** PostgREST caps a response at 1000 rows and
-does so silently — no error. `fetchAll` in `lib/db/queries.ts` exists for that,
-and season history, recent stats and transfer snapshots all use it. A new query
-that can exceed a thousand rows and does not page will not fail; it will just
-make the model quietly worse.
 
 **Access is server-side only, and the schema enforces it.** Every table has RLS
 enabled with *no policies* — a deliberate deny-all. The publishable key can read
@@ -184,47 +287,63 @@ and write nothing, so all access goes through `SUPABASE_SERVICE_ROLE_KEY`, which
 bypasses RLS. `lib/db/client.ts` imports `server-only`, so a mistaken client
 import is a build error rather than a leaked credential.
 
-Supabase's linter reports `rls_enabled_no_policy` at INFO level for all
-seventeen tables. That is the intended state, not a gap to close. If a screen ever needs
-to query from the browser, add a narrow policy for that one table — do not
-disable RLS.
+Supabase's linter reports `rls_enabled_no_policy` at INFO level for every table.
+That is the intended state, not a gap to close.
 
-After changing a migration, regenerate the types:
+**Reads over 1000 rows must page.** PostgREST caps a response at 1000 rows and
+does so *silently* — no error, no flag. `fetchAll` in `lib/db/queries.ts` exists
+for that, and season history, recent stats, transfer snapshots, gameweek points
+and price history all use it. A new query that can exceed a thousand rows and
+does not page will not fail; it will quietly make the model worse.
 
-```bash
-npm run db:types
-```
+After changing a migration, regenerate the types with `npm run db:types`.
 
-`lib/db/types.generated.ts` is generated. If it disagrees with
-`supabase/migrations/`, the migrations are the truth and the file is stale.
+---
 
-### Running the sync
+## Data
 
-```bash
-curl -s -H "Authorization: Bearer $CRON_SECRET" \
-  http://localhost:3000/api/cron/sync-static | jq
-```
+Everything comes from the official unauthenticated API at
+`https://fantasy.premierleague.com/api/`. No scraping, no paid feed.
 
-It is idempotent — running it twice changes nothing but `updated_at`. Prices are
-snapshotted only when they actually move, so `price_history` stays a record of
-changes rather than 250,000 rows of unchanged daily readings.
+`docs/data-and-calculations.md` lists every field consumed, what each is used
+for, and — as usefully — the fields deliberately ignored and why. It also
+answers whether the FPL API is sufficient. Short version: yes, and the most
+valuable thing found was four seasons of history sitting in an endpoint the app
+was not calling.
 
-Transfer counters follow the opposite policy, deliberately: a row per player per
-day whether anything moved or not. They are season-cumulative, and the momentum
-series is recovered by differencing consecutive days — which needs the days
-where nothing happened. See `supabase/migrations/0003_transfer_snapshots.sql`.
+Three things about the API shape the code:
 
-`/api/cron/sync-squad` does the same for your own team. It returns 200 with
-`status: "no-picks-yet"` until a gameweek deadline has passed, because
-`entry/{id}/event/{gw}/picks/` does not exist before then.
+1. **It is CORS-blocked in the browser.** Every call is server-side.
+   `lib/fpl/client.ts` imports `server-only`.
+2. **It rejects some default fetch user-agents.** The client sends a browser UA.
+3. **It is untyped and changes shape.** Every response is `unknown` until it
+   passes a Zod schema. Unknown fields are ignored; missing known fields are
+   fatal. A season of quietly-corrupted history is unrecoverable.
 
-**Free transfers are derived, not fetched.** The API reports transfers *made*
-per gameweek and the chip played; the remaining balance is reconstructed in
-`lib/engine/free-transfers.ts` — pure and unit-tested, because it decides
-whether a move is free or costs four points.
+Two endpoint choices worth knowing:
 
-On a schedule this runs from GitHub Actions rather than Vercel Cron — see
-`docs/cron.md` for why, and for what to change if you move to Vercel Pro.
+- Per-gameweek history comes from `event/{gw}/live/`, which returns every
+  player's stats in one response — 38 calls a season against roughly 700 to
+  `element-summary/`.
+- `entry/{id}/event/{gw}/picks/` returns 404 until a deadline has passed. That
+  is a state, not an error, and `getEntryPicksIfAvailable` treats it as one.
+
+---
+
+## Honest state
+
+The model **beats a naive baseline by 2.6%** over the 2025/26 season and
+**loses to it on forwards** by 3.9%. That is a real edge and a thin one.
+
+It has never run against a live gameweek.
+
+Both decision screens gate on whether the model can separate players at all.
+Before any gameweek is played that rests on last season, so attacking rates are
+real but **minutes are not** — every player carries the same flat starting
+probability, and the screens say so rather than presenting a nailed starter and
+a rotation risk as though the model could tell them apart.
+
+---
 
 ## Where this is going
 
@@ -234,62 +353,32 @@ an optimisation roadmap ordered by payoff. Start there rather than at PLAN.md
 state.
 
 `docs/multi-user-and-ai.md` answers two questions deliberately: what it takes to
-let anyone use this with their own team ID (much less than you would think — an
-FPL team ID is public, so there is no login to build), and what an LLM can
-genuinely contribute (one thing, and it is not picking the squad).
+let anyone use this with their own team id, and what an LLM can genuinely
+contribute — one thing, and it is not picking the squad.
 
-## Data source notes
+**[How the engine thinks](https://claude.ai/code/artifact/33678294-5060-4a74-8f0a-84faed44b8c5)**
+is the same explanation for someone who does not read code.
 
-All data comes from the official unauthenticated API at
-`https://fantasy.premierleague.com/api/`. Three things about it shape the code:
-
-1. **It is CORS-blocked in the browser.** Every call is server-side.
-   `lib/fpl/client.ts` imports `server-only` so a mistaken client import fails
-   at build time rather than at runtime.
-2. **It rejects some default fetch user-agents.** The client sends a normal
-   browser UA.
-3. **It is untyped and changes shape occasionally.** Every response is
-   `unknown` until it passes a Zod schema. Unknown fields are ignored; missing
-   known fields are fatal. A season of quietly-corrupted history is
-   unrecoverable, so we fail loudly instead.
-
-Two endpoint choices worth knowing:
-
-- Per-gameweek history is built from `event/{gw}/live/`, which returns every
-  player's stats in one response — 38 calls for a season, against roughly 700
-  to `element-summary/`.
-- `entry/{id}/event/{gw}/picks/` returns 404 until that gameweek's deadline has
-  passed. Before the first deadline there is genuinely no public squad to
-  render; `getEntryPicksIfAvailable` treats that as a state, not an error.
-
-## Design
-
-`design/fpl-terminal.dc.html` is the Claude Design canvas this UI is built
-from. It is a vendored reference, excluded from linting, and it is the source
-of truth for the visual system — every colour, type size and border weight in
-`app/globals.css` was extracted from it. If a value in the code disagrees with
-the canvas, the canvas wins.
-
-The canvas contains mock data. None of it belongs in the running app.
+---
 
 ## Layout
 
 ```
-app/                 routes — one per screen in PLAN.md §10
-components/chrome/   masthead, tabs, countdown
-components/ui/       panels, rows, fixture strips — the design primitives
-lib/rules.ts         rules of the game (squad size, scoring, hit cost)
+app/                 routes — /, /t/[entryId]/*, /preview/*, /api/cron/*
+components/          chrome, ui primitives, and one board per screen
+lib/rules.ts         rules of the game — never tuned
 lib/engine/          the model — pure functions, no I/O
+lib/squad/           rows to projections — the one conversion everything shares
 lib/fpl/             API client, Zod schemas, gameweek resolution
+lib/db/              Supabase client, sync jobs, generated types — server-only
+lib/llm/             the brief — returns null with no key
+lib/preview/         dev-only harness
 lib/format.ts        the render boundary — the only place £ appears
-lib/db/              Supabase client, sync, generated types — server-only
-lib/cron/            shared-secret auth for the cron routes
-app/api/cron/        scheduled jobs
 supabase/migrations/ schema
-tests/               Vitest, engine and pure logic only
-design/              vendored Claude Design canvas
+tests/               Vitest — engine and pure logic only
+design/              vendored Claude Design canvas, the visual source of truth
 ```
 
-The split between `lib/rules.ts` and `lib/engine/constants.ts` is deliberate:
-rules change once a season by decree, constants change whenever the backtest
-says so.
+`design/fpl-terminal.dc.html` is the source of truth for the visual system —
+every colour, type size and border weight in `app/globals.css` came from it. If
+a value in the code disagrees with the canvas, the canvas wins.
