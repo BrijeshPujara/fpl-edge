@@ -1,4 +1,7 @@
-import { RATING_BLEND_MATCHES } from "./constants";
+import {
+  FORM_HALF_LIFE_GAMEWEEKS,
+  RATING_BLEND_MATCHES,
+} from "./constants";
 import type { TeamStrength } from "./scoreline";
 
 /**
@@ -30,6 +33,15 @@ export interface MatchResult<K = string> {
   awayGoals: number;
   homeXg: number;
   awayXg: number;
+  /**
+   * How much this match counts, relative to the others. Absent means one.
+   *
+   * This is where form lives. Recent football tells you more about a side
+   * than early-season football, and rather than bolting a separate form term
+   * onto the ratings, the ratings are simply fitted with recent matches
+   * weighted up — see `recencyWeights`.
+   */
+  weight?: number;
 }
 
 export interface RatingFit<K = string> {
@@ -84,6 +96,26 @@ export function fitTeamStrengths<K>(
   const yHome = matches.map((m) => (target === "goals" ? m.homeGoals : m.homeXg));
   const yAway = matches.map((m) => (target === "goals" ? m.awayGoals : m.awayXg));
 
+  /*
+   * Weights normalised to average one.
+   *
+   * Not cosmetic: the gradient step and the ridge penalty are both scaled by
+   * the match count, so raw weights that happened to average 0.3 would shrink
+   * the effective learning rate and inflate the ridge, and the fit would come
+   * out flatter than asked for. Normalising keeps a weighted fit comparable to
+   * an unweighted one.
+   */
+  const raw = matches.map((m) =>
+    m.weight === undefined || !Number.isFinite(m.weight) || m.weight < 0
+      ? 1
+      : m.weight,
+  );
+  const rawTotal = raw.reduce((a, b) => a + b, 0);
+  const weights =
+    rawTotal > 0
+      ? raw.map((w) => (w * matches.length) / rawTotal)
+      : raw.map(() => 1);
+
   const totalGoals = yHome.reduce((a, b) => a + b, 0) + yAway.reduce((a, b) => a + b, 0);
   if (matches.length === 0 || totalGoals <= 0) {
     // Nothing to fit. Everyone is average, which is honest rather than
@@ -96,7 +128,11 @@ export function fitTeamStrengths<K>(
     };
   }
 
-  let mu = Math.log(totalGoals / (2 * matches.length));
+  const weightedGoals = matches.reduce(
+    (sum, _, k) => sum + weights[k] * (yHome[k] + yAway[k]),
+    0,
+  );
+  let mu = Math.log(Math.max(weightedGoals, 1e-9) / (2 * matches.length));
   let hfa = 0.2;
 
   for (let step = 0; step < iterations; step++) {
@@ -112,8 +148,9 @@ export function fitTeamStrengths<K>(
       const lambdaAway = Math.exp(mu + attack[a] - defence[h]);
       // For a Poisson with a log link the gradient of the log-likelihood with
       // respect to the linear predictor is just the residual.
-      const rHome = yHome[k] - lambdaHome;
-      const rAway = yAway[k] - lambdaAway;
+      const w = weights[k];
+      const rHome = w * (yHome[k] - lambdaHome);
+      const rAway = w * (yAway[k] - lambdaAway);
 
       gMu += rHome + rAway;
       gHfa += rHome;
@@ -315,4 +352,35 @@ export function basisFor(weight: number): "prior-season" | "blended" | "this-sea
   if (weight <= 0) return "prior-season";
   if (weight >= 1) return "this-season";
   return "blended";
+}
+
+/**
+ * Match weights that decay with age, so recent form counts for more.
+ *
+ * Exponential, with a half-life in gameweeks — a match `FORM_HALF_LIFE_GAMEWEEKS`
+ * old counts half as much as one played this week. See that constant for the
+ * sweep it came out of, including the negative result: a five-gameweek
+ * half-life is worse than no decay at all, so chasing the last month is not
+ * the same thing as respecting form.
+ *
+ * Matches with no gameweek, and any in the future, are treated as current
+ * rather than dropped — a null gameweek means a postponed fixture whose data
+ * arrived anyway, and guessing it is old would silently discount real
+ * evidence.
+ */
+export function recencyWeights<T extends MatchResult<unknown>>(
+  matches: T[],
+  gameweekOf: (match: T) => number | null,
+  currentGameweek: number,
+  halfLife = FORM_HALF_LIFE_GAMEWEEKS,
+): (T & { weight: number })[] {
+  // Every match comes back carrying a weight, including when decay is off —
+  // the type says so rather than leaving callers to check.
+  if (halfLife <= 0) return matches.map((match) => ({ ...match, weight: 1 }));
+
+  return matches.map((match) => {
+    const gw = gameweekOf(match);
+    const age = gw === null ? 0 : Math.max(0, currentGameweek - gw);
+    return { ...match, weight: 0.5 ** (age / halfLife) };
+  });
 }

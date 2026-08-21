@@ -8,6 +8,7 @@ import {
   blendSeasons,
   blendWeight,
   fitRatings,
+  recencyWeights,
   PROMOTED_PRIOR,
   type RatingFit,
 } from "@/lib/engine/team-ratings";
@@ -176,7 +177,20 @@ export async function refitRatings(db: Db): Promise<RefitResult> {
   const perTeam = matchesPerTeam(matches);
   const weight = blendWeight(perTeam);
 
-  const current = fitRatings(matches);
+  /*
+   * Form. Recent matches count for more, on a measured half-life — a side
+   * that started badly and has since turned it around should not be rated on
+   * the average of the two.
+   *
+   * The most recent gameweek in the data is "now" rather than the live
+   * gameweek, because a refit runs right after results land and the open
+   * gameweek has by definition contributed nothing yet. Using the open one
+   * would age every match by one for no reason.
+   */
+  const latestGw = matches.reduce((max, m) => Math.max(max, m.gw ?? 0), 0);
+  const weighted = recencyWeights(matches, (m) => m.gw ?? null, latestGw);
+
+  const current = fitRatings(weighted);
   const blended = blendSeasons(stored.priorFit, current, weight);
 
   // A club with no rating on either side still needs one, or its fixtures

@@ -9,6 +9,7 @@ import {
   fitTeamStrengths,
   PROMOTED_PRIOR,
   unratedIn,
+  recencyWeights,
   type MatchResult,
 } from "@/lib/engine/team-ratings";
 import { expectedGoals, scoreline, outcomeProbabilities } from "@/lib/engine/scoreline";
@@ -368,5 +369,117 @@ describe("blending against the prior, not against the last blend", () => {
     expect(Math.abs(correct.strength.get("Awful")!.attack - start)).toBeLessThan(
       Math.abs(compounding.strength.get("Awful")!.attack - start),
     );
+  });
+});
+
+describe("form: recent matches counting for more", () => {
+  it("halves a match's weight over the half-life", () => {
+    const one = (gw: number): MatchResult & { gw: number } => ({
+      gw,
+      home: "A",
+      away: "B",
+      homeGoals: 1,
+      awayGoals: 0,
+      homeXg: 1,
+      awayXg: 0,
+    });
+    const weighted = recencyWeights(
+      [one(20), one(10), one(0)],
+      (m) => m.gw,
+      20,
+      10,
+    );
+
+    expect(weighted[0].weight).toBeCloseTo(1, 10);
+    expect(weighted[1].weight).toBeCloseTo(0.5, 10);
+    expect(weighted[2].weight).toBeCloseTo(0.25, 10);
+  });
+
+  it("treats a match with no gameweek as current rather than ancient", () => {
+    // A null gameweek is a postponed fixture whose data arrived anyway.
+    // Guessing it is old would silently discount real evidence.
+    const [only] = recencyWeights(
+      [{ home: "A", away: "B", homeGoals: 1, awayGoals: 0, homeXg: 1, awayXg: 0 }],
+      () => null,
+      30,
+      10,
+    );
+    expect(only.weight).toBe(1);
+  });
+
+  it("follows recent form rather than the season average", () => {
+    // A club that lost heavily early and has been winning since should rate
+    // closer to what it is now than to the average of the two.
+    const early = Array.from({ length: 6 }, (_, i) => ({
+      gw: i + 1,
+      home: "Riser",
+      away: "Average",
+      homeGoals: 0,
+      awayGoals: 3,
+      homeXg: 0.3,
+      awayXg: 3,
+    }));
+    const late = Array.from({ length: 6 }, (_, i) => ({
+      gw: i + 13,
+      home: "Riser",
+      away: "Average",
+      homeGoals: 3,
+      awayGoals: 0,
+      homeXg: 3,
+      awayXg: 0.3,
+    }));
+    const season = [...early, ...late];
+
+    const flat = fitTeamStrengths(season, "goals");
+    const formed = fitTeamStrengths(
+      recencyWeights(season, (m) => m.gw, 18, 6),
+      "goals",
+    );
+
+    expect(formed.strength.get("Riser")!.attack).toBeGreaterThan(
+      flat.strength.get("Riser")!.attack,
+    );
+  });
+
+  it("leaves an unweighted fit exactly where it was", () => {
+    // Normalisation must be a no-op when every weight is one, or every
+    // existing rating shifts for no reason.
+    const season = syntheticLeague(TRUTH);
+    const plain = fitTeamStrengths(season, "goals");
+    const ones = fitTeamStrengths(
+      season.map((m) => ({ ...m, weight: 1 })),
+      "goals",
+    );
+    expect(ones.strength.get("Strong")!.attack).toBeCloseTo(
+      plain.strength.get("Strong")!.attack,
+      10,
+    );
+  });
+
+  it("is unchanged by scaling every weight by the same factor", () => {
+    // Weights are relative. A fit given all-0.3 must equal one given all-1,
+    // or the ridge penalty and step size drift with an arbitrary scale.
+    const season = syntheticLeague(TRUTH);
+    const plain = fitTeamStrengths(season, "goals");
+    const scaled = fitTeamStrengths(
+      season.map((m) => ({ ...m, weight: 0.3 })),
+      "goals",
+    );
+    expect(scaled.strength.get("Awful")!.attack).toBeCloseTo(
+      plain.strength.get("Awful")!.attack,
+      10,
+    );
+  });
+
+  it("ignores a nonsense weight rather than propagating it", () => {
+    const season = syntheticLeague(TRUTH).map((m, i) => ({
+      ...m,
+      weight: i === 0 ? Number.NaN : 1,
+    }));
+    const fit = fitTeamStrengths(season, "goals");
+    for (const s of fit.strength.values()) {
+      expect(Number.isFinite(s.attack)).toBe(true);
+      expect(Number.isFinite(s.defence)).toBe(true);
+    }
   });
 });

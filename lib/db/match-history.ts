@@ -16,12 +16,15 @@ import type { MatchResult } from "@/lib/engine/team-ratings";
  * keyed on name because that is all a CSV has; nothing here needs to go
  * through a name at all, and it should not.
  */
-export async function getPlayedMatches(
-  db: Db,
-): Promise<MatchResult<number>[]> {
+export interface PlayedMatch extends MatchResult<number> {
+  /** Null for a fixture with no gameweek, which is rare but possible. */
+  gw: number | null;
+}
+
+export async function getPlayedMatches(db: Db): Promise<PlayedMatch[]> {
   const { data: fixtures, error } = await db
     .from("fixtures")
-    .select("id, home_team, away_team, home_score, away_score")
+    .select("id, gw, home_team, away_team, home_score, away_score")
     .eq("finished", true)
     .not("home_score", "is", null)
     .not("away_score", "is", null);
@@ -34,6 +37,7 @@ export async function getPlayedMatches(
   return fixtures.map((f) => {
     const key = (home: boolean) => `${f.id}:${home}`;
     return {
+      gw: f.gw,
       home: f.home_team,
       away: f.away_team,
       homeGoals: f.home_score!,

@@ -234,15 +234,15 @@ function Footnote({
         <span className="text-tertiary">
           {BASIS_LABEL[basis ?? ""] ?? basis}
         </span>
-        {basis === "blended" ? (
+        {basis === "blended" || basis === "this-season" ? (
           <>
             {" "}
             &mdash;{" "}
             <span className="tabular-nums text-tertiary">
               {Math.round(blendWeight * 100)}%
             </span>{" "}
-            this season, from {matches} matches, and rising until it is all of
-            it
+            this season, from {matches} matches, with recent ones counting for
+            more
           </>
         ) : null}
         {priorCount > 0 ? (

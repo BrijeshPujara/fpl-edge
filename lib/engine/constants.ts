@@ -219,6 +219,35 @@ export const DIXON_COLES_RHO = -0.13;
  */
 export const RATING_BLEND_MATCHES = 15;
 
+/**
+ * Half-life, in gameweeks, of a match's weight in the in-season rating fit.
+ *
+ * Form is not a separate signal bolted on beside the ratings — it IS the
+ * ratings, fitted with recent football counting for more than early football.
+ * A match this many gameweeks old counts half as much as one played now.
+ *
+ * Swept over both held-out seasons, RPS across GW7-38 where in-season data
+ * drives the fit:
+ *
+ *     half-life      2024/25   2025/26   combined
+ *     none (equal)   0.2007    0.2092    0.2050
+ *     20 gw          0.1994    0.2089    0.2042
+ *     12 gw          0.1988    0.2089    0.2039
+ *     8 gw           0.1984    0.2091    0.2038
+ *     5 gw           0.1986    0.2097    0.2041
+ *
+ * Every decayed setting beat equal weighting on BOTH seasons, which is
+ * stronger evidence than any individual t-statistic here (the best is -1.62):
+ * the direction is consistent where the multi-season prior's was not. The
+ * basin is flat between 8 and 12 and the two seasons disagree about which end
+ * of it is better, so this sits in the middle rather than at either season's
+ * optimum.
+ *
+ * Five gameweeks is measurably too aggressive on both, which is the useful
+ * negative result: chasing the last month alone is worse than ignoring form.
+ */
+export const FORM_HALF_LIFE_GAMEWEEKS = 10;
+
 // ---------------------------------------------------------------------------
 // Bonus
 // ---------------------------------------------------------------------------
