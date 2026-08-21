@@ -16,7 +16,11 @@ import { FORM_WINDOW } from "@/lib/engine/constants";
 import { buildCandidatePool, type Candidate } from "@/lib/squad/candidates";
 import { getSeasonContext } from "@/lib/fpl/season";
 import { applyAvailability, getAvailability } from "@/lib/fpl/availability";
-import { mostRecentRates } from "@/lib/engine/prior-season";
+import {
+  mostRecentRates,
+  mostRecentWorkload,
+  type PriorSeasonWorkload,
+} from "@/lib/engine/prior-season";
 import type { PriorSeasonRates } from "@/lib/engine/expected-points";
 import type { ChipWindow } from "@/lib/fpl/gameweek";
 
@@ -133,6 +137,7 @@ async function loadDecisionContextUncached(
   const players = applyAvailability(storedPlayers, availability);
 
   const priorSeasons = ratesByCode(historyRows);
+  const priorWorkloads = workloadsByCode(historyRows);
 
   const pool = buildCandidatePool({
     gw: target.id,
@@ -142,6 +147,7 @@ async function loadDecisionContextUncached(
     fixtures,
     stats,
     priorSeasons,
+    priorWorkloads,
   });
 
   // Price movement, attached to the candidates the optimiser will weigh. Before
@@ -222,3 +228,34 @@ function ratesByCode(
  * readers.
  */
 export const loadDecisionContext = cache(loadDecisionContextUncached);
+
+/**
+ * How much each player started last season, by CODE.
+ *
+ * Ungated, unlike `ratesByCode`: a start rate from few appearances is not
+ * noise, it is the answer. See `workloadFromSeason`.
+ */
+function workloadsByCode(
+  rows: { player_code: number; season_name: string; minutes: number; starts: number; expected_goals: number | null; expected_assists: number | null; bonus: number }[],
+): Map<number, PriorSeasonWorkload> {
+  const byCode = new Map<number, typeof rows>();
+  for (const row of rows) {
+    byCode.set(row.player_code, [...(byCode.get(row.player_code) ?? []), row]);
+  }
+
+  const workloads = new Map<number, PriorSeasonWorkload>();
+  for (const [code, seasons] of byCode) {
+    const resolved = mostRecentWorkload(
+      seasons.map((season) => ({
+        seasonName: season.season_name,
+        minutes: season.minutes,
+        starts: season.starts,
+        expectedGoals: season.expected_goals,
+        expectedAssists: season.expected_assists,
+        bonus: season.bonus,
+      })),
+    );
+    if (resolved !== null) workloads.set(code, resolved);
+  }
+  return workloads;
+}

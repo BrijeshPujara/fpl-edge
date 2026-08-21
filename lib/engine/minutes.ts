@@ -6,6 +6,7 @@ import {
   START_RATE_WINDOW,
 } from "./constants";
 import { PLAYER_STATUS } from "@/lib/rules";
+import type { PriorSeasonWorkload } from "./prior-season";
 import { clampNewsMultiplier } from "./news-signal";
 
 /**
@@ -27,6 +28,14 @@ export interface MinutesInput {
   recentStarts: boolean[];
   /** Minutes played per recent gameweek, most recent first. Same ordering. */
   recentMinutes: number[];
+  /**
+   * How much the player started LAST season, when there is no history yet.
+   *
+   * Ignored once this season has appearances — observed beats remembered. Its
+   * whole job is the opening weeks, when it is the only thing separating a
+   * nailed starter from a squad player.
+   */
+  priorSeason?: PriorSeasonWorkload | null;
   /**
    * Bounded multiplier from team news, defaulting to 1 — no adjustment.
    *
@@ -136,12 +145,32 @@ export function projectMinutes(input: MinutesInput): MinutesProjection {
       ? 1
       : (chanceOfPlayingNextRound / 100) * CHANCE_OF_PLAYING_DISCOUNT;
 
-  // Role comes from observed appearances. With none — a new signing, or
-  // pre-season — sit in the middle rather than guessing.
-  const rates = recentRates(recentStarts, recentMinutes) ?? {
-    start: NO_HISTORY_START_PRIOR,
-    cameo: (1 - NO_HISTORY_START_PRIOR) * P_BENCH_CAMEO,
-  };
+  /*
+   * Role comes from observed appearances, then from last season, and only
+   * then from a flat prior.
+   *
+   * The middle step used to be missing, which made the flat prior the answer
+   * for every player until a gameweek had been played — a 3,000-minute
+   * ever-present and a fringe squad player both modelled at 41 expected
+   * minutes. Everything downstream scales with minutes, so every projection
+   * came out roughly half what it should be.
+   *
+   * A flat prior is still right for a player nobody has data on, which is what
+   * a genuine new signing is.
+   */
+  const prior = input.priorSeason;
+  const rates =
+    recentRates(recentStarts, recentMinutes) ??
+    (prior
+      ? {
+          start: prior.startRate,
+          // Measured from his own minutes, not assumed from a flat rate.
+          cameo: prior.cameoRate,
+        }
+      : {
+          start: NO_HISTORY_START_PRIOR,
+          cameo: (1 - NO_HISTORY_START_PRIOR) * P_BENCH_CAMEO,
+        });
 
   // News multiplies fitness rather than replacing it, so a club percentage and
   // a news category compose: 75% fitness and a match-fitness note is a player
@@ -164,7 +193,7 @@ export function projectMinutes(input: MinutesInput): MinutesProjection {
   const meanWhenPlaying =
     observed.length > 0
       ? observed.reduce((a, b) => a + b, 0) / observed.length
-      : 75;
+      : (prior?.minutesPerStart ?? 75);
 
   const expectedMinutes = pStart * meanWhenPlaying + pCameo * 20;
 

@@ -1,8 +1,11 @@
+import { projectMinutes } from "@/lib/engine/minutes";
 import { describe, expect, it } from "vitest";
 import {
   mostRecentRates,
   ratesFromSeason,
   type SeasonTotals,
+  mostRecentWorkload,
+  workloadFromSeason,
 } from "@/lib/engine/prior-season";
 import {
   FIRST_XG_SEASON,
@@ -142,5 +145,139 @@ describe("mostRecentRates", () => {
     // A new signing from abroad. The model falls back to its own priors, which
     // is the honest answer.
     expect(mostRecentRates([])).toBeNull();
+  });
+});
+
+describe("workload — how much a player actually played", () => {
+  const season = (over: Partial<SeasonTotals> = {}): SeasonTotals => ({
+    seasonName: "2025/26",
+    minutes: 3000,
+    starts: 34,
+    expectedGoals: 10,
+    expectedAssists: 5,
+    bonus: 20,
+    ...over,
+  });
+
+  it("reads a start rate out of 38 matches", () => {
+    expect(workloadFromSeason(season({ starts: 19 }))!.startRate).toBeCloseTo(
+      0.5,
+      6,
+    );
+    expect(workloadFromSeason(season({ starts: 38 }))!.startRate).toBe(1);
+  });
+
+  it("is NOT gated on minutes, unlike the rates", () => {
+    // A per-90 rate from few appearances is one match's noise multiplied up,
+    // which is why `ratesFromSeason` rejects it. A start rate from few
+    // appearances is not noise — it is the answer, and it is the fact that
+    // most distinguishes a fringe player from a starter.
+    const fringe = season({ minutes: 300, starts: 2, expectedGoals: 1 });
+
+    expect(ratesFromSeason(fringe)).toBeNull();
+    expect(workloadFromSeason(fringe)!.startRate).toBeCloseTo(2 / 38, 6);
+  });
+
+  it("survives a player who only ever came off the bench", () => {
+    const sub = workloadFromSeason(season({ minutes: 600, starts: 0 }))!;
+    expect(sub.startRate).toBe(0);
+    expect(Number.isFinite(sub.minutesPerStart)).toBe(true);
+  });
+
+  it("returns nothing for a season with no football in it", () => {
+    expect(workloadFromSeason(season({ minutes: 0, starts: 0 }))).toBeNull();
+  });
+
+  it("bounds minutes per start, so one odd season cannot skew it", () => {
+    const odd = workloadFromSeason(season({ minutes: 3400, starts: 1 }))!;
+    expect(odd.minutesPerStart).toBeLessThanOrEqual(90);
+  });
+
+  it("takes the most recent season the player featured in", () => {
+    const workload = mostRecentWorkload([
+      season({ seasonName: "2023/24", starts: 38 }),
+      season({ seasonName: "2025/26", starts: 4 }),
+    ])!;
+    // Broke into the side, or lost his place — either way last year describes
+    // him and the year before does not.
+    expect(workload.startRate).toBeCloseTo(4 / 38, 6);
+  });
+
+  it("skips back past a season he missed entirely", () => {
+    const workload = mostRecentWorkload([
+      season({ seasonName: "2024/25", starts: 30 }),
+      season({ seasonName: "2025/26", minutes: 0, starts: 0 }),
+    ])!;
+    expect(workload.startRate).toBeCloseTo(30 / 38, 6);
+  });
+});
+
+describe("workload reaching the minutes model", () => {
+  it("separates an ever-present from a fringe player before a ball is kicked", () => {
+    // The bug this fixes: with no prior-season input, both fell back to the
+    // same flat prior. Measured on a real squad, all fifteen came out at 41
+    // expected minutes — a 3,000-minute ever-present indistinguishable from a
+    // squad player — which halved every projection downstream.
+    const base = {
+      status: "a",
+      chanceOfPlayingNextRound: null,
+      recentStarts: [],
+      recentMinutes: [],
+    };
+
+    const nailed = projectMinutes({
+      ...base,
+      priorSeason: { startRate: 36 / 38, minutesPerStart: 88, cameoRate: 0.02 },
+    });
+    const fringe = projectMinutes({
+      ...base,
+      priorSeason: { startRate: 2 / 38, minutesPerStart: 60, cameoRate: 6 / 38 },
+    });
+
+    // The fringe player's own history says two starts and about six cameos in
+    // thirty-eight, so roughly one appearance in five. Asserted against that
+    // rather than a round number, so the test says what it means.
+    expect(fringe.pAppears).toBeCloseTo((2 + 6) / 38, 2);
+    expect(nailed.pAppears).toBeGreaterThan(0.9);
+
+    // The gap is the point: before this, both were 0.675.
+    expect(nailed.pAppears / fringe.pAppears).toBeGreaterThan(4);
+    expect(nailed.expectedMinutes).toBeGreaterThan(80);
+    expect(fringe.expectedMinutes).toBeLessThan(15);
+  });
+
+  it("still uses the flat prior for a player nobody has data on", () => {
+    // A genuine new signing, or anyone promoted from outside the league.
+    const unknown = projectMinutes({
+      status: "a",
+      chanceOfPlayingNextRound: null,
+      recentStarts: [],
+      recentMinutes: [],
+    });
+    expect(unknown.pAppears).toBeCloseTo(0.675, 3);
+  });
+
+  it("lets this season override last season once there is any", () => {
+    // Observed beats remembered. A player who has started every game this
+    // season is a starter whatever last season says.
+    const started = projectMinutes({
+      status: "a",
+      chanceOfPlayingNextRound: null,
+      recentStarts: [true, true, true, true],
+      recentMinutes: [90, 90, 88, 90],
+      priorSeason: { startRate: 1 / 38, minutesPerStart: 45, cameoRate: 0.1 },
+    });
+    expect(started.pAppears).toBeGreaterThan(0.9);
+  });
+
+  it("does not resurrect an injured player", () => {
+    const injured = projectMinutes({
+      status: "i",
+      chanceOfPlayingNextRound: 0,
+      recentStarts: [],
+      recentMinutes: [],
+      priorSeason: { startRate: 1, minutesPerStart: 90, cameoRate: 0 },
+    });
+    expect(injured.pAppears).toBe(0);
   });
 });

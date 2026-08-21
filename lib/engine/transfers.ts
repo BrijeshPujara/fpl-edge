@@ -92,17 +92,26 @@ export interface SuggestTransfersInput {
    * probability. Defaults to true, so a caller that has not thought about it
    * gets the old behaviour rather than a silently weakened engine.
    *
-   * WHY IT CHANGES THE RECOMMENDATION. A hit is a CERTAIN four points against
-   * an uncertain gain, and the honest reason not to take one here is not that
-   * the estimate is noisy — it is that a whole term is missing. With minutes
-   * held constant across every player, the model cannot tell a nailed starter
-   * from a squad player, so "sell A, buy B" can be a statement about last
-   * season's rate rather than about anything happening this season.
+   * WHY IT CHANGES THE RECOMMENDATION, and how that reason has since weakened.
    *
-   * Observed doing exactly that: in gameweek 2 it proposed selling Virgil van
-   * Dijk, a first-choice defender, for a cheaper player with better per-90
-   * numbers, and paying eight points for the privilege. Free transfers are
-   * unaffected — a free move that turns out wrong costs nothing but the move.
+   * Originally the case was absolute: minutes were held constant across every
+   * player, so the model could not tell a nailed starter from a squad player,
+   * and "sell A, buy B" could be a statement about last season's per-90 rate
+   * rather than about anything happening this season. It proposed selling
+   * Virgil van Dijk for a cheaper player with better rates and paying eight
+   * points for it.
+   *
+   * That defect is fixed — the minutes model now reads last season's workload,
+   * so a 3,000-minute ever-present and a fringe player no longer look alike.
+   * The guard stays anyway, for a smaller and more honest reason: last
+   * season's role is not this season's. Summer transfers, a new manager and a
+   * lost place are all invisible until real minutes arrive, and a hit is a
+   * CERTAIN four points against a gain that still rests on how someone was
+   * used a year ago.
+   *
+   * It lifts on its own once `basis` becomes "this-season". Free transfers are
+   * unaffected throughout — a free move that turns out wrong costs nothing but
+   * the move.
    */
   minutesKnown?: boolean;
 }

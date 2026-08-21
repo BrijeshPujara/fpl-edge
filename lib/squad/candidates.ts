@@ -6,6 +6,7 @@ import type {
   PriorSeasonRates,
 } from "@/lib/engine/expected-points";
 import { projectMinutes } from "@/lib/engine/minutes";
+import type { PriorSeasonWorkload } from "@/lib/engine/prior-season";
 import { readNewsSignal } from "@/lib/engine/news-signal";
 import {
   fixtureContextsFor,
@@ -100,6 +101,14 @@ export interface BuildCandidatePoolInput {
    * the whole early-season shrinkage schedule inert.
    */
   priorSeasons?: Map<number, PriorSeasonRates>;
+  /**
+   * How much each player started last season, by CODE.
+   *
+   * Separate from `priorSeasons` because it survives a stricter gate: rates
+   * need enough minutes to be stable, a start rate is informative from the
+   * first appearance. See `workloadFromSeason`.
+   */
+  priorWorkloads?: Map<number, PriorSeasonWorkload>;
 }
 
 function flagFor(player: PlayerLike): Candidate["flag"] {
@@ -151,6 +160,7 @@ export function buildCandidatePool(
       contexts,
       gameweeks,
       input.priorSeasons?.get(player.code) ?? null,
+      input.priorWorkloads?.get(player.code) ?? null,
     );
 
     // Drives the optimiser's nailed-bench constraint: a bench slot is only
@@ -161,6 +171,7 @@ export function buildCandidatePool(
       recentStarts: history.map((s) => s.starts > 0),
       recentMinutes: history.map((s) => s.minutes),
       newsMultiplier: readNewsSignal(player.news).multiplier,
+      priorSeason: input.priorWorkloads?.get(player.code) ?? null,
     }).pAppears;
 
     const thisGameweek = contexts.filter((c) => c.gw === input.gw);
@@ -182,6 +193,7 @@ export function buildCandidatePool(
         player,
         history,
         input.priorSeasons?.get(player.code) ?? null,
+        input.priorWorkloads?.get(player.code) ?? null,
       ),
       thisGameweek,
     });

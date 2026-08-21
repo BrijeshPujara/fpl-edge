@@ -113,12 +113,11 @@ export async function TransferBoard({
                     {formatEp(suggestion.withheld.netGain)}
                   </span>{" "}
                   after a {suggestion.withheld.hitCost}-point hit. That gain
-                  rests on last season&apos;s rates, and until a gameweek has
-                  been played every available player carries the same starting
-                  probability &mdash; so the model cannot tell a nailed starter
-                  from a squad player, and a hit is a certain cost against a
-                  difference it may be imagining. Free moves are unaffected: one
-                  that turns out wrong costs only the move.
+                  rests on how these players were used LAST season. Summer
+                  transfers, a new manager and a lost place are all invisible
+                  until real minutes arrive, and a hit is a certain four points
+                  against a gain that old. Free moves are unaffected: one that
+                  turns out wrong costs only the move.
                 </div>
               </div>
             ) : null}

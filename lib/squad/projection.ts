@@ -7,6 +7,7 @@ import {
 import { FORM_WINDOW } from "@/lib/engine/constants";
 import { readNewsSignal } from "@/lib/engine/news-signal";
 import type { PriorSeasonRates } from "@/lib/engine/expected-points";
+import type { PriorSeasonWorkload } from "@/lib/engine/prior-season";
 import type { PositionId } from "@/lib/rules";
 import type { FixtureLike, PlayerLike, StatLike, TeamLike } from "./view";
 
@@ -154,6 +155,7 @@ export function modelInputFor(
   player: PlayerLike,
   history: StatLike[],
   priorSeason: PriorSeasonRates | null = null,
+  priorWorkload: PriorSeasonWorkload | null = null,
 ): PlayerModelInput {
   return {
     playerId: player.id,
@@ -165,6 +167,7 @@ export function modelInputFor(
       recentStarts: history.map((s) => s.starts > 0),
       recentMinutes: history.map((s) => s.minutes),
       newsMultiplier: readNewsSignal(player.news).multiplier,
+      priorSeason: priorWorkload,
     },
     recent: recentSamplesFor(history),
     priorSeason,
@@ -198,8 +201,9 @@ export function projectPlayer(
   fixtures: FixtureContext[],
   gameweeks: number[],
   priorSeason: PriorSeasonRates | null = null,
+  priorWorkload: PriorSeasonWorkload | null = null,
 ): ProjectionResult {
-  const input = modelInputFor(player, history, priorSeason);
+  const input = modelInputFor(player, history, priorSeason, priorWorkload);
   const discounted = expectedPointsOverHorizon(input, fixtures, gameweeks);
 
   const perGameweek = gameweeks.map((gw) => {
