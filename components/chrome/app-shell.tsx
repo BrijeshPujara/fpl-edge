@@ -5,13 +5,14 @@ import { DeadlineCountdown } from "./deadline-countdown";
 import { Tabs } from "./tabs";
 
 /**
- * The sticky masthead: a mark, the season position, and a strip of readouts
- * separated by hairlines. Everything in it is live data or an em dash — no
- * placeholder numbers reach production.
+ * The sticky masthead: a mark, the season position, and the deadline.
  *
- * The bank / free-transfer / overall-rank readouts stay blank until the squad
- * sync lands, because those come from the manager's entry rather than from
- * bootstrap-static.
+ * It carries only what belongs to the SEASON. It used to also show projected
+ * points, bank, free transfers and rank, all hardcoded to an em dash with a
+ * comment saying they would fill in once the squad synced. They could not:
+ * this is the root layout, it has no entry id, and every URL under `/t/{id}`
+ * names a different manager. Those four now live in the entry bar, which knows
+ * whose squad is on screen — see `EntryReadouts`.
  */
 export async function AppShell({ children }: { children: ReactNode }) {
   const season = await getSeasonContext();
@@ -34,16 +35,11 @@ export async function AppShell({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          {/*
-            Mobile: the five readouts become a 3-then-2 grid under the mark,
-            with hairlines between cells rather than only to the left. Desktop
-            restores the single inline strip from the canvas.
-          */}
-          <div className="grid grid-cols-3 border-t border-edge-strong pb-2 md:flex md:items-center md:border-t-0 md:pb-0">
+          <div className="flex items-center border-t border-edge-strong pb-2 md:border-t-0 md:pb-0">
             <Readout
               label="DEADLINE"
               tone="warn"
-              className="col-span-2 px-0 md:border-l md:border-edge-strong md:px-5"
+              className="px-0 md:border-l md:border-edge-strong md:pr-0 md:pl-5"
               value={
                 season.available ? (
                   <DeadlineCountdown
@@ -53,26 +49,6 @@ export async function AppShell({ children }: { children: ReactNode }) {
                   "—"
                 )
               }
-            />
-            <Readout
-              label="PROJ. EP"
-              value="—"
-              className="px-0 md:border-l md:border-edge-strong md:px-5"
-            />
-            <Readout
-              label="BANK"
-              value="—"
-              className="px-0 md:border-l md:border-edge-strong md:px-5"
-            />
-            <Readout
-              label="FT"
-              value="—"
-              className="px-0 md:border-l md:border-edge-strong md:px-5"
-            />
-            <Readout
-              label="OR"
-              value="—"
-              className="px-0 md:border-l md:border-edge-strong md:pr-0 md:pl-5"
             />
           </div>
         </div>

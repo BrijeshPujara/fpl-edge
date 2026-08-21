@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getDb, isDbConfigured } from "./client";
+import { cache } from "react";
 import { getLatestSquad } from "./queries";
 import {
   cachedFixtures,
@@ -81,7 +82,7 @@ export type DecisionContext =
  * manager and would have been exactly the wrong shape the moment it served
  * two — the answer belongs to the request, not to the deployment.
  */
-export async function loadDecisionContext(
+async function loadDecisionContextUncached(
   entryId: number,
   horizon: number,
 ): Promise<DecisionContext> {
@@ -198,3 +199,14 @@ function ratesByCode(
   return rates;
 }
 
+
+/**
+ * The loader every screen uses, deduplicated within a request.
+ *
+ * The entry layout needs a projection for its readout and the page below it
+ * needs the same context, so without this a single navigation assembles the
+ * pool twice. React's `cache` is per-request, so this is deduplication rather
+ * than caching — the cross-request part is handled inside, by the cached row
+ * readers.
+ */
+export const loadDecisionContext = cache(loadDecisionContextUncached);

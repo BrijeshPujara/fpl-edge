@@ -1,6 +1,6 @@
 import { getDb, isDbConfigured } from "@/lib/db/client";
 import { getLatestSquad, getPlayersByIds, getTeams } from "@/lib/db/queries";
-import { getEventLive, getFixtures } from "@/lib/fpl/client";
+import { getLiveGameweek } from "@/lib/fpl/live-context";
 import { liveSquad, type LivePlayer } from "@/lib/squad/live";
 import { POSITION_SHORT, type PositionId } from "@/lib/rules";
 import { Panel, Row, SectionLabel } from "@/components/ui/panel";
@@ -41,17 +41,11 @@ export async function LivePoints({
   const stored = await getLatestSquad(db, entryId, gw);
   if (!stored) return null;
 
-  // `revalidate: 0` deliberately: this is the one read in the app where a
-  // cached answer is the wrong answer.
-  const [live, fixtures] = await Promise.all([
-    getEventLive(gw, { revalidate: 0 }).catch(() => null),
-    getFixtures({ revalidate: 0 }).catch(() => null),
-  ]);
-  if (!live) return null;
-
-  const thisWeek = (fixtures ?? []).filter((f) => f.event === gw);
-  const kickedOff = thisWeek.filter((f) => f.started);
-  if (kickedOff.length === 0) return null;
+  // Uncached deliberately: this is the one read in the app where a cached
+  // answer is the wrong answer. Shared per request with the header readout and
+  // the squad pitch, which want the same thing.
+  const live = await getLiveGameweek(gw);
+  if (!live?.anyStarted) return null;
 
   const squad = liveSquad({
     picks: stored.picks.map((p) => ({
@@ -61,7 +55,7 @@ export async function LivePoints({
       isVice: p.is_vice,
     })),
     elements: live.elements,
-    startedFixtures: new Set(kickedOff.map((f) => f.id)),
+    startedFixtures: live.startedFixtures,
     chip: stored.squad.chip_played,
   });
 
@@ -90,7 +84,7 @@ export async function LivePoints({
   return (
     <div>
       <SectionLabel
-        meta={`${kickedOff.length} OF ${thisWeek.length} FIXTURES UNDER WAY`}
+        meta={`${live.startedFixtures.size} FIXTURES UNDER WAY`}
       >
         LIVE POINTS
       </SectionLabel>

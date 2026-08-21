@@ -4,6 +4,7 @@ import { getEntryRow } from "@/lib/db/entries";
 import { parseEntryId } from "@/lib/fpl/entry";
 import { RefreshSquad } from "@/components/chrome/refresh-squad";
 import { SwitchTeam } from "@/components/chrome/switch-team";
+import { EntryReadouts } from "@/components/chrome/entry-readouts";
 
 /**
  * Everything under `/t/{entryId}` belongs to one manager.
@@ -50,6 +51,14 @@ export default async function EntryLayout({
           <RefreshSquad entryId={entryId} />
           <SwitchTeam />
         </div>
+      </div>
+
+      {/*
+        This manager's numbers, in the one layout that knows which manager that
+        is. They were in the masthead and permanently blank; see EntryReadouts.
+      */}
+      <div className="mb-4 border-b border-edge pb-3 sm:mb-6">
+        <EntryReadouts entryId={entryId} />
       </div>
       {children}
     </div>

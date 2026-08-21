@@ -1,6 +1,6 @@
 import { getSeasonContext } from "@/lib/fpl/season";
 import { gameweekInPlay } from "@/lib/fpl/gameweek";
-import { getEventLive, getFixtures } from "@/lib/fpl/client";
+import { getLiveGameweek } from "@/lib/fpl/live-context";
 import { liveSquad, type LivePlayer } from "@/lib/squad/live";
 import { getDb, isDbConfigured } from "@/lib/db/client";
 import {
@@ -105,10 +105,7 @@ export default async function SquadPage({
    * projections alone if the live feed is unreachable.
    */
   const inPlay = gameweekInPlay(season.gameweek);
-  const [live, liveFixtures] = await Promise.all([
-    getEventLive(inPlay.id, { revalidate: 0 }).catch(() => null),
-    getFixtures({ revalidate: 0 }).catch(() => null),
-  ]);
+  const live = await getLiveGameweek(inPlay.id);
   const liveByPlayer = live
     ? new Map<number, LivePlayer>(
         liveSquad({
@@ -119,11 +116,7 @@ export default async function SquadPage({
             isVice: p.is_vice,
           })),
           elements: live.elements,
-          startedFixtures: new Set(
-            (liveFixtures ?? [])
-              .filter((f) => f.event === inPlay.id && f.started)
-              .map((f) => f.id),
-          ),
+          startedFixtures: live.startedFixtures,
           chip: stored.squad.chip_played,
         }).players.map((p) => [p.playerId, p]),
       )
