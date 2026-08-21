@@ -654,6 +654,7 @@ export type Database = {
           p_home: number
           score_away: number
           score_home: number
+          score_method: string
           score_p: number
           uses_prior: boolean
         }
@@ -675,6 +676,7 @@ export type Database = {
           p_home: number
           score_away: number
           score_home: number
+          score_method?: string
           score_p: number
           uses_prior?: boolean
         }
@@ -696,6 +698,7 @@ export type Database = {
           p_home?: number
           score_away?: number
           score_home?: number
+          score_method?: string
           score_p?: number
           uses_prior?: boolean
         }
@@ -849,6 +852,7 @@ export type Database = {
           prior_defence: number | null
           prior_home_advantage: number | null
           prior_league_mean: number | null
+          prior_seasons: number
           team_id: number
           updated_at: string
         }
@@ -865,6 +869,7 @@ export type Database = {
           prior_defence?: number | null
           prior_home_advantage?: number | null
           prior_league_mean?: number | null
+          prior_seasons?: number
           team_id: number
           updated_at?: string
         }
@@ -881,6 +886,7 @@ export type Database = {
           prior_defence?: number | null
           prior_home_advantage?: number | null
           prior_league_mean?: number | null
+          prior_seasons?: number
           team_id?: number
           updated_at?: string
         }

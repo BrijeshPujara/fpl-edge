@@ -57,6 +57,7 @@ async function main() {
     priorFit: seeded,
     basis: "prior-season",
     blendWeight: 0,
+    priorSeasons: PRIOR_SEASONS.length,
     prior: usesPrior,
   });
 

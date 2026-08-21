@@ -6,6 +6,7 @@ import {
   type PredictedFixture,
 } from "@/lib/db/predictions";
 import { getRatings } from "@/lib/db/ratings";
+import { captionFor } from "@/lib/engine/scoreline";
 import { Panel, Row, SectionLabel } from "@/components/ui/panel";
 import { GenerateScorelines } from "./generate-scorelines";
 import { cn } from "@/lib/cn";
@@ -101,8 +102,12 @@ export async function ScorelinePanel({
         basis={ratings?.basis ?? null}
         hasRatings={ratings !== null}
         priorCount={ratings?.prior.size ?? 0}
+        priorSeasons={ratings?.priorSeasons ?? 1}
         blendWeight={ratings?.blendWeight ?? 0}
         matches={ratings?.fit.matches ?? 0}
+        // From the rows on screen, so the sentence describes what is actually
+        // being shown rather than what the code currently computes.
+        scoreMethod={predictions[0]?.prediction.score_method ?? null}
         record={record}
       />
     </div>
@@ -189,25 +194,52 @@ function FixtureRow({ predicted }: { predicted: PredictedFixture }) {
   );
 }
 
-const BASIS_LABEL: Record<string, string> = {
-  "prior-season": "the three seasons before this one",
-  blended: "past seasons moving toward this one",
-  "this-season": "this season",
+/**
+ * How the ratings' basis reads, given how many seasons are behind it.
+ *
+ * A function and not a lookup table, because the table was where the last
+ * stale caption lived: it said "last season only" and stayed saying it after
+ * the prior became three seasons, since `basis` had not changed — only the
+ * number of seasons had, and nothing was reading that. It reads it now.
+ */
+export function basisLabel(basis: string | null, priorSeasons: number): string {
+  const seasons =
+    priorSeasons <= 1
+      ? "last season"
+      : priorSeasons === 2
+        ? "the two seasons before this one"
+        : `the ${NUMBER_WORD[priorSeasons] ?? priorSeasons} seasons before this one`;
+
+  if (basis === "prior-season") return seasons;
+  if (basis === "blended") return `${seasons}, moving toward this one`;
+  if (basis === "this-season") return "this season";
+  return basis ?? "an unknown basis";
+}
+
+const NUMBER_WORD: Record<number, string> = {
+  3: "three",
+  4: "four",
+  5: "five",
 };
 
 function Footnote({
   basis,
   hasRatings,
   priorCount,
+  priorSeasons,
   blendWeight,
   matches,
+  scoreMethod,
   record,
 }: {
   basis: string | null;
   hasRatings: boolean;
   priorCount: number;
+  priorSeasons: number;
   blendWeight: number;
   matches: number;
+  /** Read off the predictions themselves, not assumed. */
+  scoreMethod: string | null;
   record: ReturnType<typeof summarise>;
 }) {
   if (!hasRatings) {
@@ -223,16 +255,14 @@ function Footnote({
   return (
     <div className="mt-2 flex max-w-prose flex-col gap-2 text-small leading-relaxed text-dim text-pretty">
       <p>
-        Each result shows how likely it is and the scoreline it averages out
-        at &mdash; not its most common single score, which sits about a third
-        of a goal below the average one and almost never reads as a
-        comfortable win. The percentages are the reliable half; a scoreline
-        never is.
+        Each result shows how likely it is, and{" "}
+        <span className="text-tertiary">{captionFor(scoreMethod)}</span>. The
+        percentages are the reliable half; a scoreline never is.
       </p>
       <p>
         Ratings fitted on{" "}
         <span className="text-tertiary">
-          {BASIS_LABEL[basis ?? ""] ?? basis}
+          {basisLabel(basis, priorSeasons)}
         </span>
         {basis === "blended" || basis === "this-season" ? (
           <>

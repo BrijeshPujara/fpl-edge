@@ -521,6 +521,68 @@ export function expectedScoreByOutcome({ grid }: Scoreline): ScoresByOutcome {
 }
 
 /**
+ * The scoreline summaries, each bound to the words that describe it.
+ *
+ * This exists because the caption on the screen went stale three times in one
+ * feature. Each time a statistic changed, the sentence explaining it did not,
+ * and the result was a page stating something false with no visible sign of
+ * it — the worst failure mode available to a tool whose whole job is telling
+ * someone what a number means.
+ *
+ * Re-wording it a fourth time would fix nothing. The cause is that the prose
+ * lived in a component while the computation lived here, and nothing connected
+ * them, so nothing could notice when they diverged.
+ *
+ * Binding them into one object makes the divergence impossible to express:
+ * changing which summary is used means changing `ACTIVE_SCORE_SUMMARY`, and
+ * the caption travels with it. Two further properties fall out of it:
+ *
+ *   * `caption` is keyed by `ScoreMethod`, so adding a summary without writing
+ *     its caption does not compile.
+ *   * The id is STORED on each prediction, so a row written under one summary
+ *     still describes itself correctly after the active one changes. Old
+ *     predictions stop being retroactively mislabelled, which is the version
+ *     of this bug that would otherwise survive every fix.
+ */
+export type ScoreMethod = "expected" | "modal";
+
+export interface ScoreSummary {
+  id: ScoreMethod;
+  summarise: (scoreline: Scoreline) => ScoresByOutcome;
+  /** How the screen must describe it. Read from here, never retyped. */
+  caption: string;
+}
+
+export const SCORE_SUMMARIES: Record<ScoreMethod, ScoreSummary> = {
+  expected: {
+    id: "expected",
+    summarise: expectedScoreByOutcome,
+    caption: "the scoreline it averages out at",
+  },
+  modal: {
+    id: "modal",
+    summarise: mostLikelyScoreByOutcome,
+    caption: "its single most likely scoreline",
+  },
+};
+
+/**
+ * The summary the app uses.
+ *
+ * `expected` rather than `modal` because the mode understates every decisive
+ * result — see `expectedScoreByOutcome` for the measurement.
+ */
+export const ACTIVE_SCORE_SUMMARY = SCORE_SUMMARIES.expected;
+
+/** The caption for a stored method, falling back for anything unrecognised. */
+export function captionFor(method: string | null | undefined): string {
+  return (
+    SCORE_SUMMARIES[method as ScoreMethod]?.caption ??
+    "a representative scoreline"
+  );
+}
+
+/**
  * Expected goal difference, home minus away.
  *
  * Read off the grid rather than returned as `lambdaHome - lambdaAway`, because

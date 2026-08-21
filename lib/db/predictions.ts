@@ -8,7 +8,7 @@ import {
   bothTeamsToScore,
   cleanSheetProbabilities,
   logLoss,
-  expectedScoreByOutcome,
+  ACTIVE_SCORE_SUMMARY,
   outcomeOf,
   outcomeProbabilities,
   overUnder,
@@ -136,7 +136,7 @@ export async function generatePredictions(
     );
     const probabilities = outcomeProbabilities(s);
     const cs = cleanSheetProbabilities(s);
-    const byOutcome = expectedScoreByOutcome(s);
+    const byOutcome = ACTIVE_SCORE_SUMMARY.summarise(s);
     const favoured =
       probabilities.home >= probabilities.draw &&
       probabilities.home >= probabilities.away
@@ -170,6 +170,9 @@ export async function generatePredictions(
         away: byOutcome[outcome].away,
         p: round(byOutcome[outcome].probability, 4),
       })) as unknown as TablesInsert<"predictions">["likely_scores"],
+      // Stored so this row keeps describing itself correctly even after the
+      // active summary changes. See ACTIVE_SCORE_SUMMARY.
+      score_method: ACTIVE_SCORE_SUMMARY.id,
       basis: stored.basis,
       uses_prior:
         !rated(fixture.home_team) || !rated(fixture.away_team),

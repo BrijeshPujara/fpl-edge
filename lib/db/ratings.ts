@@ -41,6 +41,8 @@ export interface StoredRatings {
   basis: RatingBasis;
   /** How much this season counted, 0 to 1. */
   blendWeight: number;
+  /** How many completed seasons the prior was fitted on. */
+  priorSeasons: number;
   /** Clubs carrying the promoted prior rather than a fitted rating. */
   prior: Set<number>;
   updatedAt: string;
@@ -90,6 +92,7 @@ export async function getRatings(db: Db): Promise<StoredRatings | null> {
         : null,
     basis: first.basis as RatingBasis,
     blendWeight: Number(first.blend_weight),
+    priorSeasons: first.prior_seasons,
     prior,
     updatedAt: data
       .map((r) => r.updated_at)
@@ -105,6 +108,8 @@ export interface SaveRatingsInput {
   priorFit: RatingFit<number>;
   basis: RatingBasis;
   blendWeight: number;
+  /** How many completed seasons the prior was fitted on. */
+  priorSeasons: number;
   /** Clubs whose rating is the promoted prior rather than a measurement. */
   prior: Set<number>;
 }
@@ -128,6 +133,7 @@ export async function saveRatings(
       home_advantage: input.fit.homeAdvantage,
       basis: input.basis,
       blend_weight: input.blendWeight,
+      prior_seasons: input.priorSeasons,
       matches: input.fit.matches,
       is_prior: input.prior.has(teamId),
       prior_attack: input.priorFit.strength.get(teamId)?.attack ?? null,
@@ -218,6 +224,8 @@ export async function refitRatings(db: Db): Promise<RefitResult> {
     priorFit: stored.priorFit,
     basis,
     blendWeight: weight,
+    // Carried forward: a refit changes the blend, never the prior behind it.
+    priorSeasons: stored.priorSeasons,
     prior: stillPrior,
   });
 

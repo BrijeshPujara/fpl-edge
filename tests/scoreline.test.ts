@@ -5,6 +5,9 @@ import {
   expectedGoals,
   expectedSupremacy,
   mostLikelyScores,
+  ACTIVE_SCORE_SUMMARY,
+  SCORE_SUMMARIES,
+  captionFor,
   expectedScoreByOutcome,
   mostLikelyScoreByOutcome,
   outcomeOf,
@@ -490,5 +493,53 @@ describe("the expected scoreline, which is what the screens show", () => {
     const { home } = expectedScoreByOutcome(lopsided);
     expect(home.probability).toBeGreaterThan(0);
     expect(home.probability).toBeLessThan(0.25);
+  });
+});
+
+describe("a statistic and the words describing it cannot drift apart", () => {
+  /*
+   * These exist because the caption on the scorelines panel went stale three
+   * times in one feature. Each time a statistic changed and the sentence
+   * explaining it did not, leaving the page stating something false with
+   * nothing to reveal it. Re-wording was not a fix; this is the guard.
+   */
+
+  it("gives every summary a caption", () => {
+    for (const [id, summary] of Object.entries(SCORE_SUMMARIES)) {
+      expect(summary.id).toBe(id);
+      expect(summary.caption.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it("captions the summary that is actually in use", () => {
+    expect(captionFor(ACTIVE_SCORE_SUMMARY.id)).toBe(
+      ACTIVE_SCORE_SUMMARY.caption,
+    );
+  });
+
+  it("keeps describing an old prediction by the summary that made it", () => {
+    // The version of this bug that survives every re-wording: a row written
+    // under one summary being relabelled by whatever the code does later.
+    expect(captionFor("modal")).toBe(SCORE_SUMMARIES.modal.caption);
+    expect(captionFor("modal")).not.toBe(SCORE_SUMMARIES.expected.caption);
+  });
+
+  it("says something safe for a method it does not recognise", () => {
+    // A prediction from a future version, read by an older deploy. Better a
+    // vague truth than a confident falsehood.
+    expect(captionFor("something-new").length).toBeGreaterThan(0);
+    expect(captionFor(null)).toBe(captionFor(undefined));
+  });
+
+  it("describes the mode as a mode and the mean as a mean", () => {
+    // The captions have to survive someone reading them beside the numbers.
+    // A lopsided fixture is where the two summaries visibly disagree.
+    const lopsided = scorelineFrom(2.15, 1.06);
+    const mode = SCORE_SUMMARIES.modal.summarise(lopsided).home;
+    const mean = SCORE_SUMMARIES.expected.summarise(lopsided).home;
+
+    expect(mean.home - mean.away).toBeGreaterThan(mode.home - mode.away);
+    expect(SCORE_SUMMARIES.modal.caption).toMatch(/likely/);
+    expect(SCORE_SUMMARIES.expected.caption).toMatch(/average/);
   });
 });
