@@ -9,7 +9,6 @@ import {
   cleanSheetProbabilities,
   logLoss,
   mostLikelyScoreByOutcome,
-  mostLikelyScores,
   outcomeOf,
   outcomeProbabilities,
   overUnder,
@@ -18,7 +17,7 @@ import {
   type MatchOutcome,
   type TeamStrength,
 } from "@/lib/engine/scoreline";
-import { priorForUnrated } from "@/lib/engine/team-ratings";
+import { PROMOTED_PRIOR } from "@/lib/engine/team-ratings";
 
 /**
  * Scoreline predictions, recorded and scored.
@@ -38,23 +37,29 @@ import { priorForUnrated } from "@/lib/engine/team-ratings";
 
 export type PredictionRow = Tables<"predictions">;
 
-/** One entry of `predictions.likely_scores`. */
+/** One entry of `predictions.likely_scores`: the likeliest score for one result. */
 export interface LikelyScore {
+  outcome: MatchOutcome;
   home: number;
   away: number;
   p: number;
 }
 
-/**
- * How many scorelines the panel shows.
+/*
+ * One scoreline per result, rather than the three likeliest overall.
  *
- * Measured over 280 held-out matches: the single most likely cell is right
- * 12.5% of the time, three are right 33.6%, five are right 47.9%. Each set is
- * calibrated — three carry 34.5% of the probability — so the choice is purely
- * about how much of the distribution is worth the width. Three roughly triples
- * the hit rate over one and still fits a row.
+ * The three likeliest overall are marginally more accurate as a set — over 560
+ * held-out matches across two seasons, right 30.9% of the time against 27.1% —
+ * and they are unusable, because the leading one is 1-1 in 74.6% of fixtures.
+ * A panel that says "1-1" beside "61% home win" reads as broken even when both
+ * numbers are correct, and a reader cannot tell which result each of three
+ * near-identical draws belongs to.
+ *
+ * One per result costs 3.8 points of set accuracy and buys a row where every
+ * cell means something the reader asked for: if it is a home win, 2-1; if a
+ * draw, 1-1; if away, 1-2. The leading cell is 1-1 in 0.5% of fixtures, and
+ * only when a draw is genuinely the likeliest result.
  */
-export const LIKELY_SCORES_SHOWN = 3;
 
 /** Read the stored scorelines, whatever PostgREST hands back. */
 export function likelyScoresOf(row: PredictionRow): LikelyScore[] {
@@ -69,7 +74,8 @@ export function likelyScoresOf(row: PredictionRow): LikelyScore[] {
       entry !== null &&
       "home" in entry &&
       "away" in entry &&
-      "p" in entry,
+      "p" in entry &&
+      "outcome" in entry,
   );
 }
 export type PredictionOutcomeRow = Tables<"prediction_outcomes">;
@@ -108,10 +114,7 @@ export async function generatePredictions(
   ]);
   if (fixtures.length === 0) return { status: "no-fixtures", gw };
 
-  const prior: TeamStrength = priorForUnrated(
-    stored.fit,
-    teams.map((t) => t.id),
-  );
+  const prior: TeamStrength = PROMOTED_PRIOR;
   const strengthOf = (teamId: number) =>
     stored.fit.strength.get(teamId) ?? prior;
   const rated = (teamId: number) =>
@@ -160,12 +163,14 @@ export async function generatePredictions(
       cs_away: round(cs.away, 4),
       btts: round(bothTeamsToScore(s), 4),
       over_two_five: round(overUnder(s, 2.5).over, 4),
-      // The whole shape, not one cell of it. The single scoreline below stays
-      // as the model's called result, which is what `exact_correct` judges.
-      likely_scores: mostLikelyScores(s, LIKELY_SCORES_SHOWN).map((score) => ({
-        home: score.home,
-        away: score.away,
-        p: round(score.probability, 4),
+      // The likeliest scoreline for each of the three results, ordered as the
+      // results are. The single scoreline below stays as the model's called
+      // result, which is what `exact_correct` judges.
+      likely_scores: (["home", "draw", "away"] as const).map((outcome) => ({
+        outcome,
+        home: byOutcome[outcome].home,
+        away: byOutcome[outcome].away,
+        p: round(byOutcome[outcome].probability, 4),
       })) as unknown as TablesInsert<"predictions">["likely_scores"],
       basis: stored.basis,
       uses_prior:

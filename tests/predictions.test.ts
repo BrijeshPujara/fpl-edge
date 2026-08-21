@@ -122,12 +122,20 @@ describe("reading the stored scorelines", () => {
   it("reads a well-formed list", () => {
     const scores = likelyScoresOf(
       row([
-        { home: 2, away: 1, p: 0.1 },
-        { home: 1, away: 1, p: 0.09 },
+        { outcome: "home", home: 2, away: 1, p: 0.1 },
+        { outcome: "draw", home: 1, away: 1, p: 0.09 },
       ]),
     );
     expect(scores).toHaveLength(2);
-    expect(scores[0]).toMatchObject({ home: 2, away: 1 });
+    expect(scores[0]).toMatchObject({ outcome: "home", home: 2, away: 1 });
+  });
+
+  it("drops entries with no result attached", () => {
+    // Every stored scoreline belongs to a result, and the panel looks each one
+    // up by that. An entry without it cannot be placed in a column, so it is
+    // not a usable scoreline — predictions written before the shape changed
+    // fall into this and the panel falls back to the single called score.
+    expect(likelyScoresOf(row([{ home: 2, away: 1, p: 0.1 }]))).toEqual([]);
   });
 
   it("returns nothing for a prediction stored before the column existed", () => {
@@ -145,7 +153,9 @@ describe("reading the stored scorelines", () => {
 
   it("keeps the good entries and drops the bad ones", () => {
     expect(
-      likelyScoresOf(row([{ home: 1, away: 0, p: 0.1 }, { broken: 1 }])),
+      likelyScoresOf(
+        row([{ outcome: "away", home: 1, away: 0, p: 0.1 }, { broken: 1 }]),
+      ),
     ).toHaveLength(1);
   });
 });

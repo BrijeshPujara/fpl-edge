@@ -17,19 +17,26 @@ config({ path: ".env.local", quiet: true });
 import { getDb } from "@/lib/db/client";
 import { getTeams } from "@/lib/db/queries";
 import { saveRatings } from "@/lib/db/ratings";
-import { fitFromCache } from "./ratings";
-import { priorForUnrated, unratedIn } from "@/lib/engine/team-ratings";
+import { ensureSeason, fitFromCache, PRIOR_SEASONS } from "./ratings";
+import { PROMOTED_PRIOR, unratedIn } from "@/lib/engine/team-ratings";
 import type { TeamStrength } from "@/lib/engine/scoreline";
 
 async function main() {
   const db = getDb();
   const teams = await getTeams(db);
+
+  // Fetch anything the cache is missing. Idempotent, and a no-op once warm.
+  for (const season of PRIOR_SEASONS) {
+    const fetched = await ensureSeason(season);
+    if (fetched > 0) console.log(`fetched ${fetched} gameweeks of ${season}`);
+  }
+
   const fit = fitFromCache();
 
   const names = teams.map((t) => t.name);
   const promoted = unratedIn(fit, names);
   const relegated = unratedIn(fit, names, true);
-  const prior: TeamStrength = priorForUnrated(fit, names);
+  const prior: TeamStrength = PROMOTED_PRIOR;
 
   // Re-key from FPL's team name, which is what the historical cache carries,
   // onto team id, which is what every fixture in the database references.
@@ -53,7 +60,9 @@ async function main() {
     prior: usesPrior,
   });
 
-  console.log(`\nFitted on ${fit.matches} matches of last season.`);
+  console.log(
+    `\nFitted on ${fit.matches} matches across ${PRIOR_SEASONS.join(", ")}.`,
+  );
   console.log(
     `league mean ${fit.leagueMean.toFixed(3)} · ` +
       `home advantage ${(fit.homeAdvantage ** 2).toFixed(3)}x\n`,
@@ -67,13 +76,16 @@ async function main() {
     console.log(
       `  ${team.short_name.padEnd(4)} attack ${s.attack.toFixed(2)}  ` +
         `defence ${s.defence.toFixed(2)}` +
-        (usesPrior.has(team.id) ? "   (promoted — prior, not a measurement)" : ""),
+        (usesPrior.has(team.id)
+          ? "   (promoted — the measured promoted average, not this club)"
+          : ""),
     );
   }
 
   console.log(
     `\nWrote ${written} ratings. ${promoted.length} promoted ` +
-      `(${promoted.join(", ")}) priced from ${relegated.join(", ")}.\n`,
+      `(${promoted.join(", ")}) priced from what promoted sides average, ` +
+      `not from ${relegated.join(", ")}.\n`,
   );
   process.exit(0);
 }

@@ -160,28 +160,35 @@ export const MAX_GOALS = 10;
  *
  * Two independent Poissons are a good model of a football match everywhere
  * except the corner where most matches actually live. Independence understates
- * 0-0 and 1-1 and therefore understates draws — measured on 2025/26, an
- * uncorrected grid predicted draws in 23.6% of matches when 29.6% were drawn.
+ * 0-0 and 1-1 and therefore understates draws, and this reweights the four
+ * cells where both sides scored at most one.
  *
- * The correction reweights the four cells where both sides scored at most one.
- * Swept over an expanding window (fit on everything before each gameweek,
- * predict that gameweek, 280 held-out matches from GW11 on):
+ * THIS WAS FITTED TO ONE SEASON AND WAS WRONG. The first value here was -0.25,
+ * swept on 2025/26 alone — a season with a 27.4% draw rate against a long-run
+ * Premier League figure near 24%. Tested on 2024/25, which it had never seen:
  *
- *     rho     RPS      log loss   predicted draws
- *     0.00    0.2092   1.0489     23.6%
- *    -0.20    0.2086   1.0423     28.0%
- *    -0.25    0.2086   1.0424     29.1%
- *    -0.28    0.2087   1.0428     29.7%
- *    -0.40    0.2090   1.0466     32.4%
+ *     rho     RPS 24/25   RPS 25/26   predicted draws 24/25 (actual 23.2%)
+ *     0.00    0.2024      0.2089      22.3%
+ *    -0.10    0.2024      0.2085      24.3%
+ *    -0.13    0.2025      0.2084      24.9%
+ *    -0.15    0.2025      0.2084      25.4%
+ *    -0.25    0.2029      0.2084      27.4%
+ *    -0.30    0.2032      0.2084      28.4%
  *
- * The basin is flat between -0.28 and -0.20 and this sits in the middle of it.
- * The honest reading is that the scoring rules barely separate those values
- * and draw calibration alone would argue for -0.28; what the sweep establishes
- * firmly is the SIGN and that zero is wrong.
+ * On the unseen season -0.25 is the WORST value tested and over-predicts draws
+ * by four points. Summed across both seasons the optimum is -0.10 to -0.15.
+ * Dixon and Coles estimated ~-0.13 on English league data, which lands inside
+ * that window and is the corroboration the original sweep should have been
+ * checked against.
  *
- * One season of one league. Refit it when there is more.
+ * The magnitude matters more than it looks. tau(1,1) is 1 - rho, a FLAT boost
+ * to the 1-1 cell applied no matter how lopsided the fixture — 25% at the old
+ * value, which was enough to put 1-1 above 2-1 for a side favoured 60/24/16 at
+ * home. At 0.13 it is 13% and the ordering follows the rates again.
+ *
+ * Two seasons of one league. Refit when there are more.
  */
-export const DIXON_COLES_RHO = -0.25;
+export const DIXON_COLES_RHO = -0.13;
 
 /**
  * Matches per club before this season's ratings fully replace last season's.

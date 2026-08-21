@@ -8,7 +8,7 @@ import {
   blendSeasons,
   blendWeight,
   fitRatings,
-  priorForUnrated,
+  PROMOTED_PRIOR,
   type RatingFit,
 } from "@/lib/engine/team-ratings";
 import { getPlayedMatches, matchesPerTeam } from "./match-history";
@@ -182,10 +182,7 @@ export async function refitRatings(db: Db): Promise<RefitResult> {
   // A club with no rating on either side still needs one, or its fixtures
   // cannot be priced at all.
   const teams = await getTeams(db);
-  const fallback = priorForUnrated(
-    stored.priorFit,
-    teams.map((t) => t.id),
-  );
+  const fallback = PROMOTED_PRIOR;
   const missing = new Set<number>();
   for (const team of teams) {
     if (!blended.strength.has(team.id)) {

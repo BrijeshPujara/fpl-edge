@@ -26,7 +26,7 @@ import {
 } from "@/lib/engine/scoreline";
 import { fitFromCache } from "./ratings";
 import {
-  priorForUnrated,
+  PROMOTED_PRIOR,
   unratedIn,
   XG_WEIGHT,
 } from "@/lib/engine/team-ratings";
@@ -54,7 +54,7 @@ async function main() {
   const names = teams.map((t) => t.name);
   const relegated = unratedIn(fit, names, true);
   const promoted = teams.filter((t) => !fit.strength.has(t.name));
-  const prior: TeamStrength = priorForUnrated(fit, names);
+  const prior: TeamStrength = PROMOTED_PRIOR;
   const strengthOf = (name: string) => fit.strength.get(name) ?? prior;
 
   console.log(

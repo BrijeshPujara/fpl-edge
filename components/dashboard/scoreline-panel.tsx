@@ -18,18 +18,19 @@ import { cn } from "@/lib/cn";
  * later, and a panel that quietly generated one on every page view would be
  * keeping a diary nobody wrote.
  *
- * It shows THREE scorelines, not one, and that is the whole design.
+ * Each result carries its own likeliest scoreline, and that is the design.
  *
- * A single scoreline is not information. Measured over 280 held-out matches
- * the model names 2-1 or 1-2 in 53.6% of fixtures and the top cell is right
- * 12.5% of the time — it says the same thing half the time and is wrong seven
- * times in eight. The grid is not at fault: that top cell carries 14.2% of the
- * probability against a 12.5% hit rate, which is calibrated. Printing one cell
- * of a calibrated distribution as though it were a call is what over-claimed.
+ * A single scoreline for the match is not information — the likeliest cell of
+ * the grid is right about one time in nine, and it is 1-1 in three quarters of
+ * fixtures because 1-1 is simply the most common result in football. Printed
+ * beside "61% home win" that reads as a contradiction even though both numbers
+ * are right.
  *
- * Three cells are right 33.6% of the time and carry 34.5%. Same honesty, far
- * more use, and the percentages are on screen so nobody has to take it on
- * trust.
+ * So the row answers the question a reader actually has. If it is a home win,
+ * what score; if a draw, what score; if away, what score. Measured over 560
+ * held-out matches across two seasons that set contains the real score 27.1%
+ * of the time, against 30.9% for the three likeliest overall — 3.8 points paid
+ * for a row where no cell contradicts the one beside it.
  */
 export async function ScorelinePanel({
   entryId,
@@ -79,19 +80,14 @@ export async function ScorelinePanel({
           <>
             <Row
               height="table"
-              className="grid grid-cols-[1fr_150px] gap-2 font-mono text-micro tracking-[0.06em] text-ghost sm:grid-cols-[1fr_170px_repeat(3,46px)_56px]"
+              className="grid grid-cols-[1fr_repeat(3,64px)] gap-2 font-mono text-micro tracking-[0.06em] text-ghost sm:grid-cols-[1fr_repeat(3,74px)_56px]"
             >
               <div>FIXTURE</div>
-              <div className="text-right">LIKELY SCORES</div>
-              {/*
-                The three probabilities and the result drop away on a narrow
-                screen, but the header itself must not — hiding the whole row
-                left SCORE and P unlabelled on a phone, which is where the
-                caution about P being small matters most.
-              */}
-              <div className="hidden text-right sm:block">HOME</div>
-              <div className="hidden text-right sm:block">DRAW</div>
-              <div className="hidden text-right sm:block">AWAY</div>
+              <div className="text-right">HOME</div>
+              <div className="text-right">DRAW</div>
+              <div className="text-right">AWAY</div>
+              {/* Only the result column drops away on a narrow screen; the
+                  three that carry the prediction never do. */}
               <div className="hidden text-right sm:block">RESULT</div>
             </Row>
             {predictions.map((p) => (
@@ -113,56 +109,46 @@ export async function ScorelinePanel({
   );
 }
 
+/** The likeliest scoreline for one result, if it was stored. */
+function scoreFor(
+  predicted: PredictedFixture,
+  outcome: "home" | "draw" | "away",
+): string | null {
+  const found = likelyScoresOf(predicted.prediction).find(
+    (score) => score.outcome === outcome,
+  );
+  return found ? `${found.home}\u2013${found.away}` : null;
+}
+
 /**
- * The three most likely scorelines.
+ * One result: how likely it is, and what it most likely looks like.
  *
- * Three rather than one because one is not information. Measured over 280
- * held-out matches the top cell is right 12.5% of the time while the model
- * names 2-1 or 1-2 in 53.6% of fixtures — it says the same thing half the
- * time and is wrong seven times in eight. Three are right 33.6% of the time.
- *
- * Both sets are calibrated against the probability they carry; what was wrong
- * was printing one cell of a calibrated distribution as though it were a call.
+ * The probability leads because it is the trustworthy half — a result
+ * probability is worth acting on and a scoreline never is.
  */
-function LikelyScores({ predicted }: { predicted: PredictedFixture }) {
-  const scores = likelyScoresOf(predicted.prediction);
-
-  // Predictions stored before this column existed have nothing to show, and a
-  // regenerate fills them in.
-  if (scores.length === 0) {
-    return (
-      <div className="text-right font-mono text-cell tabular-nums text-primary">
-        {predicted.prediction.score_home}&ndash;{predicted.prediction.score_away}
-      </div>
-    );
-  }
-
+function Result({
+  probability,
+  score,
+}: {
+  probability: number | string;
+  score: string | null;
+}) {
   return (
-    <div className="flex items-baseline justify-end gap-2 font-mono tabular-nums">
-      {scores.map((score, i) => (
-        <span key={`${score.home}-${score.away}`} className="whitespace-nowrap">
-          <span className={i === 0 ? "text-cell text-primary" : "text-cell text-muted"}>
-            {score.home}&ndash;{score.away}
-          </span>
-          {/* The % is not decoration: a bare number beside a scoreline reads
-              as part of it. */}
-          <span className="ml-0.5 text-micro text-ghost">
-            {Math.round(Number(score.p) * 100)}%
-          </span>
-        </span>
-      ))}
+    <div className="text-right font-mono tabular-nums">
+      <div className="text-cell text-secondary">
+        {Math.round(Number(probability) * 100)}%
+      </div>
+      {score ? <div className="text-micro text-ghost">{score}</div> : null}
     </div>
   );
 }
 
 function FixtureRow({ predicted }: { predicted: PredictedFixture }) {
   const { prediction: p, outcome } = predicted;
-  const pc = (value: number | string) => `${Math.round(Number(value) * 100)}%`;
-
   return (
     <Row
-      height="table"
-      className="grid grid-cols-[1fr_150px] gap-2 sm:grid-cols-[1fr_170px_repeat(3,46px)_56px]"
+      height="tall"
+      className="grid grid-cols-[1fr_repeat(3,64px)] gap-2 sm:grid-cols-[1fr_repeat(3,74px)_56px]"
     >
       <div className="flex min-w-0 items-center gap-1.5 truncate text-small text-primary">
         <span className="truncate">
@@ -178,17 +164,9 @@ function FixtureRow({ predicted }: { predicted: PredictedFixture }) {
         ) : null}
       </div>
 
-      <LikelyScores predicted={predicted} />
-
-      <div className="hidden text-right font-mono text-cell tabular-nums text-secondary sm:block">
-        {pc(p.p_home)}
-      </div>
-      <div className="hidden text-right font-mono text-cell tabular-nums text-secondary sm:block">
-        {pc(p.p_draw)}
-      </div>
-      <div className="hidden text-right font-mono text-cell tabular-nums text-secondary sm:block">
-        {pc(p.p_away)}
-      </div>
+      <Result probability={p.p_home} score={scoreFor(predicted, "home")} />
+      <Result probability={p.p_draw} score={scoreFor(predicted, "draw")} />
+      <Result probability={p.p_away} score={scoreFor(predicted, "away")} />
 
       <div className="hidden text-right font-mono text-cell tabular-nums sm:block">
         {outcome === null ? (
@@ -212,8 +190,8 @@ function FixtureRow({ predicted }: { predicted: PredictedFixture }) {
 }
 
 const BASIS_LABEL: Record<string, string> = {
-  "prior-season": "last season only",
-  blended: "last season moving toward this one",
+  "prior-season": "the three seasons before this one",
+  blended: "past seasons moving toward this one",
   "this-season": "this season",
 };
 
@@ -245,10 +223,10 @@ function Footnote({
   return (
     <div className="mt-2 flex max-w-prose flex-col gap-2 text-small leading-relaxed text-dim text-pretty">
       <p>
-        The three most likely scorelines, with the percentage chance of each.
-        One of them lands about a third of the time; the leading one alone
-        about one time in eight. The result probabilities are the reliable
-        part &mdash; a scoreline never is.
+        Each result shows how likely it is and the scoreline it most often
+        takes. The percentages are the reliable half; the scorelines are not,
+        and one of the three is the real score about a quarter of the time.
+        A single scoreline for a match is barely better than a guess.
       </p>
       <p>
         Ratings fitted on{" "}
@@ -272,8 +250,9 @@ function Footnote({
             <span className="text-tertiary">
               {priorCount} promoted {priorCount === 1 ? "side has" : "sides have"}
             </span>{" "}
-            no rating at all and carry the average of the clubs they replaced,
-            marked <span className="font-mono text-tertiary">?</span> &mdash; the
+            never played at this level, so each carries what promoted sides
+            average rather than a rating of its own, marked{" "}
+            <span className="font-mono text-tertiary">?</span> &mdash; the
             weakest number on this panel.
           </>
         ) : (

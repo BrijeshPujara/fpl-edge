@@ -7,7 +7,7 @@ import {
   interpolate,
   fitRatings,
   fitTeamStrengths,
-  priorForUnrated,
+  PROMOTED_PRIOR,
   unratedIn,
   type MatchResult,
 } from "@/lib/engine/team-ratings";
@@ -230,21 +230,20 @@ describe("clubs the fit never saw", () => {
     expect(unratedIn(fit, current, true).sort()).toEqual(["Awful", "Poor"]);
   });
 
-  it("prices a promoted side like the clubs it replaced", () => {
-    const prior = priorForUnrated(fit, current);
-    const poor = fit.strength.get("Poor")!;
-    const awful = fit.strength.get("Awful")!;
-
-    expect(prior.attack).toBeCloseTo((poor.attack + awful.attack) / 2, 6);
-    expect(prior.defence).toBeCloseTo((poor.defence + awful.defence) / 2, 6);
-    // And that is a weak side, which is the point.
-    expect(prior.attack).toBeLessThan(1);
-    expect(prior.defence).toBeGreaterThan(1);
+  it("prices a promoted side from what promoted sides actually do", () => {
+    // Not from whoever went down. That version chained its estimate off three
+    // clubs a year and wandered: by 2025/26 it had drifted to 0.63 attack and
+    // met a promoted group averaging 0.81. See PROMOTED_PRIOR.
+    expect(PROMOTED_PRIOR.attack).toBeLessThan(1);
+    expect(PROMOTED_PRIOR.defence).toBeGreaterThan(1);
   });
 
-  it("falls back to average when nobody left", () => {
-    const prior = priorForUnrated(fit, Object.keys(TRUTH));
-    expect(prior).toEqual({ attack: 1, defence: 1 });
+  it("is a weak side, but not a hopeless one", () => {
+    // Leeds came up in 2025/26 and rated 1.01 attack — flatly average. A prior
+    // far below the observed mean would price every promoted fixture wrong for
+    // the first third of a season.
+    expect(PROMOTED_PRIOR.attack).toBeGreaterThan(0.6);
+    expect(PROMOTED_PRIOR.defence).toBeLessThan(1.5);
   });
 });
 
