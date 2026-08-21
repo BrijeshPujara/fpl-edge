@@ -190,6 +190,20 @@ export interface BuildSquadViewInput {
   fixtures: FixtureLike[];
   stats: StatLike[];
   stripLength?: number;
+  /**
+   * Projections computed elsewhere, by player id.
+   *
+   * The screens that rank players build their projections through
+   * `buildCandidatePool`, which blends in last season's rates. This view had
+   * its own path that did not, so before any gameweek was played it projected
+   * nothing and every tile read "—" while the same player showed a real number
+   * on the dashboard. Two projection paths for one player is the failure this
+   * codebase works hardest to avoid, and this is the seam it slipped through.
+   *
+   * Optional so the view still stands alone — the preview harness renders it
+   * with no context — but every real page passes it.
+   */
+  epByPlayer?: Map<number, number>;
 }
 
 export function buildSquadView(input: BuildSquadViewInput): SquadView {
@@ -229,6 +243,7 @@ export function buildSquadView(input: BuildSquadViewInput): SquadView {
       [input.gw],
     );
 
+    const supplied = input.epByPlayer?.get(player.id);
     const ep = projectPlayer(player, history, contexts, [input.gw]);
 
     tiles.push({
@@ -238,8 +253,10 @@ export function buildSquadView(input: BuildSquadViewInput): SquadView {
       position: player.position as PositionId,
       positionShort: POSITION_SHORT[player.position as PositionId],
       price: player.now_cost,
-      ep: ep.total,
-      epIsProjectable: anyHistory,
+      ep: supplied ?? ep.total,
+      // A supplied projection is projectable by definition: whoever computed
+      // it had more to work with than this view does.
+      epIsProjectable: supplied !== undefined || anyHistory,
       isCaptain: pick.is_captain,
       isVice: pick.is_vice,
       flag: flagFor(player),

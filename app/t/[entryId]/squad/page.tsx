@@ -1,6 +1,8 @@
 import { getSeasonContext } from "@/lib/fpl/season";
 import { gameweekInPlay } from "@/lib/fpl/gameweek";
 import { applyAvailability, getAvailability } from "@/lib/fpl/availability";
+import { loadDecisionContext } from "@/lib/db/decision-context";
+import { DEFAULT_HORIZON } from "@/lib/engine/constants";
 import { getLiveGameweek } from "@/lib/fpl/live-context";
 import { liveSquad, type LivePlayer } from "@/lib/squad/live";
 import { getDb, isDbConfigured } from "@/lib/db/client";
@@ -90,6 +92,24 @@ export default async function SquadPage({
   // Fitness from the API, not from the overnight sync — see getAvailability.
   const players = applyAvailability(storedPlayers, availability);
 
+  /*
+   * Projections from the same loader every other screen uses, so a player
+   * cannot read one number here and another on the dashboard. Deduplicated
+   * per request, so this is not a second load.
+   */
+  const context = await loadDecisionContext(entryId, DEFAULT_HORIZON).catch(
+    () => null,
+  );
+  const epByPlayer =
+    context?.state === "ready"
+      ? new Map(
+          context.squad.map((c) => [
+            c.id,
+            c.perGameweek.find((g) => g.gw === context.gw)?.ep ?? 0,
+          ]),
+        )
+      : undefined;
+
   const view = buildSquadView({
     gw: target.id,
     picks: stored.picks,
@@ -97,6 +117,7 @@ export default async function SquadPage({
     teams,
     fixtures,
     stats,
+    epByPlayer,
   });
 
   /*

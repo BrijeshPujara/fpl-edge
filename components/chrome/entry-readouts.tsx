@@ -7,6 +7,7 @@ import { gameweekInPlay } from "@/lib/fpl/gameweek";
 import { liveSquad } from "@/lib/squad/live";
 import { Readout } from "@/components/ui/panel";
 import { money, ep as formatEp } from "@/lib/format";
+import { cn } from "@/lib/cn";
 import { loadDecisionContext } from "@/lib/db/decision-context";
 import { bestXi } from "@/lib/engine/best-xi";
 import { DEFAULT_HORIZON } from "@/lib/engine/constants";
@@ -68,12 +69,17 @@ export async function EntryReadouts({ entryId }: { entryId: number }) {
   }
 
   /*
-   * With no football under way, the projection is the useful number. Loaded
-   * only in that case — during a gameweek it would be a forecast for matches
-   * already being played, and the work is wasted as well as misleading.
+   * The projection is loaded whether or not football is on, because it is not
+   * a forecast of the matches being played — it is for the gameweek being
+   * PLANNED, which is already the next one the moment a deadline passes.
+   *
+   * The first version showed one or the other and hid the projection whenever
+   * a gameweek was in play. A gameweek stays in play until its last match on
+   * Monday, so that hid every forward-looking number for three days of every
+   * week, which is exactly when someone is deciding what to do next.
    */
   let projected: string | null = null;
-  if (points === null) {
+  {
     const context = await loadDecisionContext(entryId, DEFAULT_HORIZON).catch(
       () => null,
     );
@@ -103,17 +109,16 @@ export async function EntryReadouts({ entryId }: { entryId: number }) {
   const rank = entry?.summary_overall_rank ?? null;
 
   return (
-    <div className="grid grid-cols-4 gap-x-4">
-      {/*
-        One slot, two different numbers, and the label says which. Showing a
-        projection beside a live score would invite reading the wrong one; see
-        the same reasoning on the squad tiles.
-      */}
-      <Readout
-        label={points !== null ? "GW POINTS" : "PROJ. EP"}
-        tone={points !== null ? "accent" : "primary"}
-        value={points ?? projected ?? "—"}
-      />
+    <div
+      className={cn(
+        "grid gap-x-4",
+        points !== null ? "grid-cols-3 sm:grid-cols-5" : "grid-cols-4",
+      )}
+    >
+      {points !== null ? (
+        <Readout label="LIVE" tone="accent" value={points} />
+      ) : null}
+      <Readout label="PROJ. EP" value={projected ?? "—"} />
       <Readout
         label="BANK"
         value={squad ? money(squad.squad.bank) : "—"}

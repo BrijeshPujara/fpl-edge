@@ -81,53 +81,55 @@ function Tile({
       </div>
 
       <div className="flex items-baseline justify-between gap-2">
-        <div className="font-mono text-[10.5px] tracking-[0.06em] text-label">
-          {live && live.started
-            ? `${player.club} · ${live.minutes}'`
-            : `${player.club} · ${money(player.price)}`}
+        <div className="flex min-w-0 items-baseline gap-1.5 font-mono text-[10.5px] tracking-[0.06em] text-label">
+          <span className="truncate">
+            {live && live.started
+              ? `${player.club} · ${live.minutes}'`
+              : `${player.club} · ${money(player.price)}`}
+          </span>
+          {live && live.started ? (
+            <span
+              className={cn(
+                "shrink-0 font-medium",
+                live.counted > 0 ? "text-accent" : "text-quaternary",
+              )}
+              title={
+                live.provisionalBonus > 0
+                  ? `${live.counted} points so far, including ${live.provisionalBonus} provisional bonus`
+                  : `${live.counted} points so far`
+              }
+            >
+              {live.counted}
+              {live.provisionalBonus > 0 ? "?" : ""}
+              pt
+            </span>
+          ) : null}
         </div>
-        {live && live.started ? (
-          /*
-           * Live points replace the projection rather than sitting beside it.
-           * Once a player is on the pitch the projection is a statement about
-           * a match that is already happening, and showing both invites
-           * reading the wrong one.
-           */
-          <div
-            className={cn(
-              "font-mono text-value font-medium",
-              live.counted > 0 ? "text-accent" : "text-quaternary",
-            )}
-            title={
-              live.provisionalBonus > 0
-                ? `${live.counted} points, including ${live.provisionalBonus} provisional bonus`
-                : `${live.counted} points so far`
-            }
-          >
-            {live.counted}
-            {live.provisionalBonus > 0 ? (
-              <span className="text-accent-dim">?</span>
-            ) : null}
-          </div>
-        ) : (
-          <div
-            className={cn(
-              "font-mono text-value font-medium",
-              !player.epIsProjectable
-                ? "text-faint"
-                : player.ep >= 6
-                  ? "text-accent"
-                  : "text-secondary",
-            )}
-            title={
-              player.epIsProjectable
-                ? "Projected points over this gameweek"
-                : "No appearance history yet — not a meaningful projection"
-            }
-          >
-            {player.epIsProjectable ? formatEp(player.ep) : "—"}
-          </div>
-        )}
+        {/*
+          The projection keeps its slot even while the football is on.
+          Replacing it with the live score was wrong: a gameweek stays "in
+          play" until its last match on Monday, so for three days this hid
+          every forward-looking number behind a result — and the two are not
+          competing readings of the same thing, they are different gameweeks.
+          What is happening reads on the left, what is projected on the right.
+        */}
+        <div
+          className={cn(
+            "font-mono text-value font-medium",
+            !player.epIsProjectable
+              ? "text-faint"
+              : player.ep >= 6
+                ? "text-accent"
+                : "text-secondary",
+          )}
+          title={
+            player.epIsProjectable
+              ? "Projected points for the gameweek being planned"
+              : "No appearance history yet — not a meaningful projection"
+          }
+        >
+          {player.epIsProjectable ? formatEp(player.ep) : "—"}
+        </div>
       </div>
 
       <FixtureStrip fixtures={player.fixtures} />
