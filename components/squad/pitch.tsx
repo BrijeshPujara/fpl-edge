@@ -2,6 +2,7 @@ import { cn } from "@/lib/cn";
 import { ep as formatEp, money } from "@/lib/format";
 import { FixtureStrip } from "@/components/ui/fixture-strip";
 import type { PlayerTileView, SquadView } from "@/lib/squad/view";
+import type { LivePlayer } from "@/lib/squad/live";
 
 /**
  * The pitch view.
@@ -14,9 +15,12 @@ import type { PlayerTileView, SquadView } from "@/lib/squad/view";
 
 function Tile({
   player,
+  live,
   muted = false,
 }: {
   player: PlayerTileView;
+  /** This player's live score, once their gameweek is under way. */
+  live?: LivePlayer;
   muted?: boolean;
 }) {
   const badge = player.isCaptain
@@ -78,25 +82,52 @@ function Tile({
 
       <div className="flex items-baseline justify-between gap-2">
         <div className="font-mono text-[10.5px] tracking-[0.06em] text-label">
-          {player.club} · {money(player.price)}
+          {live && live.started
+            ? `${player.club} · ${live.minutes}'`
+            : `${player.club} · ${money(player.price)}`}
         </div>
-        <div
-          className={cn(
-            "font-mono text-value font-medium",
-            !player.epIsProjectable
-              ? "text-faint"
-              : player.ep >= 6
-                ? "text-accent"
-                : "text-secondary",
-          )}
-          title={
-            player.epIsProjectable
-              ? "Projected points over this gameweek"
-              : "No appearance history yet — not a meaningful projection"
-          }
-        >
-          {player.epIsProjectable ? formatEp(player.ep) : "—"}
-        </div>
+        {live && live.started ? (
+          /*
+           * Live points replace the projection rather than sitting beside it.
+           * Once a player is on the pitch the projection is a statement about
+           * a match that is already happening, and showing both invites
+           * reading the wrong one.
+           */
+          <div
+            className={cn(
+              "font-mono text-value font-medium",
+              live.counted > 0 ? "text-accent" : "text-quaternary",
+            )}
+            title={
+              live.provisionalBonus > 0
+                ? `${live.counted} points, including ${live.provisionalBonus} provisional bonus`
+                : `${live.counted} points so far`
+            }
+          >
+            {live.counted}
+            {live.provisionalBonus > 0 ? (
+              <span className="text-accent-dim">?</span>
+            ) : null}
+          </div>
+        ) : (
+          <div
+            className={cn(
+              "font-mono text-value font-medium",
+              !player.epIsProjectable
+                ? "text-faint"
+                : player.ep >= 6
+                  ? "text-accent"
+                  : "text-secondary",
+            )}
+            title={
+              player.epIsProjectable
+                ? "Projected points over this gameweek"
+                : "No appearance history yet — not a meaningful projection"
+            }
+          >
+            {player.epIsProjectable ? formatEp(player.ep) : "—"}
+          </div>
+        )}
       </div>
 
       <FixtureStrip fixtures={player.fixtures} />
@@ -104,7 +135,14 @@ function Tile({
   );
 }
 
-export function Pitch({ squad }: { squad: SquadView }) {
+export function Pitch({
+  squad,
+  live,
+}: {
+  squad: SquadView;
+  /** Live scores by player id, when the gameweek is under way. */
+  live?: Map<number, LivePlayer>;
+}) {
   return (
     <div className="border border-edge-strong bg-sunken p-3 sm:p-4">
       <div className="flex flex-col gap-3">
@@ -123,7 +161,7 @@ export function Pitch({ squad }: { squad: SquadView }) {
               style={{ "--cols": row.players.length } as React.CSSProperties}
             >
               {row.players.map((p) => (
-                <Tile key={p.playerId} player={p} />
+                <Tile key={p.playerId} player={p} live={live?.get(p.playerId)} />
               ))}
             </div>
           </div>
@@ -133,11 +171,17 @@ export function Pitch({ squad }: { squad: SquadView }) {
   );
 }
 
-export function Bench({ players }: { players: PlayerTileView[] }) {
+export function Bench({
+  players,
+  live,
+}: {
+  players: PlayerTileView[];
+  live?: Map<number, LivePlayer>;
+}) {
   return (
     <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
       {players.map((p) => (
-        <Tile key={p.playerId} player={p} muted />
+        <Tile key={p.playerId} player={p} live={live?.get(p.playerId)} muted />
       ))}
     </div>
   );

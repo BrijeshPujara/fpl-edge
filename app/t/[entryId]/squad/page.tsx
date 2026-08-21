@@ -1,4 +1,7 @@
 import { getSeasonContext } from "@/lib/fpl/season";
+import { gameweekInPlay } from "@/lib/fpl/gameweek";
+import { getEventLive, getFixtures } from "@/lib/fpl/client";
+import { liveSquad, type LivePlayer } from "@/lib/squad/live";
 import { getDb, isDbConfigured } from "@/lib/db/client";
 import {
   getFixturesFrom,
@@ -91,6 +94,41 @@ export default async function SquadPage({
     stats,
   });
 
+  /*
+   * Live scores, when the gameweek is being played.
+   *
+   * Keyed on the gameweek IN PLAY rather than the target: the moment a
+   * deadline passes the target becomes next week, and asking the live feed
+   * about a gameweek nobody has kicked off in returns nothing.
+   *
+   * Uncached, and allowed to fail quietly — the pitch is worth rendering with
+   * projections alone if the live feed is unreachable.
+   */
+  const inPlay = gameweekInPlay(season.gameweek);
+  const [live, liveFixtures] = await Promise.all([
+    getEventLive(inPlay.id, { revalidate: 0 }).catch(() => null),
+    getFixtures({ revalidate: 0 }).catch(() => null),
+  ]);
+  const liveByPlayer = live
+    ? new Map<number, LivePlayer>(
+        liveSquad({
+          picks: stored.picks.map((p) => ({
+            playerId: p.player_id,
+            position: p.position,
+            isCaptain: p.is_captain,
+            isVice: p.is_vice,
+          })),
+          elements: live.elements,
+          startedFixtures: new Set(
+            (liveFixtures ?? [])
+              .filter((f) => f.event === inPlay.id && f.started)
+              .map((f) => f.id),
+          ),
+          chip: stored.squad.chip_played,
+        }).players.map((p) => [p.playerId, p]),
+      )
+    : undefined;
+
   return (
     <div className="grid grid-cols-1 items-start gap-4 sm:gap-6 lg:grid-cols-[1fr_300px]">
       <div className="flex flex-col gap-4 sm:gap-6">
@@ -100,12 +138,12 @@ export default async function SquadPage({
           >
             SQUAD · {view.formation} · GW{view.gw}
           </SectionLabel>
-          <Pitch squad={view} />
+          <Pitch squad={view} live={liveByPlayer} />
         </div>
 
         <div>
           <SectionLabel meta="AUTO-SUB ORDER">BENCH</SectionLabel>
-          <Bench players={view.bench} />
+          <Bench players={view.bench} live={liveByPlayer} />
         </div>
       </div>
 

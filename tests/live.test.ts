@@ -96,7 +96,7 @@ describe("a live squad", () => {
     const { picks, elements } = fullSquad(4);
     picks[0].isCaptain = true;
 
-    const live = liveSquad({ picks, elements });
+    const live = liveSquad({ picks, elements, startedFixtures: new Set([1, 2]) });
     // Eleven starters at four, plus the captain's extra four.
     expect(live.total).toBe(11 * 4 + 4);
     expect(live.benchTotal).toBe(4 * 4);
@@ -104,10 +104,11 @@ describe("a live squad", () => {
 
   it("leaves the bench out until a bench boost", () => {
     const { picks, elements } = fullSquad(4);
-    const plain = liveSquad({ picks, elements });
+    const plain = liveSquad({ picks, elements, startedFixtures: new Set([1, 2]) });
     const boosted = liveSquad({
       picks,
       elements,
+      startedFixtures: new Set([1, 2]),
       chip: "bboost",
     });
     expect(boosted.total).toBe(plain.total + plain.benchTotal);
@@ -119,6 +120,7 @@ describe("a live squad", () => {
     const tripled = liveSquad({
       picks,
       elements,
+      startedFixtures: new Set([1, 2]),
       chip: "3xc",
     });
     expect(tripled.total).toBe(11 * 4 + 8);
@@ -127,7 +129,7 @@ describe("a live squad", () => {
   it("does NOT double a captain sitting on the bench", () => {
     const { picks, elements } = fullSquad(4);
     picks[14].isCaptain = true; // position 15
-    const live = liveSquad({ picks, elements });
+    const live = liveSquad({ picks, elements, startedFixtures: new Set([1, 2]) });
     expect(live.total).toBe(11 * 4);
   });
 });
@@ -141,7 +143,7 @@ describe("bonus that has not been awarded yet", () => {
   ];
 
   it("adds provisional bonus while the fixture is running", () => {
-    const live = liveSquad({ picks, elements });
+    const live = liveSquad({ picks, elements, startedFixtures: new Set([1, 2]) });
     // Top BPS of the three in the match, so three provisional points.
     expect(live.players[0].provisionalBonus).toBe(3);
     expect(live.players[0].points).toBe(11);
@@ -158,7 +160,7 @@ describe("bonus that has not been awarded yet", () => {
       element(2, { points: 6, bps: 20, bonus: 1 }),
       element(3, { points: 8, bps: 30, bonus: 2 }),
     ];
-    const live = liveSquad({ picks, elements: awarded });
+    const live = liveSquad({ picks, elements: awarded, startedFixtures: new Set([1, 2]) });
 
     expect(live.players[0].provisionalBonus).toBe(0);
     expect(live.players[0].points).toBe(11);
@@ -166,7 +168,7 @@ describe("bonus that has not been awarded yet", () => {
   });
 
   it("keeps estimating for a match whose bonus has not landed", () => {
-    const live = liveSquad({ picks, elements });
+    const live = liveSquad({ picks, elements, startedFixtures: new Set([1, 2]) });
     expect(live.players[0].provisionalBonus).toBe(3);
     expect(live.provisional).toBe(true);
   });
@@ -174,6 +176,7 @@ describe("bonus that has not been awarded yet", () => {
   it("handles a double where one match has bonus and the other does not", () => {
     // The reason bonus is detected per fixture rather than per player.
     const live = liveSquad({
+      startedFixtures: new Set([1, 2]),
       picks: [pick(1, 1)],
       elements: [
         // Fixture 1 settled, fixture 2 still running.
@@ -189,29 +192,43 @@ describe("bonus that has not been awarded yet", () => {
   it("ranks the whole match, not just the players in this squad", () => {
     // Player 3 is not owned but is second on BPS, so the owned player on 20
     // BPS is third and gets one point, not two.
-    const live = liveSquad({ picks, elements });
+    const live = liveSquad({ picks, elements, startedFixtures: new Set([1, 2]) });
     expect(live.players[1].provisionalBonus).toBe(1);
   });
 });
 
 describe("players who have not kicked off", () => {
   it("separates yet to play from played and blanked", () => {
+    // The live feed gives EVERY player an explain entry from the moment the
+    // gameweek opens, zero-filled — 600 of 600, verified against the real
+    // endpoint. So this can only be answered from fixture state, and reading
+    // it off the payload showed every unplayed player as having blanked.
     const picks = [pick(1, 1), pick(2, 2)];
     const elements = [
-      element(1, { points: 0, minutes: 0, fixtures: [] }),
-      element(2, { points: 0, minutes: 90 }),
+      element(1, { points: 0, minutes: 0, fixtures: [7] }), // kicks off later
+      element(2, { points: 0, minutes: 90, fixtures: [1] }),
     ];
-    const live = liveSquad({ picks, elements });
+    const live = liveSquad({ picks, elements, startedFixtures: new Set([1]) });
 
     expect(live.players[0].started).toBe(false);
     expect(live.players[1].started).toBe(true);
     expect(live.toPlay).toBe(1);
   });
 
+  it("counts a player as started once any of their fixtures has", () => {
+    const live = liveSquad({
+      picks: [pick(1, 1)],
+      elements: [element(1, { fixtures: [1, 9] })],
+      startedFixtures: new Set([9]),
+    });
+    expect(live.players[0].started).toBe(true);
+  });
+
   it("scores a player the live feed has never heard of as zero", () => {
     const live = liveSquad({
       picks: [pick(99, 1)],
       elements: [],
+      startedFixtures: new Set(),
     });
     expect(live.total).toBe(0);
     expect(live.players[0].started).toBe(false);
@@ -221,6 +238,7 @@ describe("players who have not kicked off", () => {
 describe("a double gameweek", () => {
   it("can collect provisional bonus from both fixtures", () => {
     const live = liveSquad({
+      startedFixtures: new Set([1, 2]),
       picks: [pick(1, 1)],
       elements: [
         element(1, { points: 12, bps: 40, fixtures: [1, 2] }),

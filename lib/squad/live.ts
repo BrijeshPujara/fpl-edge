@@ -55,7 +55,7 @@ export interface LivePlayer {
    * past that point would double it.
    */
   provisionalBonus: number;
-  /** False when the player has not featured, which includes not yet kicking off. */
+  /** True once at least one of this player's fixtures has kicked off. */
   started: boolean;
 }
 
@@ -74,6 +74,18 @@ export interface LiveSquad {
 export interface LiveInput {
   picks: LivePick[];
   elements: FplLiveElement[];
+  /**
+   * Fixture ids that have kicked off.
+   *
+   * Required, and it has to come from the fixtures endpoint because the live
+   * feed cannot answer it. Every one of the 600 elements carries an `explain`
+   * entry for its fixture from the moment the gameweek opens, zero-filled and
+   * indistinguishable from a player who has actually featured — so "has this
+   * player's match started" is not derivable from the live payload alone.
+   * Treating a populated `explain` as evidence of play showed every unplayed
+   * player as having scored nothing, rather than as yet to come.
+   */
+  startedFixtures: Set<number>;
   /** A played chip, which changes who counts. */
   chip?: string | null;
 }
@@ -186,9 +198,9 @@ export function liveSquad(input: LiveInput): LiveSquad {
       counted: points * multiplier,
       minutes: stats?.minutes ?? 0,
       provisionalBonus: provisional,
-      // `explain` is empty until a player's fixture kicks off, which is what
-      // distinguishes "yet to play" from "played and scored nothing".
-      started: (element?.explain.length ?? 0) > 0,
+      started: (element?.explain ?? []).some((f) =>
+        input.startedFixtures.has(f.fixture),
+      ),
     };
   });
 

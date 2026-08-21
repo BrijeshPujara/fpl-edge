@@ -61,6 +61,7 @@ export async function LivePoints({
       isVice: p.is_vice,
     })),
     elements: live.elements,
+    startedFixtures: new Set(kickedOff.map((f) => f.id)),
     chip: stored.squad.chip_played,
   });
 

@@ -3,6 +3,7 @@ import { getFixtures } from "@/lib/fpl/client";
 import {
   classifyGameweek,
   countFixturesByTeam,
+  gameweekInPlay,
   deadlineOf,
   gameweeksUntilExpiry,
 } from "@/lib/fpl/gameweek";
@@ -121,7 +122,7 @@ export default async function DashboardPage({
         )}
 
         <LivePoints entryId={entryId} gw={season.gameweek.current?.id ?? null} />
-        <ScorelinePanel entryId={entryId} gw={target.id} />
+        <ScorelinePanel entryId={entryId} gw={gameweekInPlay(season.gameweek).id} />
       </div>
 
       <div className="flex flex-col gap-4 sm:gap-6">

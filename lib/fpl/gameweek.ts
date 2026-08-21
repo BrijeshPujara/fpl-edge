@@ -50,6 +50,24 @@ export function resolveGameweekState(events: FplEvent[]): GameweekState {
   };
 }
 
+/**
+ * The gameweek whose football is worth looking at.
+ *
+ * NOT the same as `target`, and the difference is visible the moment a
+ * gameweek kicks off. `target` is what you are DECIDING for, so it becomes the
+ * next gameweek as soon as the current deadline passes — correct for
+ * transfers, captaincy and chips, and wrong for anything describing matches.
+ * A scoreline board flipping to next week's fixtures while this week's are
+ * still being played is the symptom.
+ *
+ * Falls back to `target` once the current gameweek has finished, so the board
+ * moves on rather than dwelling on a settled week.
+ */
+export function gameweekInPlay(state: GameweekState): FplEvent {
+  const { current, target } = state;
+  return current !== null && !current.finished ? current : target;
+}
+
 /** The deadline for a gameweek, as a Date. */
 export function deadlineOf(event: FplEvent): Date {
   return new Date(event.deadline_time);

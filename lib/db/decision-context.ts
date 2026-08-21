@@ -1,16 +1,15 @@
 import "server-only";
 
-import { getDb, isDbConfigured, type Db } from "./client";
+import { getDb, isDbConfigured } from "./client";
+import { getLatestSquad } from "./queries";
 import {
-  getAllPlayers,
-  getFixturesFrom,
-  getLatestSquad,
-  getRecentStats,
-  getSeasonHistory,
-  getTeams,
-  type PlayerRow,
-} from "./queries";
-import { loadPriceMomentumInputs } from "./price-momentum";
+  cachedFixtures,
+  cachedPlayers,
+  cachedPriceMomentum,
+  cachedRecentStats,
+  cachedSeasonHistory,
+  cachedTeams,
+} from "./cached";
 import { projectPriceChanges } from "@/lib/engine/price-model";
 import { FORM_WINDOW } from "@/lib/engine/constants";
 import { buildCandidatePool, type Candidate } from "@/lib/squad/candidates";
@@ -99,21 +98,28 @@ export async function loadDecisionContext(
     return { state: "no-squad", gw: target.id, gwName: target.name };
   }
 
-  const [players, teams, fixtures] = await Promise.all([
-    getAllPlayers(db),
-    getTeams(db),
-    // One extra gameweek beyond the horizon so the final entry is a real
-    // projection rather than a truncated one.
-    getFixturesFrom(db, target.id, target.id + horizon),
-  ]);
+  /*
+   * Every league-wide read at once, and all of them cached.
+   *
+   * These used to run in three waves — players, then stats, then history, then
+   * momentum — because each looked like it needed the player list first. It
+   * does, but the cached readers fetch that themselves, so the dependency no
+   * longer forces the wait. Six round trips over a second became one cache
+   * read after the first request.
+   */
+  const [players, teams, fixtures, stats, historyRows, momentum] =
+    await Promise.all([
+      cachedPlayers(),
+      cachedTeams(),
+      // One extra gameweek beyond the horizon so the final entry is a real
+      // projection rather than a truncated one.
+      cachedFixtures(target.id, target.id + horizon),
+      cachedRecentStats(Math.max(1, target.id - FORM_WINDOW)),
+      cachedSeasonHistory(),
+      cachedPriceMomentum(),
+    ]);
 
-  const stats = await getRecentStats(
-    db,
-    players.map((p) => p.id),
-    Math.max(1, target.id - FORM_WINDOW),
-  );
-
-  const priorSeasons = await loadPriorSeasons(db, players);
+  const priorSeasons = ratesByCode(historyRows);
 
   const pool = buildCandidatePool({
     gw: target.id,
@@ -128,10 +134,6 @@ export async function loadDecisionContext(
   // Price movement, attached to the candidates the optimiser will weigh. Before
   // roughly GW4 this is all zeros with confidence "none", which the optimiser
   // handles as "no price signal" rather than "no price movement".
-  const momentum = await loadPriceMomentumInputs(
-    db,
-    players.map((p) => p.id),
-  );
   const projections = projectPriceChanges(momentum, horizon);
 
   const byId = new Map(pool.candidates.map((c) => [c.id, c]));
@@ -168,16 +170,12 @@ export async function loadDecisionContext(
  *
  * A player with no usable season simply has no entry, and the model falls back
  * to its own priors — which is what every player did before this existed.
+ *
+ * Pure over rows rather than fetching them, so the fetch can be cached.
  */
-async function loadPriorSeasons(
-  db: Db,
-  players: PlayerRow[],
-): Promise<Map<number, PriorSeasonRates>> {
-  const rows = await getSeasonHistory(
-    db,
-    players.map((p) => p.code),
-  );
-
+function ratesByCode(
+  rows: { player_code: number; season_name: string; minutes: number; starts: number; expected_goals: number | null; expected_assists: number | null; bonus: number }[],
+): Map<number, PriorSeasonRates> {
   const byCode = new Map<number, typeof rows>();
   for (const row of rows) {
     byCode.set(row.player_code, [...(byCode.get(row.player_code) ?? []), row]);
@@ -199,3 +197,4 @@ async function loadPriorSeasons(
   }
   return rates;
 }
+
