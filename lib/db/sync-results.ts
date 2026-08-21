@@ -265,7 +265,13 @@ export async function syncResults(
    * anything a failure here left behind.
    */
   let predictionsResolved = 0;
-  for (const gw of targets) {
+  // The CURRENT gameweek as well as finished ones. A prediction needs only the
+  // score, which is final at the whistle — unlike bonus, which is why this job
+  // waits for `data_checked` before touching player stats. Waiting for it here
+  // too left a Friday result unscored until Monday.
+  const current = bootstrap.events.find((e) => e.is_current)?.id;
+  const toResolve = [...new Set([...targets, ...(current ? [current] : [])])];
+  for (const gw of toResolve) {
     predictionsResolved += await resolvePredictions(db, gw).catch(() => 0);
   }
 

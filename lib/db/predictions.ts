@@ -4,6 +4,7 @@ import type { Db } from "./client";
 import type { Tables, TablesInsert } from "./types.generated";
 import { getRatings } from "./ratings";
 import { getFixturesFrom, getTeams } from "./queries";
+import { getLiveGameweek, type FixtureResult } from "@/lib/fpl/live-context";
 import {
   bothTeamsToScore,
   cleanSheetProbabilities,
@@ -244,23 +245,29 @@ export async function getPredictions(
 export async function resolvePredictions(
   db: Db,
   gw: number,
+  /**
+   * Results, from the API rather than our `fixtures` table.
+   *
+   * Read at call time on purpose. The table is written by a daily sync, so a
+   * Friday night result is not in it until Saturday — and a prediction that
+   * cannot be scored until the next morning makes the record look empty for
+   * exactly as long as anyone is interested in it.
+   */
+  results?: Map<number, FixtureResult>,
 ): Promise<number> {
   const predictions = await getPredictions(db, gw);
-  const fixtures = await getFixturesFrom(db, gw, gw);
-  const fixtureOf = new Map(fixtures.map((f) => [f.id, f]));
 
+  const settled = results ?? (await getLiveGameweek(gw))?.results ?? new Map();
   const rows: TablesInsert<"prediction_outcomes">[] = [];
 
   for (const { prediction, outcome } of predictions) {
     if (outcome !== null) continue;
 
-    const fixture = fixtureOf.get(prediction.fixture_id);
-    if (!fixture?.finished) continue;
-    if (fixture.home_score === null || fixture.away_score === null) continue;
+    // Only a finished match. A score mid-game is not a result.
+    const result = settled.get(prediction.fixture_id);
+    if (!result?.finished) continue;
 
-    rows.push(
-      scorePrediction(prediction, fixture.home_score, fixture.away_score),
-    );
+    rows.push(scorePrediction(prediction, result.home, result.away));
   }
 
   if (rows.length === 0) return 0;

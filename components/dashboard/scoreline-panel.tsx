@@ -2,9 +2,11 @@ import { getDb, isDbConfigured } from "@/lib/db/client";
 import {
   getPredictions,
   likelyScoresOf,
+  resolvePredictions,
   summarise,
   type PredictedFixture,
 } from "@/lib/db/predictions";
+import { getLiveGameweek } from "@/lib/fpl/live-context";
 import { getRatings } from "@/lib/db/ratings";
 import { captionFor } from "@/lib/engine/scoreline";
 import { Panel, Row, SectionLabel } from "@/components/ui/panel";
@@ -43,6 +45,24 @@ export async function ScorelinePanel({
   if (!isDbConfigured()) return null;
 
   const db = getDb();
+  const live = await getLiveGameweek(gw);
+
+  /*
+   * Score anything that has finished, before reading the board.
+   *
+   * Resolution used to happen only on the results sync, which waits for the
+   * whole gameweek to be `finished` AND `data_checked` — typically the Monday
+   * after. So a Friday night result sat unscored all weekend and the board
+   * showed a dash beside a match everyone had watched.
+   *
+   * Idempotent and cheap: it writes only for predictions with no outcome and a
+   * finished fixture, so on almost every render it writes nothing. The sync
+   * still does the same job, for gameweeks nobody happens to open.
+   */
+  if (live) {
+    await resolvePredictions(db, gw, live.results).catch(() => 0);
+  }
+
   const [predictions, ratings] = await Promise.all([
     getPredictions(db, gw),
     getRatings(db),

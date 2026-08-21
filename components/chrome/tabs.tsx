@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 
@@ -13,6 +13,13 @@ import { cn } from "@/lib/cn";
  *
  * Tap targets are 44px tall on touch — the canvas's 34px is a mouse-era number
  * and misses reliably with a thumb.
+ *
+ * A tab also has to acknowledge the tap immediately. These routes render on
+ * the server against a remote database, so on a phone there is a real gap
+ * between the tap and the new page — and with no feedback in between it reads
+ * as a tab that did not register, which invites a second tap. `useLinkStatus`
+ * marks the tapped tab as pending the moment it is pressed, and `loading.tsx`
+ * fills the content area beneath it.
  */
 
 const TABS = [
@@ -37,6 +44,34 @@ function entryBaseFrom(pathname: string): string | null {
   const [, root, entryId] = pathname.split("/");
   if (root !== "t" || !entryId || !/^\d+$/.test(entryId)) return null;
   return `/t/${entryId}`;
+}
+
+/**
+ * The label, which knows whether its own link is mid-navigation.
+ *
+ * Split out because `useLinkStatus` only reports the status of the `Link` it
+ * is rendered inside — read from the parent it would describe nothing.
+ */
+function TabLabel({ label, active }: { label: string; active: boolean }) {
+  const { pending } = useLinkStatus();
+
+  return (
+    <span className="relative flex items-center">
+      <span className={cn(pending && !active && "text-primary")}>{label}</span>
+      {/*
+        An underline that grows under the tapped tab. Deliberately not a
+        spinner: the wait is a few hundred milliseconds, and a spinner in that
+        window reads as an error rather than as progress.
+      */}
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-x-0 -bottom-1.5 h-0.5 origin-left bg-accent transition-transform duration-200",
+          pending ? "scale-x-100" : "scale-x-0",
+        )}
+      />
+    </span>
+  );
 }
 
 export function Tabs() {
@@ -70,7 +105,7 @@ export function Tabs() {
                 : "border-transparent text-dim hover:text-primary",
             )}
           >
-            {tab.label}
+            <TabLabel label={tab.label} active={isActive} />
           </Link>
         );
       })}
