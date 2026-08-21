@@ -1,6 +1,7 @@
 import { getDb, isDbConfigured } from "@/lib/db/client";
 import {
   getPredictions,
+  likelyScoresOf,
   summarise,
   type PredictedFixture,
 } from "@/lib/db/predictions";
@@ -17,13 +18,18 @@ import { cn } from "@/lib/cn";
  * later, and a panel that quietly generated one on every page view would be
  * keeping a diary nobody wrote.
  *
- * The scoreline shown is the most likely one WITHIN the outcome the model
- * favours, not the most likely scoreline outright. Outright, it is 1-1 in nine
- * fixtures out of ten — the draw distribution is concentrated on a few cells
- * while wins are spread across many — so the unconditional mode carries no
- * information about the match at all. The probability beside it is the honest
- * one: it rarely clears one in six, and it is shown so nobody mistakes the
- * scoreline for a forecast.
+ * It shows THREE scorelines, not one, and that is the whole design.
+ *
+ * A single scoreline is not information. Measured over 280 held-out matches
+ * the model names 2-1 or 1-2 in 53.6% of fixtures and the top cell is right
+ * 12.5% of the time — it says the same thing half the time and is wrong seven
+ * times in eight. The grid is not at fault: that top cell carries 14.2% of the
+ * probability against a 12.5% hit rate, which is calibrated. Printing one cell
+ * of a calibrated distribution as though it were a call is what over-claimed.
+ *
+ * Three cells are right 33.6% of the time and carry 34.5%. Same honesty, far
+ * more use, and the percentages are on screen so nobody has to take it on
+ * trust.
  */
 export async function ScorelinePanel({
   entryId,
@@ -73,11 +79,10 @@ export async function ScorelinePanel({
           <>
             <Row
               height="table"
-              className="grid grid-cols-[1fr_58px_44px] gap-2 font-mono text-micro tracking-[0.06em] text-ghost sm:grid-cols-[1fr_58px_44px_repeat(3,46px)_56px]"
+              className="grid grid-cols-[1fr_150px] gap-2 font-mono text-micro tracking-[0.06em] text-ghost sm:grid-cols-[1fr_170px_repeat(3,46px)_56px]"
             >
               <div>FIXTURE</div>
-              <div className="text-right">SCORE</div>
-              <div className="text-right">P</div>
+              <div className="text-right">LIKELY SCORES</div>
               {/*
                 The three probabilities and the result drop away on a narrow
                 screen, but the header itself must not — hiding the whole row
@@ -108,6 +113,48 @@ export async function ScorelinePanel({
   );
 }
 
+/**
+ * The three most likely scorelines.
+ *
+ * Three rather than one because one is not information. Measured over 280
+ * held-out matches the top cell is right 12.5% of the time while the model
+ * names 2-1 or 1-2 in 53.6% of fixtures — it says the same thing half the
+ * time and is wrong seven times in eight. Three are right 33.6% of the time.
+ *
+ * Both sets are calibrated against the probability they carry; what was wrong
+ * was printing one cell of a calibrated distribution as though it were a call.
+ */
+function LikelyScores({ predicted }: { predicted: PredictedFixture }) {
+  const scores = likelyScoresOf(predicted.prediction);
+
+  // Predictions stored before this column existed have nothing to show, and a
+  // regenerate fills them in.
+  if (scores.length === 0) {
+    return (
+      <div className="text-right font-mono text-cell tabular-nums text-primary">
+        {predicted.prediction.score_home}&ndash;{predicted.prediction.score_away}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-baseline justify-end gap-2 font-mono tabular-nums">
+      {scores.map((score, i) => (
+        <span key={`${score.home}-${score.away}`} className="whitespace-nowrap">
+          <span className={i === 0 ? "text-cell text-primary" : "text-cell text-muted"}>
+            {score.home}&ndash;{score.away}
+          </span>
+          {/* The % is not decoration: a bare number beside a scoreline reads
+              as part of it. */}
+          <span className="ml-0.5 text-micro text-ghost">
+            {Math.round(Number(score.p) * 100)}%
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function FixtureRow({ predicted }: { predicted: PredictedFixture }) {
   const { prediction: p, outcome } = predicted;
   const pc = (value: number | string) => `${Math.round(Number(value) * 100)}%`;
@@ -115,7 +162,7 @@ function FixtureRow({ predicted }: { predicted: PredictedFixture }) {
   return (
     <Row
       height="table"
-      className="grid grid-cols-[1fr_58px_44px] gap-2 sm:grid-cols-[1fr_58px_44px_repeat(3,46px)_56px]"
+      className="grid grid-cols-[1fr_150px] gap-2 sm:grid-cols-[1fr_170px_repeat(3,46px)_56px]"
     >
       <div className="flex min-w-0 items-center gap-1.5 truncate text-small text-primary">
         <span className="truncate">
@@ -131,12 +178,7 @@ function FixtureRow({ predicted }: { predicted: PredictedFixture }) {
         ) : null}
       </div>
 
-      <div className="text-right font-mono text-cell tabular-nums text-primary">
-        {p.score_home}&ndash;{p.score_away}
-      </div>
-      <div className="text-right font-mono text-cell tabular-nums text-dim">
-        {pc(p.score_p)}
-      </div>
+      <LikelyScores predicted={predicted} />
 
       <div className="hidden text-right font-mono text-cell tabular-nums text-secondary sm:block">
         {pc(p.p_home)}
@@ -203,10 +245,10 @@ function Footnote({
   return (
     <div className="mt-2 flex max-w-prose flex-col gap-2 text-small leading-relaxed text-dim text-pretty">
       <p>
-        The scoreline is the most likely one within the result the model
-        expects, and <span className="text-tertiary">P</span> is its outright
-        chance &mdash; rarely better than one in six. Read the three
-        probabilities, not the scoreline.
+        The three most likely scorelines, with the percentage chance of each.
+        One of them lands about a third of the time; the leading one alone
+        about one time in eight. The result probabilities are the reliable
+        part &mdash; a scoreline never is.
       </p>
       <p>
         Ratings fitted on{" "}
@@ -241,7 +283,8 @@ function Footnote({
       {record ? (
         <p>
           Scored so far: {record.outcomesRight} of {record.scored} results
-          right, {record.exactRight} exact. Mean RPS{" "}
+          right, {record.exactRight} with the called scoreline exactly right.
+          Mean RPS{" "}
           <span className="tabular-nums text-tertiary">
             {record.meanRps.toFixed(3)}
           </span>

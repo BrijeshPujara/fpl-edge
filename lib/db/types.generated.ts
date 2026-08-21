@@ -647,6 +647,7 @@ export type Database = {
           id: string
           lambda_away: number
           lambda_home: number
+          likely_scores: Json
           over_two_five: number
           p_away: number
           p_draw: number
@@ -667,6 +668,7 @@ export type Database = {
           id?: string
           lambda_away: number
           lambda_home: number
+          likely_scores: Json
           over_two_five: number
           p_away: number
           p_draw: number
@@ -687,6 +689,7 @@ export type Database = {
           id?: string
           lambda_away?: number
           lambda_home?: number
+          likely_scores?: Json
           over_two_five?: number
           p_away?: number
           p_draw?: number

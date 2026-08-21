@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scorePrediction, summarise } from "@/lib/db/predictions";
+import { likelyScoresOf, scorePrediction, summarise } from "@/lib/db/predictions";
 import type { PredictedFixture } from "@/lib/db/predictions";
 
 /** A stored prediction, with only the fields scoring reads. */
@@ -112,5 +112,40 @@ describe("the record", () => {
       { outcome: null } as unknown as PredictedFixture,
     ])!;
     expect(record.scored).toBe(1);
+  });
+});
+
+describe("reading the stored scorelines", () => {
+  const row = (likely: unknown) =>
+    ({ likely_scores: likely, score_home: 2, score_away: 1 }) as never;
+
+  it("reads a well-formed list", () => {
+    const scores = likelyScoresOf(
+      row([
+        { home: 2, away: 1, p: 0.1 },
+        { home: 1, away: 1, p: 0.09 },
+      ]),
+    );
+    expect(scores).toHaveLength(2);
+    expect(scores[0]).toMatchObject({ home: 2, away: 1 });
+  });
+
+  it("returns nothing for a prediction stored before the column existed", () => {
+    // The default is an empty array, and the panel falls back to the single
+    // called scoreline rather than rendering a blank cell.
+    expect(likelyScoresOf(row([]))).toEqual([]);
+  });
+
+  it("refuses anything that is not the shape it expects", () => {
+    // jsonb is untyped by definition, so this is checked rather than asserted.
+    expect(likelyScoresOf(row(null))).toEqual([]);
+    expect(likelyScoresOf(row("2-1"))).toEqual([]);
+    expect(likelyScoresOf(row([{ nonsense: true }, 7, null]))).toEqual([]);
+  });
+
+  it("keeps the good entries and drops the bad ones", () => {
+    expect(
+      likelyScoresOf(row([{ home: 1, away: 0, p: 0.1 }, { broken: 1 }])),
+    ).toHaveLength(1);
   });
 });
