@@ -183,6 +183,35 @@ export const MAX_GOALS = 10;
  */
 export const DIXON_COLES_RHO = -0.25;
 
+/**
+ * Matches per club before this season's ratings fully replace last season's.
+ *
+ * Measured by refitting 2025/26 gameweek by gameweek against a prior fitted on
+ * all of 2024/25, predicting each gameweek from matches played before it only.
+ * Mean RPS, lower is better:
+ *
+ *     schedule                 all      GW1-6    GW7-19   GW20-38
+ *     prior only               0.2254   0.2166   0.2235   0.2295
+ *     this season only         0.2191   0.2640   0.2123   0.2095
+ *     ramp over 10             0.2113   0.2156   0.2119   0.2095
+ *     ramp over 15             0.2108   0.2140   0.2112   0.2095
+ *     ramp over 20             0.2110   0.2138   0.2120   0.2095
+ *     half-life 15             0.2132   0.2142   0.2139   0.2125
+ *
+ * Two things that table settles. Frozen prior-season ratings do not merely
+ * stop improving, they DECAY — 0.2166 early against 0.2295 late, as the league
+ * drifts away from the season they describe. And switching to this season
+ * outright is far worse than doing nothing for the first six gameweeks.
+ *
+ * Fifteen is markedly slower than the GW6 crossover the player model uses in
+ * FORM_WEIGHTS, and the difference is real rather than an inconsistency:
+ * twenty clubs splitting 380 matches is much less evidence per parameter than
+ * a player's own minutes. The basin is flat between 15 and 20, so no more
+ * precision is claimed than that; 15 is chosen because it is best early, where
+ * the schedule actually matters.
+ */
+export const RATING_BLEND_MATCHES = 15;
+
 // ---------------------------------------------------------------------------
 // Bonus
 // ---------------------------------------------------------------------------

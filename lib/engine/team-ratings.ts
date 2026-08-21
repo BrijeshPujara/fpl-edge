@@ -1,3 +1,4 @@
+import { RATING_BLEND_MATCHES } from "./constants";
 import type { TeamStrength } from "./scoreline";
 
 /**
@@ -161,12 +162,25 @@ function recentre(values: number[]): void {
 /** Measured on 2025/26: xG carries roughly twice the weight of goals. */
 export const XG_WEIGHT = 0.65;
 
+/**
+ * Interpolate between two multiplicative ratings.
+ *
+ * GEOMETRIC, not arithmetic — `a^(1-w) * b^w`. Ratings are multipliers whose
+ * geometric mean the fit pins to exactly 1, and arithmetic mixing does not
+ * preserve that: average two centred sets and the result drifts off centre,
+ * which quietly shifts every expected goal in the league.
+ */
+export function interpolate(a: number, b: number, weight: number): number {
+  if (a <= 0 || b <= 0) return (1 - weight) * a + weight * b;
+  return Math.exp((1 - weight) * Math.log(a) + weight * Math.log(b));
+}
+
 export function blendFits<K>(
   goals: RatingFit<K>,
   xg: RatingFit<K>,
   xgWeight = XG_WEIGHT,
 ): RatingFit<K> {
-  const mix = (a: number, b: number) => (1 - xgWeight) * a + xgWeight * b;
+  const mix = (a: number, b: number) => interpolate(a, b, xgWeight);
   const strength = new Map<K, TeamStrength>();
 
   for (const [team, g] of goals.strength) {
@@ -238,4 +252,63 @@ export function unratedIn<K>(
   const now = new Set(current);
   if (departed) return [...fit.strength.keys()].filter((t) => !now.has(t));
   return [...now].filter((t) => !fit.strength.has(t));
+}
+
+/**
+ * How much this season's ratings should count, given how much has been played.
+ *
+ * Linear from nothing to everything over `RATING_BLEND_MATCHES` matches per
+ * club — see that constant for the sweep this came out of. Takes matches PER
+ * CLUB rather than a gameweek number, so a blank or a double counts for what
+ * it actually is and the schedule needs no special case for either.
+ */
+export function blendWeight(matchesPerTeam: number): number {
+  if (!Number.isFinite(matchesPerTeam) || matchesPerTeam <= 0) return 0;
+  return Math.min(1, matchesPerTeam / RATING_BLEND_MATCHES);
+}
+
+/**
+ * Last season's ratings moving toward this season's as evidence accumulates.
+ *
+ * A club present in only one of the two keeps whichever rating exists rather
+ * than being dragged toward a number that was never about it — a promoted side
+ * has no prior, and a relegated one has no current.
+ */
+export function blendSeasons<K>(
+  prior: RatingFit<K>,
+  current: RatingFit<K>,
+  weight: number,
+): RatingFit<K> {
+  const strength = new Map<K, TeamStrength>();
+
+  for (const key of new Set([...prior.strength.keys(), ...current.strength.keys()])) {
+    const before = prior.strength.get(key);
+    const now = current.strength.get(key);
+    if (before === undefined || now === undefined) {
+      strength.set(key, (now ?? before)!);
+      continue;
+    }
+    strength.set(key, {
+      attack: interpolate(before.attack, now.attack, weight),
+      defence: interpolate(before.defence, now.defence, weight),
+    });
+  }
+
+  return {
+    leagueMean: interpolate(prior.leagueMean, current.leagueMean, weight),
+    homeAdvantage: interpolate(
+      prior.homeAdvantage,
+      current.homeAdvantage,
+      weight,
+    ),
+    strength,
+    matches: current.matches,
+  };
+}
+
+/** What `basis` a blend weight amounts to, for the screens to report. */
+export function basisFor(weight: number): "prior-season" | "blended" | "this-season" {
+  if (weight <= 0) return "prior-season";
+  if (weight >= 1) return "this-season";
+  return "blended";
 }

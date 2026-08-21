@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  basisFor,
   blendFits,
+  blendSeasons,
+  blendWeight,
+  interpolate,
   fitRatings,
   fitTeamStrengths,
   priorForUnrated,
@@ -181,8 +185,31 @@ describe("blending", () => {
 
     expect(b).toBeGreaterThan(Math.min(g, x));
     expect(b).toBeLessThan(Math.max(g, x));
-    // Weighted toward xG, which measured better.
-    expect(b).toBeCloseTo(0.35 * g + 0.65 * x, 10);
+    // Weighted toward xG, which measured better — and GEOMETRIC, because
+    // these are multipliers.
+    expect(b).toBeCloseTo(g ** 0.35 * x ** 0.65, 10);
+  });
+
+  it("keeps a blend centred, which arithmetic mixing would not", () => {
+    // The fit pins the geometric mean of every rating set to exactly 1.
+    // Averaging two centred sets arithmetically drifts off centre, and a
+    // league whose ratings average above 1 silently scores more goals.
+    const a = fitTeamStrengths(syntheticLeague(TRUTH), "goals");
+    const b = fitTeamStrengths(
+      syntheticLeague({
+        ...TRUTH,
+        Strong: { attack: 2.2, defence: 0.5 },
+      }),
+      "goals",
+    );
+
+    const centre = (fit: typeof a) => {
+      const values = [...fit.strength.values()].map((s) => s.attack);
+      return Math.exp(
+        values.reduce((sum, v) => sum + Math.log(v), 0) / values.length,
+      );
+    };
+    expect(centre(blendSeasons(a, b, 0.5))).toBeCloseTo(1, 6);
   });
 
   it("fitRatings blends both targets", () => {
@@ -218,5 +245,129 @@ describe("clubs the fit never saw", () => {
   it("falls back to average when nobody left", () => {
     const prior = priorForUnrated(fit, Object.keys(TRUTH));
     expect(prior).toEqual({ attack: 1, defence: 1 });
+  });
+});
+
+describe("moving from last season to this one", () => {
+  it("counts nothing before anything is played", () => {
+    expect(blendWeight(0)).toBe(0);
+    expect(blendWeight(-1)).toBe(0);
+    expect(blendWeight(Number.NaN)).toBe(0);
+  });
+
+  it("ramps to full weight over fifteen matches a club", () => {
+    // Measured: a frozen prior DECAYS as the league drifts (RPS 0.2166 early
+    // against 0.2295 late), and switching outright is far worse than doing
+    // nothing early (0.2640 over GW1-6). Fifteen was the best of the sweep.
+    expect(blendWeight(7.5)).toBeCloseTo(0.5, 10);
+    expect(blendWeight(15)).toBe(1);
+    expect(blendWeight(38)).toBe(1);
+  });
+
+  it("rises monotonically", () => {
+    let previous = -1;
+    for (const played of [0, 1, 3, 6, 10, 15, 20]) {
+      const w = blendWeight(played);
+      expect(w).toBeGreaterThanOrEqual(previous);
+      previous = w;
+    }
+  });
+
+  it("reports a basis the screens can print", () => {
+    expect(basisFor(blendWeight(0))).toBe("prior-season");
+    expect(basisFor(blendWeight(6))).toBe("blended");
+    expect(basisFor(blendWeight(15))).toBe("this-season");
+  });
+
+  it("interpolates geometrically between the ends", () => {
+    expect(interpolate(2, 8, 0)).toBeCloseTo(2, 10);
+    expect(interpolate(2, 8, 1)).toBeCloseTo(8, 10);
+    expect(interpolate(2, 8, 0.5)).toBeCloseTo(4, 10); // not 5
+  });
+
+  it("returns each end unchanged at the extremes", () => {
+    const prior = fitTeamStrengths(syntheticLeague(TRUTH), "goals");
+    const current = fitTeamStrengths(
+      syntheticLeague({ ...TRUTH, Poor: { attack: 1.4, defence: 0.8 } }),
+      "goals",
+    );
+
+    expect(blendSeasons(prior, current, 0).strength.get("Poor")!.attack).toBeCloseTo(
+      prior.strength.get("Poor")!.attack,
+      10,
+    );
+    expect(blendSeasons(prior, current, 1).strength.get("Poor")!.attack).toBeCloseTo(
+      current.strength.get("Poor")!.attack,
+      10,
+    );
+  });
+
+  it("keeps a club that exists in only one of the two seasons", () => {
+    // A promoted side has no prior and a relegated one has no current.
+    // Dragging either toward a number that was never about it would be worse
+    // than leaving it alone.
+    const prior = fitTeamStrengths(syntheticLeague(TRUTH), "goals");
+    const current = fitTeamStrengths(
+      syntheticLeague({
+        Strong: TRUTH.Strong,
+        Good: TRUTH.Good,
+        Average: TRUTH.Average,
+        Promoted: { attack: 0.5, defence: 1.6 },
+      }),
+      "goals",
+    );
+
+    const blended = blendSeasons(prior, current, 0.4);
+    expect(blended.strength.get("Promoted")).toEqual(
+      current.strength.get("Promoted"),
+    );
+    expect(blended.strength.get("Awful")).toEqual(prior.strength.get("Awful"));
+  });
+});
+
+describe("blending against the prior, not against the last blend", () => {
+  const prior = fitTeamStrengths(syntheticLeague(TRUTH), "goals");
+  const current = fitTeamStrengths(
+    syntheticLeague({ ...TRUTH, Awful: { attack: 1.5, defence: 0.7 } }),
+    "goals",
+  );
+
+  it("reaches the same answer however many times it runs", () => {
+    // Every refit blends the STORED PRIOR with this season. Running it three
+    // times at the same weight must land in the same place as running it once,
+    // because nothing in between is allowed to move the prior.
+    const once = blendSeasons(prior, current, 0.4);
+    let repeated = blendSeasons(prior, current, 0.4);
+    for (let i = 0; i < 2; i++) repeated = blendSeasons(prior, current, 0.4);
+
+    expect(repeated.strength.get("Awful")!.attack).toBeCloseTo(
+      once.strength.get("Awful")!.attack,
+      12,
+    );
+  });
+
+  it("would drift if it blended against its own output instead", () => {
+    // The failure `prior_attack` exists to prevent, demonstrated rather than
+    // described: feed each blend back in as the prior and the rating walks
+    // toward this season with no schedule controlling it, ending somewhere
+    // neither season supports.
+    const correct = blendSeasons(prior, current, 0.4);
+
+    let compounding = prior;
+    for (let i = 0; i < 3; i++) {
+      compounding = blendSeasons(compounding, current, 0.4);
+    }
+
+    const target = current.strength.get("Awful")!.attack;
+    const start = prior.strength.get("Awful")!.attack;
+
+    // Both move the same direction, but the compounding one has travelled
+    // much further than the weight it was given.
+    expect(Math.abs(compounding.strength.get("Awful")!.attack - target)).toBeLessThan(
+      Math.abs(correct.strength.get("Awful")!.attack - target),
+    );
+    expect(Math.abs(correct.strength.get("Awful")!.attack - start)).toBeLessThan(
+      Math.abs(compounding.strength.get("Awful")!.attack - start),
+    );
   });
 });

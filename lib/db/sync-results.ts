@@ -4,6 +4,7 @@ import { getBootstrapStatic, getEventLive } from "@/lib/fpl/client";
 import type { FplLiveElement } from "@/lib/fpl/schemas";
 import type { Db } from "./client";
 import { resolvePredictions } from "./predictions";
+import { refitRatings } from "./ratings";
 import type { TablesInsert } from "./types.generated";
 
 /**
@@ -77,6 +78,10 @@ export interface SyncResultsResult {
   rowsWritten: number;
   /** Scoreline predictions scored against the results that just landed. */
   predictionsResolved: number;
+  /** What the refitted ratings now rest on, or null if they were not refitted. */
+  ratingBasis: string | null;
+  /** How much this season now counts, 0 to 1. */
+  ratingBlendWeight: number | null;
 }
 
 /**
@@ -264,10 +269,23 @@ export async function syncResults(
     predictionsResolved += await resolvePredictions(db, gw).catch(() => 0);
   }
 
+  /*
+   * Move the team ratings toward this season, now that more of it has been
+   * played. Last, and equally unable to fail the sync.
+   *
+   * Frozen prior-season ratings do not merely stop improving — measured over
+   * 2025/26 they DECAY, from RPS 0.2166 in the opening six gameweeks to 0.2295
+   * in the closing nineteen, as the league drifts away from the season they
+   * describe. This is what stops that.
+   */
+  const refit = await refitRatings(db).catch(() => null);
+
   return {
     gameweeksSynced: synced,
     gameweeksSkipped: skipped,
     rowsWritten,
     predictionsResolved,
+    ratingBasis: refit?.status === "refitted" ? refit.basis : null,
+    ratingBlendWeight: refit?.status === "refitted" ? refit.weight : null,
   };
 }

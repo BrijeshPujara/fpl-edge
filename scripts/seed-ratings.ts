@@ -41,9 +41,15 @@ async function main() {
     if (fitted === undefined) usesPrior.add(team.id);
   }
 
+  // The prior is written to BOTH sides. It is the effective rating until this
+  // season has been played, and it stays on the prior columns forever as the
+  // fixed point every later refit blends away from.
+  const seeded = { ...fit, strength };
   const written = await saveRatings(db, {
-    fit: { ...fit, strength },
+    fit: seeded,
+    priorFit: seeded,
     basis: "prior-season",
+    blendWeight: 0,
     prior: usesPrior,
   });
 

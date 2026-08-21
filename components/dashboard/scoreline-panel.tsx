@@ -100,6 +100,8 @@ export async function ScorelinePanel({
         basis={ratings?.basis ?? null}
         hasRatings={ratings !== null}
         priorCount={ratings?.prior.size ?? 0}
+        blendWeight={ratings?.blendWeight ?? 0}
+        matches={ratings?.fit.matches ?? 0}
         record={record}
       />
     </div>
@@ -169,7 +171,7 @@ function FixtureRow({ predicted }: { predicted: PredictedFixture }) {
 
 const BASIS_LABEL: Record<string, string> = {
   "prior-season": "last season only",
-  blended: "last season blended with this one",
+  blended: "last season moving toward this one",
   "this-season": "this season",
 };
 
@@ -177,11 +179,15 @@ function Footnote({
   basis,
   hasRatings,
   priorCount,
+  blendWeight,
+  matches,
   record,
 }: {
   basis: string | null;
   hasRatings: boolean;
   priorCount: number;
+  blendWeight: number;
+  matches: number;
   record: ReturnType<typeof summarise>;
 }) {
   if (!hasRatings) {
@@ -207,6 +213,17 @@ function Footnote({
         <span className="text-tertiary">
           {BASIS_LABEL[basis ?? ""] ?? basis}
         </span>
+        {basis === "blended" ? (
+          <>
+            {" "}
+            &mdash;{" "}
+            <span className="tabular-nums text-tertiary">
+              {Math.round(blendWeight * 100)}%
+            </span>{" "}
+            this season, from {matches} matches, and rising until it is all of
+            it
+          </>
+        ) : null}
         {priorCount > 0 ? (
           <>
             .{" "}

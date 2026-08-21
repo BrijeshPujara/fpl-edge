@@ -836,33 +836,48 @@ export type Database = {
         Row: {
           attack: number
           basis: string
+          blend_weight: number
           defence: number
           home_advantage: number
           is_prior: boolean
           league_mean: number
           matches: number
+          prior_attack: number | null
+          prior_defence: number | null
+          prior_home_advantage: number | null
+          prior_league_mean: number | null
           team_id: number
           updated_at: string
         }
         Insert: {
           attack: number
           basis: string
+          blend_weight?: number
           defence: number
           home_advantage: number
           is_prior?: boolean
           league_mean: number
           matches: number
+          prior_attack?: number | null
+          prior_defence?: number | null
+          prior_home_advantage?: number | null
+          prior_league_mean?: number | null
           team_id: number
           updated_at?: string
         }
         Update: {
           attack?: number
           basis?: string
+          blend_weight?: number
           defence?: number
           home_advantage?: number
           is_prior?: boolean
           league_mean?: number
           matches?: number
+          prior_attack?: number | null
+          prior_defence?: number | null
+          prior_home_advantage?: number | null
+          prior_league_mean?: number | null
           team_id?: number
           updated_at?: string
         }
