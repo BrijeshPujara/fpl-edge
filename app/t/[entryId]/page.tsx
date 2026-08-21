@@ -14,6 +14,7 @@ import { parseEntryId } from "@/lib/fpl/entry";
 import { DEFAULT_HORIZON } from "@/lib/engine/constants";
 import { DeadlineCountdown } from "@/components/chrome/deadline-countdown";
 import { BriefPanel } from "@/components/dashboard/brief-panel";
+import { LivePoints } from "@/components/dashboard/live-points";
 import { ScorelinePanel } from "@/components/dashboard/scoreline-panel";
 import { FlagPanel, WeekPanels } from "@/components/dashboard/week-panels";
 import { Panel, Row, SectionLabel, StatRow } from "@/components/ui/panel";
@@ -119,6 +120,7 @@ export default async function DashboardPage({
           </div>
         )}
 
+        <LivePoints entryId={entryId} gw={season.gameweek.current?.id ?? null} />
         <ScorelinePanel entryId={entryId} gw={target.id} />
       </div>
 
