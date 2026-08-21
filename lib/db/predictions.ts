@@ -8,7 +8,7 @@ import {
   bothTeamsToScore,
   cleanSheetProbabilities,
   logLoss,
-  mostLikelyScoreByOutcome,
+  expectedScoreByOutcome,
   outcomeOf,
   outcomeProbabilities,
   overUnder,
@@ -108,10 +108,7 @@ export async function generatePredictions(
   const stored = await getRatings(db);
   if (stored === null) return { status: "no-ratings" };
 
-  const [teams, fixtures] = await Promise.all([
-    getTeams(db),
-    getFixturesFrom(db, gw, gw),
-  ]);
+  const fixtures = await getFixturesFrom(db, gw, gw);
   if (fixtures.length === 0) return { status: "no-fixtures", gw };
 
   const prior: TeamStrength = PROMOTED_PRIOR;
@@ -139,7 +136,7 @@ export async function generatePredictions(
     );
     const probabilities = outcomeProbabilities(s);
     const cs = cleanSheetProbabilities(s);
-    const byOutcome = mostLikelyScoreByOutcome(s);
+    const byOutcome = expectedScoreByOutcome(s);
     const favoured =
       probabilities.home >= probabilities.draw &&
       probabilities.home >= probabilities.away
@@ -163,9 +160,10 @@ export async function generatePredictions(
       cs_away: round(cs.away, 4),
       btts: round(bothTeamsToScore(s), 4),
       over_two_five: round(overUnder(s, 2.5).over, 4),
-      // The likeliest scoreline for each of the three results, ordered as the
-      // results are. The single scoreline below stays as the model's called
-      // result, which is what `exact_correct` judges.
+      // The EXPECTED scoreline for each result — the conditional mean, not
+      // the mode. The mode understates every decisive result by about a third
+      // of a goal of margin and effectively never says "comfortable win"; see
+      // `expectedScoreByOutcome`.
       likely_scores: (["home", "draw", "away"] as const).map((outcome) => ({
         outcome,
         home: byOutcome[outcome].home,

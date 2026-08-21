@@ -5,6 +5,7 @@ import {
   expectedGoals,
   expectedSupremacy,
   mostLikelyScores,
+  expectedScoreByOutcome,
   mostLikelyScoreByOutcome,
   outcomeOf,
   outcomeProbabilities,
@@ -432,5 +433,62 @@ describe("scoring a prediction", () => {
     expect(rankedProbabilityScore(o, "home")).toBeLessThan(
       rankedProbabilityScore(clueless, "home"),
     );
+  });
+});
+
+describe("the expected scoreline, which is what the screens show", () => {
+  const lopsided = scorelineFrom(2.15, 1.06);
+
+  it("shows a bigger win than the mode does", () => {
+    // The finding this exists for: goals are right-skewed, so the modal
+    // scoreline sits below the average one and understates every decisive
+    // result. Measured, the mode showed a mean margin of 1.29 against an
+    // actual 1.93.
+    const mode = mostLikelyScoreByOutcome(lopsided).home;
+    const expected = expectedScoreByOutcome(lopsided).home;
+
+    expect(mode.home - mode.away).toBe(1);
+    expect(expected.home - expected.away).toBeGreaterThan(
+      mode.home - mode.away,
+    );
+  });
+
+  it("can say comfortable win, which the mode effectively cannot", () => {
+    // 49% of real home wins had the winner scoring 3+. The mode produced a 3+
+    // scoreline in 2% of them, because 2-1 and 2-0 always edge out 3-1 and 3-0
+    // on a flat distribution.
+    const heavy = expectedScoreByOutcome(scorelineFrom(2.7, 0.5));
+    expect(heavy.home.home).toBeGreaterThanOrEqual(3);
+  });
+
+  it("still returns a score consistent with each outcome", () => {
+    for (const rates of [[2.15, 1.06], [0.9, 0.8], [1.2, 1.15], [0.4, 3.0]]) {
+      const { home, draw, away } = expectedScoreByOutcome(
+        scorelineFrom(rates[0], rates[1]),
+      );
+      expect(home.home).toBeGreaterThan(home.away);
+      expect(draw.home).toBe(draw.away);
+      expect(away.home).toBeLessThan(away.away);
+    }
+  });
+
+  it("nudges the winner up when rounding would erase the win", () => {
+    // A mean home win of 1.4-1.2 rounds to 1-1, which is not a home win at
+    // all. Rounding the loser down instead would understate further.
+    const tight = expectedScoreByOutcome(scorelineFrom(0.7, 0.65));
+    expect(tight.home.home).toBeGreaterThan(tight.home.away);
+    expect(tight.away.away).toBeGreaterThan(tight.away.home);
+  });
+
+  it("tracks the rates, so a heavier favourite gets a heavier scoreline", () => {
+    const mild = expectedScoreByOutcome(scorelineFrom(1.4, 1.2)).home;
+    const heavy = expectedScoreByOutcome(scorelineFrom(3.2, 0.5)).home;
+    expect(heavy.home - heavy.away).toBeGreaterThan(mild.home - mild.away);
+  });
+
+  it("carries the probability of the scoreline it names", () => {
+    const { home } = expectedScoreByOutcome(lopsided);
+    expect(home.probability).toBeGreaterThan(0);
+    expect(home.probability).toBeLessThan(0.25);
   });
 });

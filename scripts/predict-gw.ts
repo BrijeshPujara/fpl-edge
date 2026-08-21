@@ -18,7 +18,7 @@ import { getSeasonContext } from "@/lib/fpl/season";
 import {
   bothTeamsToScore,
   cleanSheetProbabilities,
-  mostLikelyScoreByOutcome,
+  expectedScoreByOutcome,
   outcomeProbabilities,
   overUnder,
   scoreline,
@@ -95,7 +95,7 @@ async function main() {
     const cs = cleanSheetProbabilities(s);
     // The most likely score inside the outcome the model actually favours.
     // The unconditional mode is 1-1 nearly everywhere and says nothing.
-    const byOutcome = mostLikelyScoreByOutcome(s);
+    const byOutcome = expectedScoreByOutcome(s);
     const favoured =
       o.home >= o.draw && o.home >= o.away
         ? byOutcome.home

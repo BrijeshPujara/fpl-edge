@@ -223,10 +223,11 @@ function Footnote({
   return (
     <div className="mt-2 flex max-w-prose flex-col gap-2 text-small leading-relaxed text-dim text-pretty">
       <p>
-        Each result shows how likely it is and the scoreline it most often
-        takes. The percentages are the reliable half; the scorelines are not,
-        and one of the three is the real score about a quarter of the time.
-        A single scoreline for a match is barely better than a guess.
+        Each result shows how likely it is and the scoreline it averages out
+        at &mdash; not its most common single score, which sits about a third
+        of a goal below the average one and almost never reads as a
+        comfortable win. The percentages are the reliable half; a scoreline
+        never is.
       </p>
       <p>
         Ratings fitted on{" "}
