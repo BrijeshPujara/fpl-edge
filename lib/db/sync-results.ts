@@ -3,6 +3,7 @@ import "server-only";
 import { getBootstrapStatic, getEventLive } from "@/lib/fpl/client";
 import type { FplLiveElement } from "@/lib/fpl/schemas";
 import type { Db } from "./client";
+import { resolvePredictions } from "./predictions";
 import type { TablesInsert } from "./types.generated";
 
 /**
@@ -74,6 +75,8 @@ export interface SyncResultsResult {
   gameweeksSynced: number[];
   gameweeksSkipped: number[];
   rowsWritten: number;
+  /** Scoreline predictions scored against the results that just landed. */
+  predictionsResolved: number;
 }
 
 /**
@@ -243,5 +246,28 @@ export async function syncResults(
     synced.push(gw);
   }
 
-  return { gameweeksSynced: synced, gameweeksSkipped: skipped, rowsWritten };
+  /*
+   * Score any scoreline predictions these results settle.
+   *
+   * Every finished gameweek is checked, not only the ones written above. A
+   * gameweek whose stats were already stored is SKIPPED by the loop, but a
+   * prediction made for it may still be unscored — the two are written by
+   * different actions at different times, and tying resolution to the stats
+   * write would silently leave those predictions hanging forever.
+   *
+   * Never allowed to fail the sync. Results are the irreplaceable part of this
+   * job; a scoring pass is not, and it is idempotent, so the next run picks up
+   * anything a failure here left behind.
+   */
+  let predictionsResolved = 0;
+  for (const gw of targets) {
+    predictionsResolved += await resolvePredictions(db, gw).catch(() => 0);
+  }
+
+  return {
+    gameweeksSynced: synced,
+    gameweeksSkipped: skipped,
+    rowsWritten,
+    predictionsResolved,
+  };
 }

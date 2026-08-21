@@ -14,6 +14,7 @@ import { parseEntryId } from "@/lib/fpl/entry";
 import { DEFAULT_HORIZON } from "@/lib/engine/constants";
 import { DeadlineCountdown } from "@/components/chrome/deadline-countdown";
 import { BriefPanel } from "@/components/dashboard/brief-panel";
+import { ScorelinePanel } from "@/components/dashboard/scoreline-panel";
 import { FlagPanel, WeekPanels } from "@/components/dashboard/week-panels";
 import { Panel, Row, SectionLabel, StatRow } from "@/components/ui/panel";
 import {
@@ -117,6 +118,8 @@ export default async function DashboardPage({
             )}
           </div>
         )}
+
+        <ScorelinePanel entryId={entryId} gw={target.id} />
       </div>
 
       <div className="flex flex-col gap-4 sm:gap-6">

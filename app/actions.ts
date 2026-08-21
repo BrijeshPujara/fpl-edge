@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { getDb, isDbConfigured } from "@/lib/db/client";
 import { registerEntry } from "@/lib/db/entries";
 import { syncSquad } from "@/lib/db/sync-squad";
+import { generatePredictions } from "@/lib/db/predictions";
 import { parseEntryId } from "@/lib/fpl/entry";
 import {
   ENTRY_COOKIE,
@@ -106,5 +107,29 @@ export async function refreshSquad(formData: FormData): Promise<void> {
   await syncSquad(getDb(), entryId).catch(() => null);
   // Revalidate rather than redirect: the user is already on the page they want
   // and a redirect would scroll them back to the top of it.
+  revalidatePath(`/t/${entryId}`, "layout");
+}
+
+/**
+ * Compute and store scoreline predictions for a gameweek.
+ *
+ * Deliberately a button rather than something a render does. Predictions are
+ * RECORDED — they go in a table and are scored against the results later — and
+ * a record that writes itself every time a page is viewed is not a record of
+ * anything. Someone has to decide to make the prediction, which is also what
+ * makes the timestamp on it mean something.
+ *
+ * Fixtures that have already kicked off are skipped inside
+ * `generatePredictions`, so pressing this late in a gameweek cannot backfill a
+ * prediction for a match whose result is known.
+ */
+export async function generateScorelines(formData: FormData): Promise<void> {
+  const entryId = parseEntryId(String(formData.get("entryId") ?? ""));
+  const gw = Number(formData.get("gw"));
+
+  if (entryId === null || !Number.isInteger(gw) || gw < 1) return;
+  if (!isDbConfigured()) return;
+
+  await generatePredictions(getDb(), gw).catch(() => null);
   revalidatePath(`/t/${entryId}`, "layout");
 }

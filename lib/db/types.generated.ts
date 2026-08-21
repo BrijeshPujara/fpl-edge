@@ -594,6 +594,118 @@ export type Database = {
           },
         ]
       }
+      prediction_outcomes: {
+        Row: {
+          actual_away: number
+          actual_home: number
+          exact_correct: boolean
+          log_loss: number
+          outcome_correct: boolean
+          prediction_id: string
+          rps: number
+          scored_at: string
+        }
+        Insert: {
+          actual_away: number
+          actual_home: number
+          exact_correct: boolean
+          log_loss: number
+          outcome_correct: boolean
+          prediction_id: string
+          rps: number
+          scored_at?: string
+        }
+        Update: {
+          actual_away?: number
+          actual_home?: number
+          exact_correct?: boolean
+          log_loss?: number
+          outcome_correct?: boolean
+          prediction_id?: string
+          rps?: number
+          scored_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prediction_outcomes_prediction_id_fkey"
+            columns: ["prediction_id"]
+            isOneToOne: true
+            referencedRelation: "predictions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      predictions: {
+        Row: {
+          basis: string
+          btts: number
+          created_at: string
+          cs_away: number
+          cs_home: number
+          fixture_id: number
+          gw: number
+          id: string
+          lambda_away: number
+          lambda_home: number
+          over_two_five: number
+          p_away: number
+          p_draw: number
+          p_home: number
+          score_away: number
+          score_home: number
+          score_p: number
+          uses_prior: boolean
+        }
+        Insert: {
+          basis: string
+          btts: number
+          created_at?: string
+          cs_away: number
+          cs_home: number
+          fixture_id: number
+          gw: number
+          id?: string
+          lambda_away: number
+          lambda_home: number
+          over_two_five: number
+          p_away: number
+          p_draw: number
+          p_home: number
+          score_away: number
+          score_home: number
+          score_p: number
+          uses_prior?: boolean
+        }
+        Update: {
+          basis?: string
+          btts?: number
+          created_at?: string
+          cs_away?: number
+          cs_home?: number
+          fixture_id?: number
+          gw?: number
+          id?: string
+          lambda_away?: number
+          lambda_home?: number
+          over_two_five?: number
+          p_away?: number
+          p_draw?: number
+          p_home?: number
+          score_away?: number
+          score_home?: number
+          score_p?: number
+          uses_prior?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "predictions_fixture_id_fkey"
+            columns: ["fixture_id"]
+            isOneToOne: true
+            referencedRelation: "fixtures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       price_history: {
         Row: {
           cost: number
@@ -716,6 +828,50 @@ export type Database = {
             columns: ["vice_captain_id"]
             isOneToOne: false
             referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_ratings: {
+        Row: {
+          attack: number
+          basis: string
+          defence: number
+          home_advantage: number
+          is_prior: boolean
+          league_mean: number
+          matches: number
+          team_id: number
+          updated_at: string
+        }
+        Insert: {
+          attack: number
+          basis: string
+          defence: number
+          home_advantage: number
+          is_prior?: boolean
+          league_mean: number
+          matches: number
+          team_id: number
+          updated_at?: string
+        }
+        Update: {
+          attack?: number
+          basis?: string
+          defence?: number
+          home_advantage?: number
+          is_prior?: boolean
+          league_mean?: number
+          matches?: number
+          team_id?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_ratings_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: true
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
