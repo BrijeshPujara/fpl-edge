@@ -249,6 +249,57 @@ export const RATING_BLEND_MATCHES = 15;
 export const FORM_HALF_LIFE_GAMEWEEKS = 10;
 
 // ---------------------------------------------------------------------------
+// Chip planning
+// ---------------------------------------------------------------------------
+
+/**
+ * How many players per position the chip planner considers, by expected
+ * points, on top of the ones it keeps unconditionally.
+ *
+ * The planner runs a full squad rebuild for every gameweek in its horizon —
+ * twenty mixed-integer solves over six hundred players, measured at 1055ms and
+ * by some distance the slowest thing this app does.
+ *
+ * Most of that pool cannot appear in any answer. The pruning is in two parts,
+ * and only the second is a judgement call:
+ *
+ *   1. Within one position, price AND club, players are interchangeable in
+ *      every constraint the optimiser has, so only the top three by expected
+ *      points can ever be needed — three being the per-club cap. This cannot
+ *      change an answer. Alone it takes 599 players to 469 and 1055ms to
+ *      728ms, which is correct and not fast enough.
+ *
+ *   2. Then the best `CHIP_POOL_PER_POSITION` per position by expected points.
+ *      This one could in principle change an answer, and measured on its own
+ *      it did: a plain top-20 moved a chip gain by 1.21 points.
+ *
+ * The reason it moved is worth recording, because it is not the reason it
+ * looks like. Ranking by expected points discards the CHEAPEST players, and a
+ * rebuild needs those to afford the players it actually wants. Keeping every
+ * player at the two cheapest price points per position restores them, and the
+ * same top-20 then reproduces the full-pool answer exactly:
+ *
+ *     pool                       n     ms   identical
+ *     full                     599   1055   (baseline)
+ *     top 20 per position       95     84   no, off by 1.21
+ *     top 3 per pos+price+club 469    728   yes
+ *     safe + top 20 + cheapest 286    279   yes
+ *
+ * Verified identical across every chip and gameweek on a real squad, not
+ * merely close. Twenty is deliberately well past where the answer stopped
+ * moving rather than at the edge of it.
+ */
+export const CHIP_POOL_PER_POSITION = 20;
+
+/**
+ * Price points per position kept in full regardless of expected points.
+ *
+ * The enablers. See CHIP_POOL_PER_POSITION for why dropping them is what
+ * breaks a pruned pool.
+ */
+export const CHIP_POOL_CHEAP_TIERS = 2;
+
+// ---------------------------------------------------------------------------
 // Bonus
 // ---------------------------------------------------------------------------
 

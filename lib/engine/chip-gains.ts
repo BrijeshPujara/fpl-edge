@@ -1,4 +1,10 @@
-import { CHIP, type ChipName } from "@/lib/rules";
+import {
+  CHIP,
+  MAX_PLAYERS_PER_CLUB,
+  POSITION,
+  type ChipName,
+  type PositionId,
+} from "@/lib/rules";
 import type { ChipWindow } from "@/lib/fpl/gameweek";
 import { benchBoostGain, tripleCaptainGain, type ChipGain } from "./chips";
 import { bestXi } from "./best-xi";
@@ -8,7 +14,12 @@ import {
   type PlayerCandidate,
 } from "./optimiser";
 import type { LpSolver } from "./lp";
-import { CHIP_CONFIDENCE_FLOOR, CHIP_CONFIDENCE_HALF_LIFE } from "./constants";
+import {
+  CHIP_CONFIDENCE_FLOOR,
+  CHIP_CONFIDENCE_HALF_LIFE,
+  CHIP_POOL_CHEAP_TIERS,
+  CHIP_POOL_PER_POSITION,
+} from "./constants";
 
 /**
  * Computing what each chip is worth in each gameweek.
@@ -85,8 +96,73 @@ function setFor(windows: ChipWindow[], chip: ChipName, gw: number): number | nul
   return w?.set ?? null;
 }
 
+/**
+ * The players a chip rebuild could actually want.
+ *
+ * See CHIP_POOL_PER_POSITION for the measurement and for why the cheap tiers
+ * are kept explicitly. `alwaysKeep` is the owned squad: a rebuild is scored
+ * against holding, so every held player has to remain available or the
+ * comparison is against a squad the manager could not have kept.
+ */
+export function prunePool<T extends ChipCandidate>(
+  pool: T[],
+  alwaysKeep: Set<number>,
+): T[] {
+  // Interchangeable within position, price and club — only the per-club cap
+  // can ever be needed, and taking the best of them is never worse.
+  const buckets = new Map<string, T[]>();
+  for (const player of pool) {
+    const key = `${player.position}:${player.price}:${player.teamId}`;
+    buckets.set(key, [...(buckets.get(key) ?? []), player]);
+  }
+
+  const peak = (p: T) => Math.max(0, ...p.epByGameweek.values());
+  const safe: T[] = [];
+  for (const bucket of buckets.values()) {
+    safe.push(
+      ...[...bucket].sort((a, b) => peak(b) - peak(a)).slice(0, MAX_PLAYERS_PER_CLUB),
+    );
+  }
+
+  const kept: T[] = [];
+  for (const position of Object.values(POSITION) as PositionId[]) {
+    const group = safe.filter((p) => p.position === position);
+    const cheapest = new Set(
+      [...new Set(group.map((p) => p.price))]
+        .sort((a, b) => a - b)
+        .slice(0, CHIP_POOL_CHEAP_TIERS),
+    );
+    const best = new Set(
+      [...group]
+        .sort((a, b) => peak(b) - peak(a))
+        .slice(0, CHIP_POOL_PER_POSITION)
+        .map((p) => p.id),
+    );
+
+    for (const player of group) {
+      if (best.has(player.id) || cheapest.has(player.price) || alwaysKeep.has(player.id)) {
+        kept.push(player);
+      }
+    }
+  }
+
+  // A held player whose bucket lost him still has to come back.
+  const present = new Set(kept.map((p) => p.id));
+  for (const player of pool) {
+    if (alwaysKeep.has(player.id) && !present.has(player.id)) kept.push(player);
+  }
+  return kept;
+}
+
 export function computeChipGains(input: ChipGainInput): ChipGain[] {
-  const { squad, pool, gameweeks, budget, windows, currentGw, solver } = input;
+  const { squad, gameweeks, budget, windows, currentGw, solver } = input;
+
+  // Pruned here rather than by the callers, so the dashboard and the chips
+  // screen cannot end up solving over different pools and disagreeing.
+  const pool = prunePool(
+    input.pool,
+    new Set(squad.map((p) => p.id)),
+  );
   const gains: ChipGain[] = [];
 
   const push = (chip: ChipName, gw: number, gain: number) => {

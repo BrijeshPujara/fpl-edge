@@ -54,23 +54,59 @@ import { loadPriceMomentumInputs } from "./price-momentum";
  */
 const TTL_SECONDS = 300;
 
-export const cachedPlayers = unstable_cache(
+/**
+ * A cached reader that still works with no cache to read from.
+ *
+ * `unstable_cache` throws "Invariant: incrementalCache missing" outside a
+ * Next.js request — and the sync scripts run in plain Node, importing the same
+ * `loadDecisionContext` the screens use. Caching these reads without this
+ * wrapper broke the nightly journal job, which is the one process here whose
+ * failure is silent and whose output cannot be backfilled.
+ *
+ * So the cache is treated as an optimisation that may be absent, not as
+ * infrastructure that must be present. In a request it caches; in a script it
+ * reads through.
+ */
+function cachedOrDirect<A extends unknown[], T>(
+  direct: (...args: A) => Promise<T>,
+  keyParts: string[],
+): (...args: A) => Promise<T> {
+  const cached = unstable_cache(direct, keyParts, {
+    revalidate: TTL_SECONDS,
+    tags: ["league-data"],
+  });
+
+  return async (...args: A) => {
+    try {
+      return await cached(...args);
+    } catch (error) {
+      // Only the missing-cache invariant falls through; a real query failure
+      // must still surface rather than being retried into the same error.
+      if (
+        error instanceof Error &&
+        error.message.includes("incrementalCache")
+      ) {
+        return direct(...args);
+      }
+      throw error;
+    }
+  };
+}
+
+export const cachedPlayers = cachedOrDirect(
   async (): Promise<PlayerRow[]> => getAllPlayers(getDb()),
   ["all-players"],
-  { revalidate: TTL_SECONDS, tags: ["league-data"] },
 );
 
-export const cachedTeams = unstable_cache(
+export const cachedTeams = cachedOrDirect(
   async (): Promise<TeamRow[]> => getTeams(getDb()),
   ["all-teams"],
-  { revalidate: TTL_SECONDS, tags: ["league-data"] },
 );
 
-export const cachedFixtures = unstable_cache(
+export const cachedFixtures = cachedOrDirect(
   async (from: number, through: number): Promise<FixtureRow[]> =>
     getFixturesFrom(getDb(), from, through),
   ["fixtures-range"],
-  { revalidate: TTL_SECONDS, tags: ["league-data"] },
 );
 
 /**
@@ -81,7 +117,7 @@ export const cachedFixtures = unstable_cache(
  * changing the roster would miss the cache entirely — and the query wants the
  * whole table regardless. Fetching the ids inside keeps the key constant.
  */
-export const cachedSeasonHistory = unstable_cache(
+export const cachedSeasonHistory = cachedOrDirect(
   async () => {
     const db = getDb();
     const players = await getAllPlayers(db);
@@ -91,10 +127,9 @@ export const cachedSeasonHistory = unstable_cache(
     );
   },
   ["season-history"],
-  { revalidate: TTL_SECONDS, tags: ["league-data"] },
 );
 
-export const cachedRecentStats = unstable_cache(
+export const cachedRecentStats = cachedOrDirect(
   async (fromGw: number) => {
     const db = getDb();
     const players = await getAllPlayers(db);
@@ -105,10 +140,9 @@ export const cachedRecentStats = unstable_cache(
     );
   },
   ["recent-stats"],
-  { revalidate: TTL_SECONDS, tags: ["league-data"] },
 );
 
-export const cachedPriceMomentum = unstable_cache(
+export const cachedPriceMomentum = cachedOrDirect(
   async () => {
     const db = getDb();
     const players = await getAllPlayers(db);
@@ -118,5 +152,4 @@ export const cachedPriceMomentum = unstable_cache(
     );
   },
   ["price-momentum"],
-  { revalidate: TTL_SECONDS, tags: ["league-data"] },
 );

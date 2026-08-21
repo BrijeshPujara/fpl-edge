@@ -5,6 +5,7 @@ import {
   chipConfidence,
   computeChipGains,
   type ChipCandidate,
+  prunePool,
 } from "@/lib/engine/chip-gains";
 import type { LpSolver } from "@/lib/engine/lp";
 import type { ChipWindow } from "@/lib/fpl/gameweek";
@@ -18,6 +19,7 @@ import {
   POSITION,
   SQUAD_COMPOSITION,
   TRIPLE_CAPTAIN_MULTIPLIER,
+  type PositionId,
 } from "@/lib/rules";
 
 let solver: LpSolver;
@@ -281,5 +283,86 @@ describe("computeChipGains", () => {
 
     expect(gains.find((g) => g.gw === 5)?.set).toBe(1);
     expect(gains.find((g) => g.gw === 25)?.set).toBe(2);
+  });
+});
+
+describe("pruning the pool a rebuild solves over", () => {
+  const player = (
+    id: number,
+    position: PositionId,
+    price: number,
+    teamId: number,
+    ep: number,
+  ) => ({
+    id,
+    position,
+    teamId,
+    price,
+    ep,
+    pMinutes: 1,
+    epByGameweek: new Map([[1, ep]]),
+  });
+
+  it("keeps at most the per-club cap from one position, price and club", () => {
+    // These four are interchangeable in every constraint the optimiser has,
+    // so a fourth can never be needed — three is the club limit.
+    const pool = [
+      player(1, POSITION.DEF, 45, 7, 5),
+      player(2, POSITION.DEF, 45, 7, 4),
+      player(3, POSITION.DEF, 45, 7, 3),
+      player(4, POSITION.DEF, 45, 7, 2),
+    ];
+    const kept = prunePool(pool, new Set());
+
+    expect(kept).toHaveLength(3);
+    expect(kept.map((p) => p.id).sort()).toEqual([1, 2, 3]);
+  });
+
+  it("keeps the cheapest players however low their projection", () => {
+    // The enablers, and the reason a plain top-N prune moved a chip gain by
+    // 1.21 points: ranking by expected points discards exactly the players a
+    // rebuild needs in order to afford the ones it wants.
+    const expensive = Array.from({ length: 40 }, (_, i) =>
+      player(100 + i, POSITION.MID, 90 + i, i % 20, 10 - i * 0.1),
+    );
+    const enabler = player(1, POSITION.MID, 45, 3, 0.2);
+
+    const kept = prunePool([...expensive, enabler], new Set());
+    expect(kept.map((p) => p.id)).toContain(1);
+  });
+
+  it("never drops a player the manager owns", () => {
+    // A rebuild is scored against holding, so a held player has to stay
+    // available or the comparison is against a squad nobody could have kept.
+    const owned = player(1, POSITION.FWD, 120, 5, 0.1);
+    const better = Array.from({ length: 40 }, (_, i) =>
+      player(200 + i, POSITION.FWD, 120, 5, 9 - i * 0.1),
+    );
+
+    const kept = prunePool([owned, ...better], new Set([1]));
+    expect(kept.map((p) => p.id)).toContain(1);
+  });
+
+  it("cuts a real-sized pool down hard", () => {
+    const pool = Array.from({ length: 600 }, (_, i) =>
+      player(
+        i,
+        ((i % 4) + 1) as PositionId,
+        40 + (i % 60),
+        i % 20,
+        Math.random() * 8,
+      ),
+    );
+    expect(prunePool(pool, new Set()).length).toBeLessThan(pool.length / 2);
+  });
+
+  it("leaves a pool that is already small alone", () => {
+    const pool = [
+      player(1, POSITION.GK, 45, 1, 3),
+      player(2, POSITION.DEF, 45, 2, 4),
+      player(3, POSITION.MID, 55, 3, 5),
+      player(4, POSITION.FWD, 65, 4, 6),
+    ];
+    expect(prunePool(pool, new Set())).toHaveLength(4);
   });
 });
