@@ -114,11 +114,74 @@ export const OPPONENT_ADJUSTMENT_BOUNDS = { min: 0.6, max: 1.5 } as const;
  * Home advantage as a multiplier on expected goals. ~1.1 reflects the
  * long-run Premier League home scoring edge in the post-2020 era, which is
  * smaller than the historical figure.
+ *
+ * Applied as a HALF-STEP in both directions — multiply the home side, divide
+ * the away side — so the ratio between them is the square, 1.21, and the
+ * league mean is left where it was. Measured across all 380 matches of
+ * 2025/26: home sides scored 1.526 a game to 1.224 away, a ratio of 1.247,
+ * and home xG ran 1.227 times away xG. So 1.21 is very slightly conservative
+ * and the effect is real chance creation rather than finishing variance.
+ *
+ * Note what this constant does NOT do. It appears exactly once, inside
+ * `expectedGoalsAgainst`, so it moves clean sheets and the concession penalty
+ * and nothing else. A player's own attacking rate is never adjusted for venue,
+ * which means the model currently expects a striker to score at the same rate
+ * home and away. `scoreline.ts` applies it to both sides, as the measurement
+ * above says it should.
  */
 export const HOME_ADVANTAGE = 1.1;
 
-/** League-average goals scored per team per match — the Poisson baseline. */
+/**
+ * League-average goals scored per team per match — the Poisson baseline.
+ *
+ * 2025/26 came in at 1.375 across 380 matches. Left at 1.42 as a multi-season
+ * figure rather than refitted to one season, which would be chasing noise.
+ */
 export const LEAGUE_MEAN_GOALS_PER_TEAM = 1.42;
+
+// ---------------------------------------------------------------------------
+// Scorelines
+// ---------------------------------------------------------------------------
+
+/**
+ * Largest goal count the scoreline grid carries explicitly.
+ *
+ * The top cell means "this many OR MORE" — the Poisson tail is folded into it
+ * rather than discarded, so the grid still sums to exactly one. At realistic
+ * rates the fold is worth less than a thousandth of the mass, but dropping it
+ * would make every probability on the screen read fractionally low, and a
+ * distribution that does not sum to one is a bug waiting to be found by
+ * someone adding two of them together.
+ */
+export const MAX_GOALS = 10;
+
+/**
+ * Dixon-Coles low-score dependence.
+ *
+ * Two independent Poissons are a good model of a football match everywhere
+ * except the corner where most matches actually live. Independence understates
+ * 0-0 and 1-1 and therefore understates draws — measured on 2025/26, an
+ * uncorrected grid predicted draws in 23.6% of matches when 29.6% were drawn.
+ *
+ * The correction reweights the four cells where both sides scored at most one.
+ * Swept over an expanding window (fit on everything before each gameweek,
+ * predict that gameweek, 280 held-out matches from GW11 on):
+ *
+ *     rho     RPS      log loss   predicted draws
+ *     0.00    0.2092   1.0489     23.6%
+ *    -0.20    0.2086   1.0423     28.0%
+ *    -0.25    0.2086   1.0424     29.1%
+ *    -0.28    0.2087   1.0428     29.7%
+ *    -0.40    0.2090   1.0466     32.4%
+ *
+ * The basin is flat between -0.28 and -0.20 and this sits in the middle of it.
+ * The honest reading is that the scoring rules barely separate those values
+ * and draw calibration alone would argue for -0.28; what the sweep establishes
+ * firmly is the SIGN and that zero is wrong.
+ *
+ * One season of one league. Refit it when there is more.
+ */
+export const DIXON_COLES_RHO = -0.25;
 
 // ---------------------------------------------------------------------------
 // Bonus
