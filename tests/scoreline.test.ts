@@ -6,8 +6,11 @@ import {
   expectedSupremacy,
   mostLikelyScores,
   mostLikelyScoreByOutcome,
+  outcomeOf,
   outcomeProbabilities,
   overUnder,
+  logLoss,
+  rankedProbabilityScore,
   scoreline,
   scorelineFrom,
   totalGoalsDistribution,
@@ -356,5 +359,78 @@ describe("the most likely score within each outcome", () => {
     expect(level.home.home).toBeGreaterThan(level.home.away);
     expect(level.away.home).toBeLessThan(level.away.away);
     expect(level.home.probability).toBeCloseTo(level.away.probability, 10);
+  });
+});
+
+describe("scoring a prediction", () => {
+  const confidentHome = { home: 0.8, draw: 0.15, away: 0.05 };
+  const clueless = { home: 1 / 3, draw: 1 / 3, away: 1 / 3 };
+
+  it("reads the outcome off a scoreline", () => {
+    expect(outcomeOf(2, 1)).toBe("home");
+    expect(outcomeOf(1, 1)).toBe("draw");
+    expect(outcomeOf(0, 3)).toBe("away");
+  });
+
+  it("scores a perfect forecast at zero and a wrong one at one", () => {
+    expect(rankedProbabilityScore({ home: 1, draw: 0, away: 0 }, "home")).toBe(0);
+    expect(rankedProbabilityScore({ home: 1, draw: 0, away: 0 }, "away")).toBe(1);
+  });
+
+  it("rewards being right", () => {
+    expect(rankedProbabilityScore(confidentHome, "home")).toBeLessThan(
+      rankedProbabilityScore(confidentHome, "away"),
+    );
+  });
+
+  it("rewards being CLOSE, which is why it beats accuracy here", () => {
+    // Two forecasts equally confident of a home win, differing only in where
+    // they put the rest. When the match is drawn, the one that saw a draw
+    // coming should score better — a distinction plain accuracy cannot make,
+    // since both called the winner wrong.
+    const drawIsSecond = { home: 0.6, draw: 0.3, away: 0.1 };
+    const awayIsSecond = { home: 0.6, draw: 0.1, away: 0.3 };
+
+    expect(rankedProbabilityScore(drawIsSecond, "draw")).toBeLessThan(
+      rankedProbabilityScore(awayIsSecond, "draw"),
+    );
+  });
+
+  it("punishes a confident miss harder than an uncertain one", () => {
+    expect(rankedProbabilityScore(confidentHome, "away")).toBeGreaterThan(
+      rankedProbabilityScore(clueless, "away"),
+    );
+  });
+
+  it("log loss disagrees with RPS about ordering, on purpose", () => {
+    // Log loss treats the three outcomes as unordered, so it cannot see that a
+    // draw sits between two wins. Both are stored because the disagreement is
+    // informative.
+    const drawIsSecond = { home: 0.6, draw: 0.3, away: 0.1 };
+    const awayIsSecond = { home: 0.6, draw: 0.1, away: 0.3 };
+
+    expect(rankedProbabilityScore(drawIsSecond, "away")).not.toBeCloseTo(
+      rankedProbabilityScore(awayIsSecond, "away"),
+      6,
+    );
+    expect(logLoss(drawIsSecond, "home")).toBeCloseTo(
+      logLoss(awayIsSecond, "home"),
+      12,
+    );
+  });
+
+  it("never returns infinity for an outcome it ruled out", () => {
+    // An unfloored log loss would poison every average it entered.
+    expect(Number.isFinite(logLoss({ home: 1, draw: 0, away: 0 }, "away"))).toBe(
+      true,
+    );
+  });
+
+  it("scores a real grid better than a coin flip, when it is right", () => {
+    const s = scorelineFrom(2.4, 0.8);
+    const o = outcomeProbabilities(s);
+    expect(rankedProbabilityScore(o, "home")).toBeLessThan(
+      rankedProbabilityScore(clueless, "home"),
+    );
   });
 });

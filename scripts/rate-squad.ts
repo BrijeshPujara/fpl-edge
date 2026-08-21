@@ -15,7 +15,8 @@ import { config } from "dotenv";
 config({ path: ".env.local", quiet: true });
 
 import { loadPool } from "./pool";
-import { fitRatings, promotedPrior, relegatedFrom } from "./ratings";
+import { fitFromCache } from "./ratings";
+import { priorForUnrated, unratedIn } from "@/lib/engine/team-ratings";
 import { toPlayerCandidate, type Candidate } from "@/lib/squad/candidates";
 import { optimiseSquad } from "@/lib/engine/optimiser";
 import { rankCaptains } from "@/lib/engine/captain";
@@ -66,10 +67,10 @@ async function main() {
   });
 
   // --- Fixtures, from the fitted ratings ---------------------------------
-  const fit = fitRatings();
+  const fit = fitFromCache();
   const names = pool.teams.map((t) => t.name);
-  const prior: TeamStrength = promotedPrior(fit, names);
-  const relegated = relegatedFrom(fit, names);
+  const prior: TeamStrength = priorForUnrated(fit, names);
+  const relegated = unratedIn(fit, names, true);
   const strengthOf = (id: number) =>
     fit.strength.get(teamName.get(id)?.name ?? "") ?? prior;
   const unrated = new Set(

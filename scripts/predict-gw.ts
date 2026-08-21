@@ -24,19 +24,19 @@ import {
   scoreline,
   type TeamStrength,
 } from "@/lib/engine/scoreline";
+import { fitFromCache } from "./ratings";
 import {
-  fitRatings,
-  promotedPrior,
-  relegatedFrom,
+  priorForUnrated,
+  unratedIn,
   XG_WEIGHT,
-} from "./ratings";
+} from "@/lib/engine/team-ratings";
 
 async function main() {
   const season = await getSeasonContext();
   if (!season.available) throw new Error("FPL API unavailable");
   const gw = Number(process.argv[2] ?? season.gameweek.target.id);
 
-  const fit = fitRatings();
+  const fit = fitFromCache();
 
   const db = getDb();
   const [teams, fixtures] = await Promise.all([
@@ -52,9 +52,9 @@ async function main() {
    * should be read with that in mind.
    */
   const names = teams.map((t) => t.name);
-  const relegated = relegatedFrom(fit, names);
+  const relegated = unratedIn(fit, names, true);
   const promoted = teams.filter((t) => !fit.strength.has(t.name));
-  const prior: TeamStrength = promotedPrior(fit, names);
+  const prior: TeamStrength = priorForUnrated(fit, names);
   const strengthOf = (name: string) => fit.strength.get(name) ?? prior;
 
   console.log(

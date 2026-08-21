@@ -240,6 +240,62 @@ export function outcomeProbabilities({ grid }: Scoreline): Outcomes {
   return { home, draw, away };
 }
 
+/** Which way a match went, from the home side's point of view. */
+export type MatchOutcome = "home" | "draw" | "away";
+
+export function outcomeOf(homeGoals: number, awayGoals: number): MatchOutcome {
+  if (homeGoals > awayGoals) return "home";
+  if (homeGoals < awayGoals) return "away";
+  return "draw";
+}
+
+/**
+ * Ranked probability score. Lower is better; 0 is perfect.
+ *
+ * The proper scoring rule for an ORDERED three-way outcome, and the reason it
+ * is used here rather than plain accuracy: it rewards being close. A model
+ * that says 60% home / 30% draw / 10% away is punished less for a draw than a
+ * model that says 60% home / 10% draw / 30% away, because a draw sits between
+ * the two wins. Accuracy cannot see that, and log loss — which is also
+ * reported — treats the three as unordered.
+ *
+ * Both are stored for every scored prediction, because they disagree in
+ * informative ways: log loss punishes confident errors far harder, and a model
+ * that improves on RPS while worsening on log loss has become better calibrated
+ * about which side wins and more reckless about how sure it is.
+ */
+export function rankedProbabilityScore(
+  probabilities: Outcomes,
+  actual: MatchOutcome,
+): number {
+  const predicted = [probabilities.home, probabilities.draw, probabilities.away];
+  const observed = { home: [1, 0, 0], draw: [0, 1, 0], away: [0, 0, 1] }[actual];
+
+  let cumulativePredicted = 0;
+  let cumulativeObserved = 0;
+  let total = 0;
+
+  // Only the first two terms are summed: the third cumulative pair is always
+  // 1 against 1, contributing nothing, and dividing by categories - 1 keeps
+  // the result on [0, 1].
+  for (let i = 0; i < 2; i++) {
+    cumulativePredicted += predicted[i];
+    cumulativeObserved += observed[i];
+    total += (cumulativePredicted - cumulativeObserved) ** 2;
+  }
+  return total / 2;
+}
+
+/** Negative log likelihood of the outcome that happened. */
+export function logLoss(
+  probabilities: Outcomes,
+  actual: MatchOutcome,
+): number {
+  // Floored, because a model that assigned exactly zero to what happened
+  // would otherwise score infinity and poison every average it enters.
+  return -Math.log(Math.max(probabilities[actual], 1e-12));
+}
+
 /**
  * Clean sheet for each side.
  *
