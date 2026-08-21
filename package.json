@@ -16,6 +16,7 @@
     "db:types": "supabase gen types typescript --project-id ehfuwpslwzxsjjaatgng > lib/db/types.generated.ts.tmp && mv lib/db/types.generated.ts.tmp lib/db/types.generated.ts || (rm -f lib/db/types.generated.ts.tmp; exit 1)",
     "db:push": "supabase db push",
     "sync": "tsx --tsconfig tsconfig.scripts.json scripts/sync.ts",
+    "pick": "tsx --tsconfig tsconfig.scripts.json scripts/pick-squad.ts",
     "ep:smoke": "tsx --tsconfig tsconfig.scripts.json scripts/ep-smoke.ts",
     "brief:check": "tsx --tsconfig tsconfig.scripts.json scripts/brief-check.ts"
   },
