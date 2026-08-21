@@ -66,6 +66,14 @@ export interface TransferSuggestion {
   recommended: TransferOption;
   /** True when nothing cleared the hit threshold. */
   shouldRoll: boolean;
+  /**
+   * The move that scored best but was not recommended, because it costs a hit
+   * and minutes are not yet known. Null whenever nothing was held back.
+   *
+   * Kept rather than discarded so a screen can show the move and say why it is
+   * not being advised. Hiding it would be a different kind of dishonesty.
+   */
+  withheld: TransferOption | null;
 }
 
 export interface SuggestTransfersInput {
@@ -76,6 +84,27 @@ export interface SuggestTransfersInput {
   bank: number;
   /** Highest number of changes to evaluate. Each one costs a solve. */
   maxTransfers?: number;
+  /**
+   * Whether the projections know who actually plays.
+   *
+   * False before any gameweek has been played, when rates come from last
+   * season and every available player carries the same flat starting
+   * probability. Defaults to true, so a caller that has not thought about it
+   * gets the old behaviour rather than a silently weakened engine.
+   *
+   * WHY IT CHANGES THE RECOMMENDATION. A hit is a CERTAIN four points against
+   * an uncertain gain, and the honest reason not to take one here is not that
+   * the estimate is noisy — it is that a whole term is missing. With minutes
+   * held constant across every player, the model cannot tell a nailed starter
+   * from a squad player, so "sell A, buy B" can be a statement about last
+   * season's rate rather than about anything happening this season.
+   *
+   * Observed doing exactly that: in gameweek 2 it proposed selling Virgil van
+   * Dijk, a first-choice defender, for a cheaper player with better per-90
+   * numbers, and paying eight points for the privilege. Free transfers are
+   * unaffected — a free move that turns out wrong costs nothing but the move.
+   */
+  minutesKnown?: boolean;
 }
 
 export function suggestTransfers(
@@ -184,13 +213,22 @@ export function suggestTransfers(
   }
 
   const options_ = [...byCount.values()].sort((a, b) => b.netGain - a.netGain);
-  const recommended = options_[0];
+  const best = options_[0];
+
+  // Without minutes, decline to SPEND points on a projection that cannot tell
+  // a starter from a squad player. The move is still returned for the screen
+  // to show; it is just not what the engine advises.
+  const minutesKnown = input.minutesKnown ?? true;
+  const affordable = options_.filter((option) => option.hitCost === 0);
+  const withhold = !minutesKnown && best.hitCost > 0;
+  const recommended = withhold ? (affordable[0] ?? best) : best;
 
   return {
     options: options_,
     recommended,
     // Rolling wins when the best paid move fails to clear the hit it costs.
     shouldRoll: recommended.transfers === 0 || recommended.netGain <= 0,
+    withheld: withhold ? best : null,
   };
 }
 

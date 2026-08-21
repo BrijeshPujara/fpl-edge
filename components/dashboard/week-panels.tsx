@@ -32,6 +32,9 @@ export async function WeekPanels({
       currentSquad: context.squad.map((c) => toPlayerCandidate(c, priceOf(c.id))),
       candidates: context.pool.map((c) => toPlayerCandidate(c, priceOf(c.id))),
       freeTransfers: context.freeTransfers,
+      // Before a gameweek is played the model cannot tell a starter from a
+      // squad player, so it must not spend points on the difference.
+      minutesKnown: context.basis !== "prior-season",
       bank: context.bank,
     },
     solver,

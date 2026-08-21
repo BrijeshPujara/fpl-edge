@@ -371,3 +371,88 @@ describe("suggestTransfers — robustness", () => {
     expect(roll?.expectedPriceDelta).toBeCloseTo(15 * 0.4, 6);
   });
 });
+
+describe("suggestTransfers — not paying for what the model cannot see", () => {
+  /*
+   * Before a gameweek is played, rates come from last season and every
+   * available player carries the same flat starting probability — so the model
+   * cannot tell a nailed starter from a squad player. A hit is a CERTAIN four
+   * points against a gain resting on a term that is currently a constant.
+   *
+   * Observed doing exactly that in gameweek 2: it proposed selling Virgil van
+   * Dijk for a cheaper player with better per-90 numbers and paying eight
+   * points for it.
+   */
+  const scenario = () => ({
+    currentSquad: currentSquad(),
+    // Enough clearly-better options that a multi-transfer raid wins on paper.
+    candidates: upgrades(3, 6),
+    freeTransfers: 1,
+    bank: 0,
+  });
+
+  it("takes the hit when minutes are known", () => {
+    const suggestion = suggestTransfers(
+      { ...scenario(), minutesKnown: true },
+      solver,
+    );
+    expect(suggestion.recommended.hitCost).toBeGreaterThan(0);
+    expect(suggestion.withheld).toBeNull();
+  });
+
+  it("refuses to take one when they are not", () => {
+    const suggestion = suggestTransfers(
+      { ...scenario(), minutesKnown: false },
+      solver,
+    );
+    expect(suggestion.recommended.hitCost).toBe(0);
+  });
+
+  it("still shows the move it declined, and says what it was worth", () => {
+    // Hiding it would be a different kind of dishonesty: the manager should be
+    // able to see the move and disagree.
+    const suggestion = suggestTransfers(
+      { ...scenario(), minutesKnown: false },
+      solver,
+    );
+    expect(suggestion.withheld).not.toBeNull();
+    expect(suggestion.withheld!.hitCost).toBeGreaterThan(0);
+    expect(suggestion.withheld!.netGain).toBeGreaterThan(
+      suggestion.recommended.netGain,
+    );
+  });
+
+  it("still uses the free transfer, which costs nothing to get wrong", () => {
+    // The guard is about SPENDING points, not about refusing to act. A free
+    // move that turns out badly costs only the move.
+    const suggestion = suggestTransfers(
+      { ...scenario(), minutesKnown: false },
+      solver,
+    );
+    expect(suggestion.recommended.transfers).toBe(1);
+    expect(suggestion.shouldRoll).toBe(false);
+  });
+
+  it("defaults to the old behaviour when nobody says", () => {
+    // A caller that has not thought about it must not get a silently weakened
+    // engine.
+    const suggestion = suggestTransfers(scenario(), solver);
+    expect(suggestion.recommended.hitCost).toBeGreaterThan(0);
+  });
+
+  it("rolls rather than forcing a bad free move", () => {
+    const suggestion = suggestTransfers(
+      {
+        currentSquad: currentSquad(),
+        // Nothing worth having.
+        candidates: upgrades(2, -1),
+        freeTransfers: 1,
+        bank: 0,
+        minutesKnown: false,
+      },
+      solver,
+    );
+    expect(suggestion.shouldRoll).toBe(true);
+    expect(suggestion.recommended.transfers).toBe(0);
+  });
+});

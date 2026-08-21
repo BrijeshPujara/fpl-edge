@@ -29,6 +29,9 @@ export async function TransferBoard({
       currentSquad: context.squad.map((c) => toPlayerCandidate(c, priceOf(c.id))),
       candidates: context.pool.map((c) => toPlayerCandidate(c, priceOf(c.id))),
       freeTransfers: context.freeTransfers,
+      // Before a gameweek is played the model cannot tell a starter from a
+      // squad player, so it must not spend points on the difference.
+      minutesKnown: context.basis !== "prior-season",
       bank: context.bank,
     },
     solver,
@@ -98,6 +101,27 @@ export async function TransferBoard({
                 </>
               )}
             </div>
+
+            {suggestion.withheld ? (
+              <div className="mt-3 border-t border-edge-subtle pt-3">
+                <div className="font-mono text-micro tracking-[0.12em] text-warn">
+                  A BIGGER MOVE WAS AVAILABLE AND IS NOT ADVISED
+                </div>
+                <div className="mt-1.5 max-w-prose text-small leading-relaxed text-muted text-pretty">
+                  {suggestion.withheld.transfers} moves score{" "}
+                  <span className="text-tertiary">
+                    {formatEp(suggestion.withheld.netGain)}
+                  </span>{" "}
+                  after a {suggestion.withheld.hitCost}-point hit. That gain
+                  rests on last season&apos;s rates, and until a gameweek has
+                  been played every available player carries the same starting
+                  probability &mdash; so the model cannot tell a nailed starter
+                  from a squad player, and a hit is a certain cost against a
+                  difference it may be imagining. Free moves are unaffected: one
+                  that turns out wrong costs only the move.
+                </div>
+              </div>
+            ) : null}
           </Panel>
         </div>
 

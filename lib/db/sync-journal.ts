@@ -128,6 +128,9 @@ export async function syncJournal(
       currentSquad: context.squad.map((c) => toPlayerCandidate(c, priceOf(c.id))),
       candidates: context.pool.map((c) => toPlayerCandidate(c, priceOf(c.id))),
       freeTransfers: context.freeTransfers,
+      // Before a gameweek is played the model cannot tell a starter from a
+      // squad player, so it must not spend points on the difference.
+      minutesKnown: context.basis !== "prior-season",
       bank: context.bank,
     },
     solver,
@@ -135,6 +138,9 @@ export async function syncJournal(
   );
 
   const move = suggestion.recommended;
+  // Recorded so the journal shows what was declined, not only what was
+  // advised — otherwise a withheld move looks like a move never found.
+  const withheld = suggestion.withheld;
   const alternatives = suggestion.options
     .filter((option) => option !== move)
     .slice(0, 3)
@@ -154,9 +160,13 @@ export async function syncJournal(
       playerOut: null,
       predictedEp: 0,
       alternatives,
-      rationale:
-        "No move cleared the points it would cost. Banking the transfer is " +
-        "worth more than one that only pays for itself.",
+      rationale: withheld
+        ? `Held. ${withheld.transfers} moves scored ${formatEp(withheld.netGain)} ` +
+          `after a ${withheld.hitCost}-point hit, but minutes are not yet known ` +
+          "and a hit is a certain cost against a difference the model may be " +
+          "imagining."
+        : "No move cleared the points it would cost. Banking the transfer is " +
+          "worth more than one that only pays for itself.",
     });
   } else {
     decisions.push({
