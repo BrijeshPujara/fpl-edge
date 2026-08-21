@@ -15,6 +15,7 @@ import { projectPriceChanges } from "@/lib/engine/price-model";
 import { FORM_WINDOW } from "@/lib/engine/constants";
 import { buildCandidatePool, type Candidate } from "@/lib/squad/candidates";
 import { getSeasonContext } from "@/lib/fpl/season";
+import { applyAvailability, getAvailability } from "@/lib/fpl/availability";
 import { mostRecentRates } from "@/lib/engine/prior-season";
 import type { PriorSeasonRates } from "@/lib/engine/expected-points";
 import type { ChipWindow } from "@/lib/fpl/gameweek";
@@ -108,7 +109,7 @@ async function loadDecisionContextUncached(
    * longer forces the wait. Six round trips over a second became one cache
    * read after the first request.
    */
-  const [players, teams, fixtures, stats, historyRows, momentum] =
+  const [storedPlayers, teams, fixtures, stats, historyRows, momentum, availability] =
     await Promise.all([
       cachedPlayers(),
       cachedTeams(),
@@ -118,7 +119,18 @@ async function loadDecisionContextUncached(
       cachedRecentStats(Math.max(1, target.id - FORM_WINDOW)),
       cachedSeasonHistory(),
       cachedPriceMomentum(),
+      getAvailability(),
     ]);
+
+  /*
+   * Fitness flags come from the API, not from our cached rows.
+   *
+   * Everything else here can be a few minutes old without harm. Availability
+   * cannot: it changes through the day and the cached copy can be from the
+   * overnight sync, which is how an injured Pedro Porro stayed projected as a
+   * starter for twenty-one hours. See `getAvailability`.
+   */
+  const players = applyAvailability(storedPlayers, availability);
 
   const priorSeasons = ratesByCode(historyRows);
 

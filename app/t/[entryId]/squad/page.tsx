@@ -1,5 +1,6 @@
 import { getSeasonContext } from "@/lib/fpl/season";
 import { gameweekInPlay } from "@/lib/fpl/gameweek";
+import { applyAvailability, getAvailability } from "@/lib/fpl/availability";
 import { getLiveGameweek } from "@/lib/fpl/live-context";
 import { liveSquad, type LivePlayer } from "@/lib/squad/live";
 import { getDb, isDbConfigured } from "@/lib/db/client";
@@ -78,12 +79,16 @@ export default async function SquadPage({
   }
 
   const playerIds = stored.picks.map((p) => p.player_id);
-  const [players, teams, fixtures, stats] = await Promise.all([
+  const [storedPlayers, teams, fixtures, stats, availability] = await Promise.all([
     getPlayersByIds(db, playerIds),
     getTeams(db),
     getFixturesFrom(db, target.id, target.id + 6),
     getRecentStats(db, playerIds, Math.max(1, target.id - FORM_WINDOW)),
+    getAvailability(),
   ]);
+
+  // Fitness from the API, not from the overnight sync — see getAvailability.
+  const players = applyAvailability(storedPlayers, availability);
 
   const view = buildSquadView({
     gw: target.id,
