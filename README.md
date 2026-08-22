@@ -13,6 +13,9 @@ id is public data, not a credential.
 is the largest figure on the screen, but Enzo sits at 6.0 behind him — so the
 armband is worth +4.5 and ranks third.*
 
+*Captured from the preview harness before the live-points and scorelines panels
+were added; the ranking logic it illustrates is unchanged.*
+
 ---
 
 ## Only two questions
@@ -60,9 +63,12 @@ flowchart TB
         EP["expected-points.ts"]
         DIST["distribution.ts<br/><i>shape, not centre</i>"]
         OPT["optimiser.ts<br/><i>MIP + LP dual</i>"]
+        RAT["team-ratings.ts<br/><i>Poisson attack/defence</i>"]
+        SCORE["scoreline.ts<br/><i>joint goal grid</i>"]
         MIN --> EP
         EP --> DIST
         EP --> OPT
+        RAT --> SCORE
     end
 
     subgraph screens["Screens — Next.js, server-rendered"]
@@ -80,6 +86,8 @@ flowchart TB
     engine -->|"projections"| screens
     J4 -.->|"context"| LLM
     LLM -.->|"prose only"| DB
+
+    FPL ==>|"read-time overlay<br/>flags · live scores · results"| screens
 
     GLPK["glpk.js<br/><i>WASM solver</i>"] -.->|"injected"| OPT
 ```
@@ -107,6 +115,14 @@ facts about FPL — goal points, budget, hit cost — and is never tuned.
 `lib/engine/constants.ts` holds tunables, each with a comment on where the
 number came from, tuned against the backtest rather than intuition.
 
+**Stored rows are history; anything you are looking at now is read live.** The
+sync writes once a day, which is right for building a record and wrong for
+three things that move faster than that: fitness flags, live scores, and
+results. All three are overlaid at read time from `bootstrap-static` — which
+every page already fetches — rather than served a day late from our own tables.
+The stored row stays a record of what the sync saw, so the history built on it
+never rewrites itself. That thick arrow on the diagram is the whole idea.
+
 ---
 
 ## What is built
@@ -116,14 +132,33 @@ number came from, tuned against the backtest rather than intuition.
 | Screen | What it does |
 |---|---|
 | `/` | Landing page — what it does, the data, the calculations, and the limits |
-| `/t/{id}` | This week's actions, ranked by what the decision is worth |
-| `/t/{id}/squad` | Pitch view, per-player EP, five-fixture difficulty strips, flags |
+| `/t/{id}` | This week's actions, live score, and the scoreline board |
+| `/t/{id}/squad` | Pitch view — live points and projected EP side by side, difficulty strips, flags |
 | `/t/{id}/transfers` | Roll / 1 / 2 / 3 moves, each with gain, hit, net, and the budget shadow price |
 | `/t/{id}/captain` | The outcome *distribution* — haul, blank, ceiling, floor |
 | `/t/{id}/chips` | 38-week timeline, and which gameweek to play each chip |
 | `/t/{id}/history` | Decisions recorded before the deadline, scored after |
 | `/t/{id}/leagues` | Mini-leagues, discovered from your entry |
 | `/preview/*` | Dev-only harness — 404s in production |
+
+Two panels on the dashboard are worth calling out because they answer different
+questions from everything else:
+
+**Live points** is the only screen here about the present rather than the next
+decision. It exists because the stored results deliberately lag — `syncResults`
+waits for the API to report both `finished` and `data_checked`, typically the
+Monday after — which is correct for a decision journal and useless while you
+are watching a match. It applies no autosubs and no vice-captain promotion,
+matching what the official site shows live rather than what Monday's table will
+say. Bonus in an unfinished match is provisional, worked out from the BPS
+standings, and marked as such.
+
+**Scorelines** predicts every fixture in the gameweek, but only when you press
+the button. That is deliberate: predictions are *recorded* and scored against
+the results, and a record that writes itself on every page view is not a record
+of anything. Nothing can be predicted after kickoff — the store refuses it — so
+the row that survives a whistle is the last thing the model said while it could
+still be wrong.
 
 ### The engine
 
@@ -143,12 +178,51 @@ number came from, tuned against the backtest rather than intuition.
 | `free-transfers.ts` | Derived, because the API never reports it |
 | `price-model.ts` | Price movement from transfer momentum, halved for the sell-on fee |
 | `frontier.ts` | Isotonic value curve — a diagnostic that must never enter the objective |
+| `scoreline.ts` | Match scorelines as a joint distribution, with proper scoring rules |
+| `team-ratings.ts` | Poisson attack and defence, fitted by MLE, with recency weighting |
+| `../squad/live.ts` | What the squad is scoring right now, provisional bonus included |
 
-402 tests. `npm run check` runs typecheck, lint and the suite.
+556 tests. `npm run check` runs typecheck, lint and the suite.
 
 ---
 
 ## Screens
+
+### Scorelines — a distribution, not a prediction
+
+The obvious shape for a score predictor is a function returning 2-1, and it is
+the wrong shape. Measured over 280 held-out matches, a model that knows
+**nothing** — league-average rate for both sides, every team identical — names
+the exact scoreline 13.2% of the time, because it always says 1-1 and 1-1 is
+the most common Premier League result. Every model that actually knows
+something about the teams scores *worse* on that measure. Ranking by exact-score
+accuracy selects for ignorance.
+
+So the panel shows three probabilities and, under each, the scoreline that
+result averages out at. Three decisions behind that, each measured rather than
+assumed:
+
+**The mean, not the mode.** Goals are right-skewed, so the most likely single
+scoreline sits below the average one. Of real home wins, 49% had the winner
+scoring three or more; the modal scoreline produced a 3+ result in 2% of them,
+and understated the winning margin by a third every time (1.29 against an actual
+1.93). The conditional mean is near-unbiased at 1.85.
+
+**One scoreline per result, not the three likeliest overall.** The three
+likeliest are marginally better as a set — right 30.9% against 27.1% — and
+unusable, because the leading one is 1-1 in 74.6% of fixtures. "1-1" beside
+"61% home win" reads as broken even when both numbers are right.
+
+**A prior fitted on three seasons, and a measured promoted prior.** The
+promoted-side estimate used to be the average of the clubs they replaced, which
+sounds reasonable and is not: each year's guess came from the previous year's
+relegated cohort, so it walked rather than converged, and by 2025/26 it had
+drifted to 0.63 attack against a promoted group averaging 0.81.
+
+Every prediction is stored before kickoff and scored after, by ranked
+probability score and log loss. Both, because they disagree informatively — a
+model improving on RPS while worsening on log loss has become better calibrated
+about who wins and more reckless about how sure it is.
 
 ### Captain — the one that is genuinely different
 
@@ -165,6 +239,15 @@ floor; chasing wants the fattest tail. The shape bar is blank / ordinary / haul.
 
 Every transfer count is its own solve, pinned by a retention floor, compared
 *after* the four-point hit. Rolling needs no solve at all and is always offered.
+
+**It will not spend points on a difference it cannot see.** While projections
+rest on last season, no option that costs a hit is recommended — a hit is a
+certain four points against a gain resting on how someone was used a year ago.
+Free transfers are untouched, because that asymmetry is the argument: a free
+move that turns out wrong costs only the move. The move it declined is still
+computed, still shown, and still says what it was worth; hiding it would be a
+different kind of dishonesty. The guard lifts on its own once real minutes
+arrive.
 
 ### Squad
 
@@ -188,6 +271,24 @@ npm run dev
 ```
 
 `npm run check` runs the typecheck, the linter and the test suite.
+
+### Tools
+
+| Command | What it answers |
+|---|---|
+| `npm run pick` | What fifteen would the optimiser buy from a clean £100m? |
+| `npm run seed-ratings` | Fit team ratings from the last three seasons and store them |
+| `npm run backtest` | Replay 2025/26 through the model against a naive baseline |
+| `npm run brief:check` | Exercise the LLM brief without a squad |
+| `npm run ep:smoke` | Sanity-check expected points end to end |
+
+`scripts/rate-squad.ts` and `scripts/predict-gw.ts` take arguments rather than
+having aliases — the first scores a squad someone actually picked against what
+the optimiser would have bought, the second prints the gameweek's scoreline
+board to a terminal.
+
+The two that read `.backtest-cache/` need `npm run backtest` to have run once;
+the directory is gitignored, so on a fresh clone they fail until it has.
 
 ### Seeing the screens before a gameweek exists
 
@@ -280,7 +381,7 @@ run after it is a handful.
 
 ## Database
 
-Supabase project `ehfuwpslwzxsjjaatgng`. All nine migrations in
+Supabase project `ehfuwpslwzxsjjaatgng`. All thirteen migrations in
 `supabase/migrations/` are applied.
 
 **Access is server-side only, and the schema enforces it.** Every table has RLS
@@ -297,6 +398,20 @@ does so *silently* — no error, no flag. `fetchAll` in `lib/db/queries.ts` exis
 for that, and season history, recent stats, transfer snapshots, gameweek points
 and price history all use it. A new query that can exceed a thousand rows and
 does not page will not fail; it will quietly make the model worse.
+
+**Two tables store a claim rather than only a number.** `predictions` carries
+`score_method` and `team_ratings` carries `prior_seasons`, so a row written
+under one version of the model still describes itself correctly after the model
+changes. That exists because the scorelines panel stated something false three
+times in one day — a caption that assumed a fact instead of reading one, with
+nothing able to notice when the fact changed. Captions are now derived from
+stored values, and adding a new summary without writing its caption does not
+compile.
+
+`team_ratings` also keeps `prior_attack` / `prior_defence` untouched by any
+refit. Each refit blends against **last season**, never against what the
+previous refit wrote — feeding the output back in compounds, walking the
+ratings away from both seasons with nothing able to detect it.
 
 After changing a migration, regenerate the types with `npm run db:types`.
 
@@ -337,13 +452,32 @@ Two endpoint choices worth knowing:
 The model **beats a naive baseline by 2.6%** over the 2025/26 season and
 **loses to it on forwards** by 3.9%. That is a real edge and a thin one.
 
-It has never run against a live gameweek.
+It has now run against a live gameweek. The first scored prediction — Arsenal
+3-0 Coventry, called 3-0 — was right, which means nothing yet. The decision
+journal is the only thing that will eventually answer whether any of this beats
+a manager's own judgement, and it accumulates one gameweek a week regardless of
+how much else gets built.
 
-Both decision screens gate on whether the model can separate players at all.
-Before any gameweek is played that rests on last season, so attacking rates are
-real but **minutes are not** — every player carries the same flat starting
-probability, and the screens say so rather than presenting a nailed starter and
-a rotation risk as though the model could tell them apart.
+**Everything improves on a schedule, and the schedule is in the code:**
+
+| Gameweek | What changes |
+|---|---|
+| any stats land | `basis` flips to `this-season`; the transfer hit guard lifts |
+| ~4 | price momentum starts fitting; before then it reports `confidence: "none"` |
+| 5 | a player's own DefCon rate replaces the positional average |
+| **6** | **last season stops counting** — shrinkage runs 0.7 to 0 linearly |
+| 7 | the form window is fully populated — it needs six gameweeks |
+| ~15 | team ratings are fully on this season; promoted sides stop using a prior |
+
+The slowest is deliberate. Team ratings take fifteen matches a club rather than
+six, because twenty clubs share 380 matches and that is far less evidence per
+parameter than a single player's own minutes. Measured, not assumed.
+
+**Where it is weakest until then.** Promoted sides have no rating at all and
+carry the measured average of what promoted sides do — every scoreline
+involving one is marked `?`. Anyone who moved clubs this summer has no Premier
+League history, gets the flat starting prior, and will essentially never be
+recommended. Both resolve by playing.
 
 ---
 
