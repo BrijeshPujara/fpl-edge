@@ -483,7 +483,20 @@ export const leagueStandingsSchema = z.object({
     page: z.number().int(),
     results: z.array(
       z.object({
-        id: z.number().int(),
+        /*
+         * FPL stopped sending this, and it took the leagues screen down.
+         *
+         * Every standings row lost `id` at some point during the 2026/27
+         * season. The schema required it, so the parse threw for every league,
+         * the page caught the throw, and it rendered the same "standings
+         * unavailable" state it shows for a genuine outage — a shape change
+         * wearing the costume of a network problem.
+         *
+         * Optional rather than removed, because it costs nothing to accept it
+         * if it returns. Nothing reads it: `entry` is the manager's team id
+         * and is the only key this app has ever needed.
+         */
+        id: z.number().int().optional(),
         entry: z.number().int(),
         entry_name: z.string(),
         player_name: z.string(),

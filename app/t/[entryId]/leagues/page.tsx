@@ -145,16 +145,45 @@ async function LeagueTable({
     );
   }
 
-  const standings = await getLeagueStandings(league.id).catch(() => null);
+  /*
+   * A shape change and an outage are different failures, and this used to
+   * report them identically.
+   *
+   * FPL dropped `id` from every standings row mid-season. The schema rejected
+   * the response, the catch swallowed it, and the screen showed "could not be
+   * fetched" — indistinguishable from the API being down, and quietly wrong
+   * for as long as nobody looked at the code. A validation failure means we
+   * are reading the API incorrectly, which is our bug, and it should say so
+   * rather than blaming the network.
+   */
+  const standings = await getLeagueStandings(league.id).catch(
+    (error: unknown) => (error instanceof Error ? error : new Error("unknown")),
+  );
 
-  if (standings === null) {
+  if (standings instanceof Error) {
+    const isShapeChange = standings.message.includes("Invalid input");
     return (
       <div>
-        <SectionLabel>{league.name}</SectionLabel>
+        <SectionLabel meta={isShapeChange ? "SHAPE CHANGED" : "UNREACHABLE"}>
+          {league.name}
+        </SectionLabel>
         <Panel padded>
           <div className="text-small leading-relaxed text-muted text-pretty">
-            Standings for this league could not be fetched. The league is still
-            recorded; only the table is missing.
+            {isShapeChange ? (
+              <>
+                The standings arrived but did not match what this app expects,
+                so they were rejected rather than displayed half-read. That is
+                a bug here, not an outage &mdash; the API has changed shape and
+                the schema in{" "}
+                <code className="font-mono text-tertiary">lib/fpl/schemas.ts</code>{" "}
+                needs updating.
+              </>
+            ) : (
+              <>
+                Standings for this league could not be fetched. The league is
+                still recorded; only the table is missing.
+              </>
+            )}
           </div>
         </Panel>
       </div>

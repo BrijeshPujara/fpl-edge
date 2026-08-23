@@ -88,18 +88,34 @@ function Tile({
               : `${player.club} · ${money(player.price)}`}
           </span>
           {live && live.started ? (
+            /*
+              What the player SCORED, not what it counts for.
+              `counted` is points times multiplier, and a bench multiplier is
+              zero — so every substitute read "0 pt" however well he played,
+              which looks like a broken feed rather than a bench. The captain's
+              doubling is worth showing, so it stays where it applies; the
+              bench shows the real number and the tile is already dimmed to say
+              it does not count.
+            */
             <span
               className={cn(
                 "shrink-0 font-medium",
-                live.counted > 0 ? "text-accent" : "text-quaternary",
+                live.points > 0 ? "text-accent" : "text-quaternary",
               )}
               title={
-                live.provisionalBonus > 0
-                  ? `${live.counted} points so far, including ${live.provisionalBonus} provisional bonus`
-                  : `${live.counted} points so far`
+                [
+                  `${live.points} points so far`,
+                  live.multiplier > 1 ? `doubled to ${live.counted}` : null,
+                  live.multiplier === 0 ? "on the bench, so not counting" : null,
+                  live.provisionalBonus > 0
+                    ? `includes ${live.provisionalBonus} provisional bonus`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
               }
             >
-              {live.counted}
+              {live.multiplier > 1 ? live.counted : live.points}
               {live.provisionalBonus > 0 ? "?" : ""}
               pt
             </span>

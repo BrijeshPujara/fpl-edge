@@ -249,3 +249,49 @@ describe("a double gameweek", () => {
     expect(live.players[0].provisionalBonus).toBe(6);
   });
 });
+
+describe("what a tile should print", () => {
+  /*
+   * `counted` is points times multiplier, so it is zero for every bench
+   * player however well he played — which on screen looked like a broken feed
+   * rather than a bench. Both numbers are on `LivePlayer` for that reason: the
+   * squad total needs `counted`, a tile needs `points`.
+   */
+  it("keeps the raw score separate from what it counts for", () => {
+    const picks = [
+      pick(1, 1, { isCaptain: true }),
+      pick(2, 2),
+      pick(3, 12), // bench
+    ];
+    const elements = [
+      element(1, { points: 9 }),
+      element(2, { points: 5 }),
+      element(3, { points: 7 }),
+    ];
+    const live = liveSquad({ picks, elements, startedFixtures: new Set([1]) });
+    const [captain, starter, benched] = live.players;
+
+    expect(captain.points).toBe(9);
+    expect(captain.counted).toBe(18);
+
+    expect(starter.points).toBe(5);
+    expect(starter.counted).toBe(5);
+
+    // The bench player scored seven and it counts for nothing. Both true.
+    expect(benched.points).toBe(7);
+    expect(benched.counted).toBe(0);
+    expect(benched.multiplier).toBe(0);
+  });
+
+  it("counts the bench toward the total only under a bench boost", () => {
+    const picks = [pick(1, 1), pick(2, 12)];
+    const elements = [element(1, { points: 4 }), element(2, { points: 7 })];
+    const started = new Set([1]);
+
+    expect(liveSquad({ picks, elements, startedFixtures: started }).total).toBe(4);
+    expect(
+      liveSquad({ picks, elements, startedFixtures: started, chip: "bboost" })
+        .total,
+    ).toBe(11);
+  });
+});
