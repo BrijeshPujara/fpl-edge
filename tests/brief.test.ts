@@ -67,7 +67,20 @@ describe("buildPrompt", () => {
 
   it("warns loudly when projections rest on last season", () => {
     const prompt = buildPrompt(context({ priorSeasonOnly: true }));
-    expect(prompt).toContain("minutes are not");
+    expect(prompt).toContain("rests entirely on last season");
+    // Names what last season cannot know, rather than overstating it as
+    // knowing nothing. Minutes DO come from last season's workload.
+    expect(prompt).toContain("summer transfer");
+  });
+
+  it("no longer tells the model that minutes are unknown", () => {
+    // 996fa39 gave the minutes model last season's workload. The prompt went
+    // on instructing the brief to say every player carried the same flat
+    // starting probability for two days afterwards — an instruction to assert
+    // something false, which is the one thing rule 1 exists to prevent.
+    const prompt = buildPrompt(context({ priorSeasonOnly: true }));
+    expect(prompt).not.toContain("flat starting probability");
+    expect(prompt).not.toContain("minutes are not");
   });
 
   it("states a hit twice, because once was measurably not enough", () => {

@@ -282,10 +282,12 @@ export function buildPrompt(context: BriefContext): string {
   if (context.priorSeasonOnly) {
     lines.push(
       "",
-      "IMPORTANT: no gameweek has been played yet. Attacking projections come " +
-        "from last season and are real, but minutes are not — every player " +
-        "carries the same flat starting probability, so this ranks quality " +
-        "rather than who will actually start. Say so.",
+      "IMPORTANT: no gameweek has been played yet. Every projection above " +
+        "rests entirely on last season — scoring rates, how often each player " +
+        "started, and how strong each club was. All of it is real, and none " +
+        "of it knows about a summer transfer, a new manager or a lost place: " +
+        "a player who was nailed last season is projected as nailed whether " +
+        "or not he still is. Say so.",
     );
   }
 

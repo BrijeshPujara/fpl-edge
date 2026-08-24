@@ -351,12 +351,19 @@ export function formRules(text: string): Finding[] {
 
 // --- Coverage ------------------------------------------------------------
 
+/*
+ * Ways of saying "this rests on last season".
+ *
+ * The phrasings that assert FLAT minutes were removed when the prompt stopped
+ * claiming it. Leaving them here would have gone on rewarding a brief for
+ * repeating something the model no longer does — an eval quietly enforcing a
+ * claim that had become false, which is a worse failure than not checking.
+ */
 const HEDGES = [
   "last season", "no gameweek", "not yet been played", "hasn't been played",
-  "has not been played", "before a ball", "quality rather than",
-  "rather than who", "who will actually start", "who will start",
-  "minutes are not", "minutes aren't", "first gameweek", "opening gameweek",
-  "no minutes", "untested", "unplayed",
+  "has not been played", "before a ball", "first gameweek", "opening gameweek",
+  "summer transfer", "new manager", "lost place", "still is", "untested",
+  "unplayed", "last year",
 ];
 
 const HOLD_WORDS = [

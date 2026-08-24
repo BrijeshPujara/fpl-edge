@@ -57,9 +57,16 @@ export function NoEntry() {
  * A caveat, not a refusal.
  *
  * Shown above a screen that IS ranking things, when the ranking rests on last
- * season alone. The numbers are real; what is missing is any idea of who will
- * actually start, and a ranking that quietly hides that would be worse than
- * one that says it.
+ * season alone. The numbers are real; what is missing is any knowledge of what
+ * changed over the summer, and a ranking that quietly hid that would be worse
+ * than one that says it.
+ *
+ * This text used to claim every player carried the same flat starting
+ * probability. That was true when it was written and stopped being true in
+ * 996fa39, which gave the minutes model last season's workload — so for two
+ * days the screen told people their nailed starter and their fourth-choice
+ * striker were indistinguishable when the model had in fact told them apart.
+ * A caveat that overstates the uncertainty is as wrong as one that hides it.
  */
 export function PriorSeasonBasis() {
   return (
@@ -68,11 +75,12 @@ export function PriorSeasonBasis() {
         RANKED ON LAST SEASON
       </div>
       <div className="mt-1.5 max-w-prose text-small leading-relaxed text-muted text-pretty">
-        No gameweek has been played, so attacking rates come from last season
-        and are real — but <span className="text-tertiary">minutes are not</span>.
-        Every player carries the same flat starting probability, so this ranks
-        quality rather than who is in the eleven. Treat a nailed starter and a
-        rotation risk as indistinguishable here until results land.
+        No gameweek has been played, so every number here comes from{" "}
+        <span className="text-tertiary">last season</span> — scoring rates, how
+        often each player started, and how strong each club was. All of it is
+        real. None of it knows about a summer transfer, a new manager or a lost
+        place, so a player who was nailed last season is ranked as nailed
+        whether or not he still is.
       </div>
     </div>
   );

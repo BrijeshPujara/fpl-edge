@@ -19,7 +19,12 @@ import {
 } from "@/lib/db/queries";
 import { getSeasonContext } from "@/lib/fpl/season";
 import { buildCandidatePool, type Candidate } from "@/lib/squad/candidates";
-import { mostRecentRates, ratesFromSeason } from "@/lib/engine/prior-season";
+import {
+  mostRecentRates,
+  mostRecentWorkload,
+  ratesFromSeason,
+  type PriorSeasonWorkload,
+} from "@/lib/engine/prior-season";
 import type { PriorSeasonRates } from "@/lib/engine/expected-points";
 import { FORM_WINDOW } from "@/lib/engine/constants";
 
@@ -88,6 +93,21 @@ export async function loadPool(options: LoadPoolOptions): Promise<LoadedPool> {
   }
 
   const priorSeasons = new Map<number, PriorSeasonRates>();
+  /*
+   * Workloads, and the reason they are separate from rates.
+   *
+   * `mostRecentRates` is gated on a minutes threshold, because a scoring rate
+   * from ninety minutes of football is noise. A START RATE from those same
+   * ninety minutes is not noise, it is the answer — so the workload survives a
+   * looser gate and has to be collected separately.
+   *
+   * Omitting this is what made the scripts disagree with the app. Without a
+   * workload every player fell back to the flat no-history prior of roughly 41
+   * expected minutes, which is the bug 996fa39 fixed for `decision-context.ts`
+   * and left here: the app projected B.Fernandes at 5.7 for GW2 while this
+   * file projected 3.8, on the same data, for the same gameweek.
+   */
+  const priorWorkloads = new Map<number, PriorSeasonWorkload>();
   const evidence = new Map<number, Evidence>();
 
   for (const [code, seasons] of byCode) {
@@ -101,6 +121,9 @@ export async function loadPool(options: LoadPoolOptions): Promise<LoadedPool> {
     }));
     const rates = mostRecentRates(totals);
     if (rates !== null) priorSeasons.set(code, rates);
+
+    const workload = mostRecentWorkload(totals);
+    if (workload !== null) priorWorkloads.set(code, workload);
 
     // The season the rates came from is the most recent one `ratesFromSeason`
     // accepts — recomputed here rather than returned, so the engine keeps its
@@ -137,6 +160,7 @@ export async function loadPool(options: LoadPoolOptions): Promise<LoadedPool> {
     fixtures,
     stats,
     priorSeasons,
+    priorWorkloads,
   });
 
   const codeOf = new Map(players.map((p) => [p.id, p.code]));
