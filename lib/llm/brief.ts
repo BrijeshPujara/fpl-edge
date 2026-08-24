@@ -94,6 +94,13 @@ Rules, in order of importance:
 
 2. Never contradict the model's recommendation. You may say why it is close, or
    what would change it, but the model decided and you are explaining.
+
+2a. NEVER OMIT A COST. If a points hit is being taken, say so, say how many
+   points, and do it in the same breath as the gain — not in a later paragraph
+   and not by implication. A reader who is told a move "nets 5.1" and not that
+   it cost 4 to get there has been told something true and been misled by it.
+   The same applies to a free transfer: if there are none, do not write as
+   though there is one.
 3. Say when something is uncertain. If the input says projections rest on last
    season, the ranking reflects player quality rather than who will start, and
    the reader needs to know that.
@@ -234,7 +241,13 @@ export function buildPrompt(context: BriefContext): string {
         ? "Transfer: hold. No move cleared the points it would cost."
         : `Transfer: ${t.out} out, ${t.in} in. ` +
           `${t.epGain.toFixed(1)} gained over the horizon, ` +
-          `${t.hitCost} points of hits, net ${t.netGain.toFixed(1)}.`,
+          `${t.hitCost} points of hits, net ${t.netGain.toFixed(1)}.` +
+          // Restated on its own line because it was measurably being dropped:
+          // two of three samples described this move by its net gain alone,
+          // through a prompt rewrite that fixed everything else.
+          (t.hitCost > 0
+            ? `\nTHIS MOVE COSTS A ${t.hitCost}-POINT HIT. The brief must say so.`
+            : ""),
     );
   }
 

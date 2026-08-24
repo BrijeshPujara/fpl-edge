@@ -70,6 +70,24 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("minutes are not");
   });
 
+  it("states a hit twice, because once was measurably not enough", () => {
+    // Two of three samples described a 4-point hit by its net gain alone.
+    const prompt = buildPrompt(
+      context({
+        transfer: {
+          kind: "transfer", out: "Wood", in: "Watkins",
+          epGain: 9.1, hitCost: 4, netGain: 5.1,
+        },
+      }),
+    );
+    expect(prompt).toContain("4 points of hits");
+    expect(prompt).toContain("THIS MOVE COSTS A 4-POINT HIT");
+  });
+
+  it("does not shout about a hit that is not being taken", () => {
+    expect(buildPrompt(context())).not.toContain("POINT HIT");
+  });
+
   it("says nothing about a chip when none is due", () => {
     expect(buildPrompt(context())).not.toContain("Chip:");
   });

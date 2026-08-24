@@ -137,7 +137,7 @@ function report(reports: CaseReport[], judged: boolean, model: string): number {
     }
     if (item.status === "stale") {
       console.log(
-        `${red("✗")} ${item.id} ${red("— recording is stale")} ${dim("(fixture changed; re-run with --live)")}`,
+        `${red("✗")} ${item.id} ${red("— recording is stale")} ${dim("(fixture or prompt changed; re-run with --live)")}`,
       );
       continue;
     }
