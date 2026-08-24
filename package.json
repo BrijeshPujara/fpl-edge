@@ -19,7 +19,8 @@
     "seed-ratings": "tsx --tsconfig tsconfig.scripts.json scripts/seed-ratings.ts",
     "pick": "tsx --tsconfig tsconfig.scripts.json scripts/pick-squad.ts",
     "ep:smoke": "tsx --tsconfig tsconfig.scripts.json scripts/ep-smoke.ts",
-    "brief:check": "tsx --tsconfig tsconfig.scripts.json scripts/brief-check.ts"
+    "brief:check": "tsx --tsconfig tsconfig.scripts.json scripts/brief-check.ts",
+    "eval:brief": "tsx --tsconfig tsconfig.scripts.json evals/brief/run.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

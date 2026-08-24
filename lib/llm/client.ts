@@ -25,6 +25,9 @@ export const DELIBERATION_MODEL = "claude-sonnet-5";
 /** Enough for a brief, short enough that a runaway response cannot cost much. */
 export const MAX_BRIEF_TOKENS = 1500;
 
+/** Distinguishes "no key" from "the call failed", which `complete` cannot. */
+export const NO_KEY = "ANTHROPIC_API_KEY is not set";
+
 export function isLlmConfigured(): boolean {
   return (process.env.ANTHROPIC_API_KEY ?? "").trim().length > 0;
 }
@@ -47,12 +50,20 @@ export interface LlmResult {
  * Returns null with no key, and null on any failure. A brief that fails to
  * generate must never take down a screen whose numbers are all present — the
  * commentary is the optional half.
+ *
+ * `onError` exists for the eval harness and changes none of that. Production
+ * omits it and still never sees a throw. Without it, a missing key, a rate
+ * limit, an exhausted credit balance and a malformed request are one
+ * indistinguishable `null` — fine on a dashboard, useless in a harness, where
+ * it cost three silent retries and a throwaway script to learn that the
+ * account had simply run out of credit.
  */
 export async function complete(options: {
   system: string;
   prompt: string;
   model?: string;
   maxTokens?: number;
+  onError?: (reason: string) => void;
 }): Promise<LlmResult | null> {
   if (!isLlmConfigured()) return null;
 
@@ -90,7 +101,13 @@ export async function complete(options: {
         (response.usage.cache_read_input_tokens ?? 0) +
         (response.usage.cache_creation_input_tokens ?? 0),
     };
-  } catch {
+  } catch (error) {
+    const status = (error as { status?: number }).status;
+    options.onError?.(
+      `${status ? `HTTP ${status}: ` : ""}${
+        error instanceof Error ? error.message : String(error)
+      }`.slice(0, 200),
+    );
     return null;
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPrompt, type BriefContext } from "@/lib/llm/brief";
+import { buildPrompt, derivedFacts, type BriefContext } from "@/lib/llm/brief";
 
 function context(over: Partial<BriefContext> = {}): BriefContext {
   return {
@@ -102,5 +102,110 @@ describe("buildPrompt", () => {
     );
     expect(prompt).not.toContain("undefined");
     expect(prompt).not.toContain("NaN");
+  });
+});
+
+describe("derivedFacts", () => {
+  /**
+   * Every field here exists because a live brief invented it. These are
+   * regressions against measured failures, not hypotheses about what a model
+   * might do.
+   */
+  it("totals the eleven, so the prose does not have to", () => {
+    // Two models between them stated 57.3 and 60.1 for elevens summing to
+    // 60.1 and 60.8. Adding up is not the writer's job.
+    expect(derivedFacts(context()).xiTotal).toBe(14.3);
+  });
+
+  it("applies the armband to the total the week actually scores", () => {
+    expect(derivedFacts(context()).xiTotalWithArmband).toBe(22.5);
+  });
+
+  it("has no armband total when there is no captain", () => {
+    expect(derivedFacts(context({ captain: null })).xiTotalWithArmband).toBeNull();
+  });
+
+  it("names the best of the bench", () => {
+    // "the only one above 2.5", written of a bench containing a 3.1.
+    const facts = derivedFacts(
+      context({
+        bench: [
+          { name: "Pope", position: "GKP", club: "NEW", ep: 2.3 },
+          { name: "Mykolenko", position: "DEF", club: "EVE", ep: 3.1 },
+        ],
+      }),
+    );
+    expect(facts.benchBest).toEqual({ name: "Mykolenko", ep: 3.1 });
+    expect(facts.benchTotal).toBe(5.4);
+  });
+
+  it("survives an empty bench", () => {
+    const facts = derivedFacts(context({ bench: [] }));
+    expect(facts.benchBest).toBeNull();
+    expect(facts.benchTotal).toBe(0);
+  });
+
+  it("states the shape, so nobody refers to five defenders of a back three", () => {
+    const facts = derivedFacts(
+      context({
+        starting: [
+          { name: "Gabriel", position: "DEF", club: "ARS", ep: 5.0 },
+          { name: "Timber", position: "DEF", club: "ARS", ep: 4.7 },
+          { name: "Salah", position: "MID", club: "LIV", ep: 7.9 },
+          { name: "Haaland", position: "FWD", club: "MCI", ep: 8.2 },
+        ],
+      }),
+    );
+    expect(facts.formation).toBe("2-1-1");
+  });
+
+  it("counts only the clubs with more than one player, most first", () => {
+    const facts = derivedFacts(
+      context({
+        starting: [
+          { name: "Gabriel", position: "DEF", club: "ARS", ep: 5.0 },
+          { name: "Timber", position: "DEF", club: "ARS", ep: 4.7 },
+          { name: "Saka", position: "MID", club: "ARS", ep: 6.1 },
+          { name: "Salah", position: "MID", club: "LIV", ep: 7.9 },
+          { name: "Van Dijk", position: "DEF", club: "LIV", ep: 4.6 },
+          { name: "Haaland", position: "FWD", club: "MCI", ep: 8.2 },
+        ],
+      }),
+    );
+    expect(facts.clubCounts).toEqual([
+      { club: "ARS", count: 3 },
+      { club: "LIV", count: 2 },
+    ]);
+  });
+
+  it("measures the captain's lead over the runner-up", () => {
+    expect(derivedFacts(context()).captainGap).toBeCloseTo(2.1, 5);
+  });
+
+  it("has no gap when there is no runner-up", () => {
+    const facts = derivedFacts(
+      context({
+        captain: {
+          name: "Haaland", ep: 8.2, pHaul: 0.25, pBlank: 0.08,
+          runnerUp: null, runnerUpEp: null,
+        },
+      }),
+    );
+    expect(facts.captainGap).toBeNull();
+  });
+
+  it("puts every derived number into the prompt", () => {
+    // The point of deriving them is that the model reads them. A fact computed
+    // and not rendered is worse than none: the grader would allow a number the
+    // model was never given.
+    const prompt = buildPrompt(context());
+    expect(prompt).toContain("14.3");
+    expect(prompt).toContain("22.5");
+    expect(prompt).toContain("2.1 clear of the runner-up");
+    expect(prompt).toContain("0-1-1 outfield");
+  });
+
+  it("forbids the model from working anything out", () => {
+    expect(buildPrompt(context())).toContain("quote these rather than");
   });
 });

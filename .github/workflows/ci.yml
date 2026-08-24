@@ -28,3 +28,26 @@ jobs:
           # The build prerenders pages that call the FPL API. No secrets needed;
           # the app degrades to its "upstream unavailable" state without them.
           NEXT_PUBLIC_SUPABASE_URL: ""
+
+  # The brief eval, deterministic half.
+  #
+  # Separate from `check` because it answers a different question. `check` asks
+  # whether the code works; this asks whether the model's writing stayed inside
+  # the facts it was handed, which is not something a type or a unit test can
+  # see. Keeping them apart means a red eval is legible as "the prose drifted"
+  # rather than "the build broke".
+  #
+  # Costs nothing and needs no key: it grades the briefs recorded under
+  # evals/brief/recorded/, which is the whole reason those are committed. The
+  # judged half needs a model and runs nightly — see eval-brief-nightly.
+  eval-brief:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run eval:brief

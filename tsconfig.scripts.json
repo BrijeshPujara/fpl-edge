@@ -17,5 +17,5 @@
       "server-only": ["./tests/stubs/server-only.ts"]
     }
   },
-  "include": ["scripts/**/*.ts", "lib/**/*.ts"]
+  "include": ["scripts/**/*.ts", "evals/**/*.ts", "lib/**/*.ts"]
 }

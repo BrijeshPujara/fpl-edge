@@ -1,0 +1,66 @@
+name: Brief eval (judged)
+
+# The paid half of the brief eval.
+#
+# The CI job grades briefs that were recorded earlier, which makes it free and
+# fast but also blind in one specific way: a recording cannot drift. It says
+# nothing about what the model would write TODAY, and a provider's silent point
+# release is exactly the kind of change that shows up as prose quality long
+# before it shows up anywhere else.
+#
+# So this regenerates the whole corpus against the live API and judges it. It
+# runs nightly rather than per-push because it costs money, and money is what
+# turns a gate into something people switch off.
+#
+# It commits the fresh recordings back, which is what lets the free CI job stay
+# meaningful: tomorrow's push is graded against yesterday's real output.
+
+on:
+  schedule:
+    # 03:00 UTC. Off the hour of every FPL sync, so a slow eval cannot delay
+    # the data collection that actually cannot be backfilled.
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: eval-brief
+  cancel-in-progress: false
+
+jobs:
+  judged:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # The `secrets` context is not available in a job-level `if`, so the
+      # guard has to live in the shell. Skipping is the right answer: a job
+      # that fails for want of configuration teaches people to ignore red.
+      - name: Generate, record and judge
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::notice::ANTHROPIC_API_KEY is not configured; skipping."
+            exit 0
+          fi
+          npm run eval:brief -- --live --judge
+
+      # Recordings are committed even when the eval fails, and deliberately so.
+      # A failing run is the one whose output someone needs to read.
+      - name: Commit refreshed recordings
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add evals/brief/recorded
+          git diff --staged --quiet || git commit -m "chore: refresh brief eval recordings"
+          git push

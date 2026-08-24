@@ -42,3 +42,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .backtest-cache/
+
+# Candidate-model eval runs. The committed baseline lives in evals/brief/recorded.
+evals/brief/compare/

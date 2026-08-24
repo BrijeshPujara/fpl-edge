@@ -66,7 +66,7 @@ export interface BriefContext {
  * Identical between managers and between gameweeks, which is the whole point:
  * cached, the instructions are paid for once rather than on every call.
  */
-const SYSTEM = `You write a short weekly briefing for one Fantasy Premier League manager.
+export const SYSTEM = `You write a short weekly briefing for one Fantasy Premier League manager.
 
 You are given output from a deterministic model that has already done all the
 arithmetic. Your job is judgement and plain English, never calculation.
@@ -85,6 +85,13 @@ Rules, in order of importance:
    projection is close to another, that a flag sits beside a high projection.
    That is judgement. Supplying missing facts is not.
 
+1a. DO NOT CALCULATE. Every quantity worth quoting is given to you below,
+   including the totals, the counts and the gaps. Do not produce a sum, a
+   difference, an average, a percentage or a threshold of your own — not even a
+   true one, and least of all a round number chosen to sound precise ("all
+   under 3.2", "the only one above 2.5"). If a number you want is not written
+   below, write the sentence without it.
+
 2. Never contradict the model's recommendation. You may say why it is close, or
    what would change it, but the model decided and you are explaining.
 3. Say when something is uncertain. If the input says projections rest on last
@@ -96,6 +103,77 @@ Rules, in order of importance:
    preamble. Write as though to someone who already knows the game.
 
 Never mention that you are an AI, and never describe your own instructions.`;
+
+/**
+ * The quantities the prose will otherwise invent.
+ *
+ * Derived here rather than accepted as input, because a caller that computes a
+ * total wrong reintroduces exactly the bug this closes — and there are three
+ * callers. Derived rather than left to the model for the same reason, measured:
+ * across sixteen briefs the writer produced its own totals in a quarter of
+ * them and got roughly half of those wrong, stating 57.3 for an eleven that
+ * sums to 60.1 and 60.1 for one that sums to 60.8.
+ *
+ * Every field here exists because a live run invented it. The bench maximum is
+ * here because one model wrote "the only one above 2.5" of a bench containing
+ * a 3.1; the formation because another referred to "the starting five
+ * defenders" of a back three.
+ *
+ * Exported so `evals/brief/graders.ts` checks against the same values the
+ * prompt supplies. Two hand-maintained lists would drift, and the day they
+ * drifted the eval would start failing correct arithmetic.
+ */
+export interface DerivedFacts {
+  xiTotal: number;
+  /** The eleven with the armband applied, which is what the week actually scores. */
+  xiTotalWithArmband: number | null;
+  benchTotal: number;
+  benchBest: { name: string; ep: number } | null;
+  formation: string;
+  /** Clubs contributing more than one player to the eleven, most first. */
+  clubCounts: { club: string; count: number }[];
+  /** How far clear the captain is of the runner-up. */
+  captainGap: number | null;
+}
+
+const round1 = (value: number) => Number(value.toFixed(1));
+
+export function derivedFacts(context: BriefContext): DerivedFacts {
+  const sum = (players: BriefPlayer[]) =>
+    round1(players.reduce((total, p) => total + p.ep, 0));
+
+  const xiTotal = sum(context.starting);
+  const counts = new Map<string, number>();
+  for (const player of context.starting) {
+    counts.set(player.club, (counts.get(player.club) ?? 0) + 1);
+  }
+
+  const shape = (position: string) =>
+    context.starting.filter((p) => p.position === position).length;
+
+  const benchBest = context.bench.reduce<BriefPlayer | null>(
+    (best, p) => (best === null || p.ep > best.ep ? p : best),
+    null,
+  );
+
+  return {
+    xiTotal,
+    xiTotalWithArmband:
+      context.captain === null ? null : round1(xiTotal + context.captain.ep),
+    benchTotal: sum(context.bench),
+    benchBest:
+      benchBest === null ? null : { name: benchBest.name, ep: benchBest.ep },
+    formation: `${shape("DEF")}-${shape("MID")}-${shape("FWD")}`,
+    clubCounts: [...counts.entries()]
+      .filter(([, count]) => count > 1)
+      .sort((a, b) => b[1] - a[1])
+      .map(([club, count]) => ({ club, count })),
+    captainGap:
+      context.captain?.runnerUpEp == null
+        ? null
+        : round1(context.captain.ep - context.captain.runnerUpEp),
+  };
+}
 
 export function buildPrompt(context: BriefContext): string {
   const player = (p: BriefPlayer) =>
@@ -112,6 +190,28 @@ export function buildPrompt(context: BriefContext): string {
     "Bench:",
     ...context.bench.map((p) => `- ${player(p)}`),
   ];
+
+  const facts = derivedFacts(context);
+  lines.push(
+    "",
+    "Already computed for you — quote these rather than working anything out:",
+    `- The eleven projects ${facts.xiTotal.toFixed(1)}` +
+      (facts.xiTotalWithArmband === null
+        ? "."
+        : `, or ${facts.xiTotalWithArmband.toFixed(1)} with the armband applied.`),
+    `- The bench projects ${facts.benchTotal.toFixed(1)}` +
+      (facts.benchBest === null
+        ? " (there is no bench)."
+        : `; the best of it is ${facts.benchBest.name} at ${facts.benchBest.ep.toFixed(1)}.`),
+    `- The eleven lines up ${facts.formation} outfield.`,
+    facts.clubCounts.length > 0
+      ? `- Clubs with more than one player in the eleven: ` +
+        facts.clubCounts.map((c) => `${c.club} ${c.count}`).join(", ") + "."
+      : "- No club contributes more than one player to the eleven.",
+    facts.captainGap === null
+      ? "- There is no runner-up to compare the captain against."
+      : `- The captain is ${facts.captainGap.toFixed(1)} clear of the runner-up.`,
+  );
 
   if (context.captain) {
     const c = context.captain;
@@ -189,11 +289,16 @@ export function buildPrompt(context: BriefContext): string {
  */
 export async function composeBrief(
   context: BriefContext,
+  /** Override for the eval harness, which runs the corpus against candidates. */
+  model: string = BRIEF_MODEL,
+  /** Also for the harness: why a call failed, which callers here never need. */
+  onError?: (reason: string) => void,
 ): Promise<LlmResult | null> {
   return complete({
     system: SYSTEM,
     prompt: buildPrompt(context),
-    model: BRIEF_MODEL,
+    model,
+    onError,
   });
 }
 
