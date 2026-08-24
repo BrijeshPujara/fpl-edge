@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { getDb, isDbConfigured } from "@/lib/db/client";
 import { getEntryLeagues, type LeagueMembership } from "@/lib/db/leagues";
 import { getLeagueStandings } from "@/lib/fpl/client";
+import { standingsRevalidate, STANDINGS_REVALIDATE_SETTLED } from "@/lib/fpl/gameweek";
+import { getSeasonContext } from "@/lib/fpl/season";
 import { parseEntryId } from "@/lib/fpl/entry";
 import { rank as formatRank } from "@/lib/format";
 import { rankMovement, visibleStandings } from "@/lib/leagues/table";
@@ -16,10 +18,13 @@ import { Pending } from "@/components/ui/pending";
  * belongs to and the app already fetches it to register them, so joining a
  * league on the FPL site is the entire setup.
  *
- * Standings are fetched live rather than stored. They are read-only display
- * data that arrives in one cached request; a table and a sync job would buy
- * nothing until the question becomes "how has my rank moved", which needs
- * history rather than a snapshot.
+ * Standings are fetched from the API rather than stored. They are read-only
+ * display data; a table and a sync job would buy nothing until the question
+ * becomes "how has my rank moved", which needs history rather than a snapshot.
+ *
+ * How long they are cached for depends on whether football is being played —
+ * see `standingsRevalidate`. An unconditional hour made the table look broken
+ * during a gameweek, which is when anyone actually looks at it.
  */
 export default async function LeaguesPage({
   params,
@@ -38,7 +43,18 @@ export default async function LeaguesPage({
     );
   }
 
-  const memberships = await getEntryLeagues(getDb(), entryId);
+  const [memberships, season] = await Promise.all([
+    getEntryLeagues(getDb(), entryId),
+    getSeasonContext(),
+  ]);
+
+  // With the API unreachable there is no way to tell a live gameweek from a
+  // settled one, and the long window is the safe guess: it cannot make a
+  // stale table staler, and the short one would hammer an API that is
+  // already failing.
+  const revalidate = season.available
+    ? standingsRevalidate(season.gameweek)
+    : STANDINGS_REVALIDATE_SETTLED;
 
   if (memberships.length === 0) {
     return (
@@ -77,6 +93,7 @@ export default async function LeaguesPage({
                 key={membership.league.id}
                 membership={membership}
                 entryId={entryId}
+                revalidate={revalidate}
               />
             ))}
           </div>
@@ -121,9 +138,11 @@ const VISIBLE_ROWS = 10;
 async function LeagueTable({
   membership,
   entryId,
+  revalidate,
 }: {
   membership: LeagueMembership;
   entryId: number;
+  revalidate: number;
 }) {
   const { league } = membership;
 
@@ -156,7 +175,7 @@ async function LeagueTable({
    * are reading the API incorrectly, which is our bug, and it should say so
    * rather than blaming the network.
    */
-  const standings = await getLeagueStandings(league.id).catch(
+  const standings = await getLeagueStandings(league.id, 1, { revalidate }).catch(
     (error: unknown) => (error instanceof Error ? error : new Error("unknown")),
   );
 

@@ -7,6 +7,9 @@ import {
   gameweeksUntilExpiry,
   resolveChipWindows,
   resolveGameweekState,
+  standingsRevalidate,
+  STANDINGS_REVALIDATE_IN_PLAY,
+  STANDINGS_REVALIDATE_SETTLED,
 } from "@/lib/fpl/gameweek";
 import type { FplChip, FplEvent } from "@/lib/fpl/schemas";
 
@@ -200,5 +203,52 @@ describe("countFixturesByTeam / classifyGameweek", () => {
     );
     expect(counts.has(5)).toBe(true);
     expect(counts.size).toBe(1);
+  });
+});
+
+describe("standingsRevalidate", () => {
+  /**
+   * A league table cached for an hour is an hour wrong during a gameweek, and
+   * a gameweek is the only time anyone looks at one. Observed: the page showed
+   * a stale tie order while three consecutive API calls agreed on a different
+   * one.
+   */
+  it("keeps the table fresh while a gameweek is being played", () => {
+    const state = resolveGameweekState([
+      event(1, { is_current: true }),
+      event(2, { is_next: true }),
+    ]);
+    expect(standingsRevalidate(state)).toBe(STANDINGS_REVALIDATE_IN_PLAY);
+  });
+
+  it("stays fresh after the last whistle, while bonus is still landing", () => {
+    // finished=false is the API still settling the gameweek. Ranks move during
+    // that window — often by more than they did during the football.
+    const state = resolveGameweekState([
+      event(1, { is_current: true, finished: false, data_checked: false }),
+    ]);
+    expect(standingsRevalidate(state)).toBe(STANDINGS_REVALIDATE_IN_PLAY);
+  });
+
+  it("relaxes once the gameweek is finished", () => {
+    const state = resolveGameweekState([
+      event(1, { is_current: true, finished: true }),
+      event(2, { is_next: true }),
+    ]);
+    expect(standingsRevalidate(state)).toBe(STANDINGS_REVALIDATE_SETTLED);
+  });
+
+  it("relaxes before the season starts, when no table exists at all", () => {
+    const state = resolveGameweekState([event(1, { is_next: true }), event(2)]);
+    expect(standingsRevalidate(state)).toBe(STANDINGS_REVALIDATE_SETTLED);
+  });
+
+  it("does not cache at all while a gameweek is live", () => {
+    // Not merely "short". A revalidating cache serves the stale value and
+    // refreshes behind it, so on a page visited twice an evening every visit
+    // is served what the last visit fetched. Any non-zero window reintroduces
+    // exactly the bug: a table that is always one visit out of date.
+    expect(STANDINGS_REVALIDATE_IN_PLAY).toBe(0);
+    expect(STANDINGS_REVALIDATE_SETTLED).toBeGreaterThan(0);
   });
 });

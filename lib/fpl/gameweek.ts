@@ -68,6 +68,54 @@ export function gameweekInPlay(state: GameweekState): FplEvent {
   return current !== null && !current.finished ? current : target;
 }
 
+/**
+ * How long a league table stays true for, in seconds.
+ *
+ * Standings were cached for an hour unconditionally, and during a gameweek
+ * that is simply wrong: the table moves with every goal and every bonus point,
+ * so the page served a snapshot up to an hour old while the FPL app beside it
+ * updated live. It read as "the standings aren't working", and the page's own
+ * comment claimed they were "fetched live rather than stored" — true of the
+ * database, false of the fetch layer.
+ *
+ * The same invariant as fitness flags and live scores: stored rows are
+ * history, anything current is read live. This one just has a shorter clock.
+ *
+ * ZERO, not a short window, and the difference is not obvious.
+ *
+ * A revalidating cache serves the stale value and refreshes behind it. That is
+ * the right trade for a page under constant traffic, where "one request behind"
+ * means a second. This page is visited a few times an evening, so every visit
+ * falls outside any short window and every visit is served the value fetched on
+ * the PREVIOUS visit. A sixty-second cache would not show a table one minute
+ * old; it would show the table as it stood the last time the page was opened,
+ * which for a manager checking twice a night is an hour or more.
+ *
+ * Measured, and it is how this was found: with a stale entry on disk, one
+ * request returned Friday's standings — 51 points for a leader on 68 — and the
+ * next returned the live ones. A user refreshing would have called that broken,
+ * and been right.
+ *
+ * The cost is nine requests for a manager in nine leagues, on one page that
+ * nobody sits on. `live-context.ts` already makes the same call for live
+ * scores, for the same reason.
+ *
+ * Between gameweeks the table genuinely cannot change — nobody is scoring —
+ * so the long window stays there, and is if anything conservative.
+ */
+export const STANDINGS_REVALIDATE_IN_PLAY = 0;
+export const STANDINGS_REVALIDATE_SETTLED = 3600;
+
+export function standingsRevalidate(state: GameweekState): number {
+  // Deliberately the same condition as `gameweekInPlay`: a gameweek counts as
+  // in play from its deadline until the API marks it finished, which includes
+  // the hours after the last whistle while bonus points are still landing and
+  // ranks are still moving.
+  return state.current !== null && !state.current.finished
+    ? STANDINGS_REVALIDATE_IN_PLAY
+    : STANDINGS_REVALIDATE_SETTLED;
+}
+
 /** The deadline for a gameweek, as a Date. */
 export function deadlineOf(event: FplEvent): Date {
   return new Date(event.deadline_time);
