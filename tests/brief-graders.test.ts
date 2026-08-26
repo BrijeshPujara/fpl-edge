@@ -44,7 +44,7 @@ function context(over: Partial<BriefContext> = {}): BriefContext {
       in: "Watkins",
       epGain: 6.4,
       hitCost: 0,
-      netGain: 6.4,
+      netGain: 6.4, horizon: 5,
     },
     chip: null,
     freeTransfers: 1,
@@ -157,7 +157,10 @@ describe("coverage", () => {
 
   it("fails a hold the brief does not present as a decision", () => {
     const held = context({
-      transfer: { kind: "hold", out: null, in: null, epGain: 0, hitCost: 0, netGain: 0 },
+      transfer: {
+        kind: "hold", out: null, in: null,
+        epGain: 0, hitCost: 0, netGain: 0, horizon: 5,
+      },
     });
     const findings = coverage("Haaland captains. Good luck.", held);
     expect(messages(findings)).toContain("hold");
@@ -165,7 +168,10 @@ describe("coverage", () => {
 
   it("accepts a hold described as rolling the transfer", () => {
     const held = context({
-      transfer: { kind: "hold", out: null, in: null, epGain: 0, hitCost: 0, netGain: 0 },
+      transfer: {
+        kind: "hold", out: null, in: null,
+        epGain: 0, hitCost: 0, netGain: 0, horizon: 5,
+      },
     });
     expect(coverage("Haaland captains; roll the transfer.", held)).toEqual([]);
   });
@@ -180,7 +186,7 @@ describe("coverage", () => {
         in: "Watkins",
         epGain: 9.1,
         hitCost: 4,
-        netGain: 5.1,
+        netGain: 5.1, horizon: 5,
       },
       freeTransfers: 0,
     });

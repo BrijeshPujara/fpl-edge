@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildPrompt, derivedFacts, type BriefContext } from "@/lib/llm/brief";
+import {
+  buildPrompt,
+  derivedFacts,
+  SYSTEM,
+  type BriefContext,
+} from "@/lib/llm/brief";
 
 function context(over: Partial<BriefContext> = {}): BriefContext {
   return {
@@ -16,7 +21,7 @@ function context(over: Partial<BriefContext> = {}): BriefContext {
     },
     transfer: {
       kind: "transfer", out: "Morato", in: "De Cuyper",
-      epGain: 16.6, hitCost: 0, netGain: 16.6,
+      epGain: 16.6, hitCost: 0, netGain: 16.6, horizon: 5,
     },
     chip: null,
     freeTransfers: 1,
@@ -43,7 +48,7 @@ describe("buildPrompt", () => {
       context({
         transfer: {
           kind: "hold", out: null, in: null,
-          epGain: 0, hitCost: 0, netGain: 0,
+          epGain: 0, hitCost: 0, netGain: 0, horizon: 5,
         },
       }),
     );
@@ -89,7 +94,7 @@ describe("buildPrompt", () => {
       context({
         transfer: {
           kind: "transfer", out: "Wood", in: "Watkins",
-          epGain: 9.1, hitCost: 4, netGain: 5.1,
+          epGain: 9.1, hitCost: 4, netGain: 5.1, horizon: 5,
         },
       }),
     );
@@ -234,6 +239,41 @@ describe("derivedFacts", () => {
     expect(prompt).toContain("22.5");
     expect(prompt).toContain("2.1 clear of the runner-up");
     expect(prompt).toContain("0-1-1 outfield");
+  });
+
+  it("says which time period every number belongs to", () => {
+    /*
+     * The failure this prevents produced a number rather than an omission.
+     *
+     * Unlabelled, "9.1 gained over the horizon" sat next to a one-gameweek
+     * squad total and the model added them, writing "89.6 for the gameweek"
+     * out of a five-gameweek figure and a one-week one. Both inputs were
+     * correct and the output was nonsense.
+     */
+    const prompt = buildPrompt(context());
+    expect(prompt).toContain("THIS GAMEWEEK ONLY");
+    expect(prompt).toContain("ACROSS THE NEXT 5 GAMEWEEKS");
+    expect(prompt).toContain("not added to this gameweek's total");
+  });
+
+  it("labels the horizon from the value, not from an assumption", () => {
+    const prompt = buildPrompt(
+      context({
+        transfer: {
+          kind: "transfer", out: "Wood", in: "Watkins",
+          epGain: 9.1, hitCost: 0, netGain: 9.1, horizon: 3,
+        },
+      }),
+    );
+    expect(prompt).toContain("ACROSS THE NEXT 3 GAMEWEEKS");
+    expect(prompt).not.toContain("NEXT 5 GAMEWEEKS");
+  });
+
+  it("forbids adding a gameweek figure to a horizon figure", () => {
+    // The rule lives in the instructions, not the data — the instructions are
+    // identical between managers and are what gets cached.
+    expect(SYSTEM).toContain("never be added together");
+    expect(SYSTEM).toContain("TWO DIFFERENT TIME PERIODS");
   });
 
   it("forbids the model from working anything out", () => {

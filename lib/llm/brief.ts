@@ -48,6 +48,15 @@ export interface BriefContext {
     epGain: number;
     hitCost: number;
     netGain: number;
+    /**
+     * Gameweeks the gain is measured over.
+     *
+     * Carried rather than assumed, because the prompt has to SAY it. Unlabelled,
+     * "9.1 gained over the horizon" sat beside a one-gameweek squad total and
+     * the model added them — producing "89.6 for the gameweek" out of a
+     * five-gameweek figure and a one-week one.
+     */
+    horizon: number;
   } | null;
   chip: { name: string; gain: number; margin: number | null } | null;
   freeTransfers: number;
@@ -101,6 +110,13 @@ Rules, in order of importance:
    it cost 4 to get there has been told something true and been misled by it.
    The same applies to a free transfer: if there are none, do not write as
    though there is one.
+1b. TWO DIFFERENT TIME PERIODS APPEAR BELOW, and every number says which one
+   it belongs to. A figure for THIS GAMEWEEK and a figure for the NEXT FEW are
+   not the same kind of quantity and must never be added together, compared, or
+   presented as one total. A transfer worth 6.4 over five gameweeks does not
+   add 6.4 to this week's score, and writing that it does produces a number
+   that is wrong rather than merely uncomputed.
+
 3. Say when something is uncertain. If the input says projections rest on last
    season, the ranking reflects player quality rather than who will start, and
    the reader needs to know that.
@@ -201,8 +217,9 @@ export function buildPrompt(context: BriefContext): string {
   const facts = derivedFacts(context);
   lines.push(
     "",
-    "Already computed for you — quote these rather than working anything out:",
-    `- The eleven projects ${facts.xiTotal.toFixed(1)}` +
+    "Already computed for you — quote these rather than working anything out.",
+    "All five are THIS GAMEWEEK ONLY:",
+    `- The eleven projects ${facts.xiTotal.toFixed(1)} this gameweek` +
       (facts.xiTotalWithArmband === null
         ? "."
         : `, or ${facts.xiTotalWithArmband.toFixed(1)} with the armband applied.`),
@@ -224,7 +241,8 @@ export function buildPrompt(context: BriefContext): string {
     const c = context.captain;
     lines.push(
       "",
-      `Captain: ${c.name}, ${c.ep.toFixed(1)} expected, ` +
+      `Captain: ${c.name}, ${c.ep.toFixed(1)} expected THIS GAMEWEEK ` +
+        `(before the armband doubles it), ` +
         `${Math.round(c.pHaul * 100)}% chance of 10+, ` +
         `${Math.round(c.pBlank * 100)}% chance of 2 or fewer.` +
         (c.runnerUp
@@ -240,7 +258,8 @@ export function buildPrompt(context: BriefContext): string {
       t.kind === "hold"
         ? "Transfer: hold. No move cleared the points it would cost."
         : `Transfer: ${t.out} out, ${t.in} in. ` +
-          `${t.epGain.toFixed(1)} gained over the horizon, ` +
+          `${t.epGain.toFixed(1)} gained ACROSS THE NEXT ${t.horizon} GAMEWEEKS ` +
+          `(not added to this gameweek's total), ` +
           `${t.hitCost} points of hits, net ${t.netGain.toFixed(1)}.` +
           // Restated on its own line because it was measurably being dropped:
           // two of three samples described this move by its net gain alone,
@@ -255,7 +274,7 @@ export function buildPrompt(context: BriefContext): string {
     lines.push(
       "",
       `Chip: play ${context.chip.name} this gameweek, worth ` +
-        `${context.chip.gain.toFixed(1)}` +
+        `${context.chip.gain.toFixed(1)} THIS GAMEWEEK` +
         (context.chip.margin !== null
           ? `, ${context.chip.margin.toFixed(1)} better than the next available week.`
           : "."),
@@ -274,7 +293,8 @@ export function buildPrompt(context: BriefContext): string {
     const r = context.record;
     lines.push(
       "",
-      `Engine record so far: ${r.scored} decisions scored, ${r.better} better ` +
+      `Engine record ACROSS THE SEASON SO FAR — not this gameweek: ` +
+        `${r.scored} decisions scored, ${r.better} better ` +
         `than the alternative, ${r.worse} worse, ${r.net >= 0 ? "+" : ""}${r.net} net points.`,
     );
   }

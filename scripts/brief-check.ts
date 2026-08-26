@@ -20,6 +20,7 @@ import { rankCaptains } from "@/lib/engine/captain";
 import { suggestTransfers } from "@/lib/engine/transfers";
 import { toPlayerCandidate } from "@/lib/squad/candidates";
 import { createGlpkSolver } from "@/lib/solver/glpk";
+import { DEFAULT_HORIZON } from "@/lib/engine/constants";
 
 async function main() {
   const dryRun = process.argv.includes("--prompt-only");
@@ -101,7 +102,10 @@ async function main() {
       : null,
     transfer:
       move.transfers === 0 || move.netGain <= 0
-        ? { kind: "hold", out: null, in: null, epGain: 0, hitCost: 0, netGain: 0 }
+        ? {
+            kind: "hold", out: null, in: null,
+            epGain: 0, hitCost: 0, netGain: 0, horizon: DEFAULT_HORIZON,
+          }
         : {
             kind: "transfer",
             out: byId.get(move.playersOut[0]?.id ?? -1)?.name ?? null,
@@ -111,6 +115,7 @@ async function main() {
             epGain: move.epGain,
             hitCost: move.hitCost,
             netGain: move.netGain,
+            horizon: DEFAULT_HORIZON,
           },
     chip: null,
     freeTransfers: context.freeTransfers,

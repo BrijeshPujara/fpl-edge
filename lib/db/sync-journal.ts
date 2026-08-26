@@ -205,7 +205,10 @@ export async function syncJournal(
       : null,
     transfer:
       move.transfers === 0 || move.netGain <= 0
-        ? { kind: "hold", out: null, in: null, epGain: 0, hitCost: 0, netGain: 0 }
+        ? {
+            kind: "hold", out: null, in: null,
+            epGain: 0, hitCost: 0, netGain: 0, horizon: DEFAULT_HORIZON,
+          }
         : {
             kind: "transfer",
             out: nameOf.get(move.playersOut[0]?.id ?? -1) ?? null,
@@ -213,6 +216,7 @@ export async function syncJournal(
             epGain: move.epGain,
             hitCost: move.hitCost,
             netGain: move.netGain,
+            horizon: DEFAULT_HORIZON,
           },
     chip: null,
     freeTransfers: context.freeTransfers,
