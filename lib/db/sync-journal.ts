@@ -128,9 +128,9 @@ export async function syncJournal(
       currentSquad: context.squad.map((c) => toPlayerCandidate(c, priceOf(c.id))),
       candidates: context.pool.map((c) => toPlayerCandidate(c, priceOf(c.id))),
       freeTransfers: context.freeTransfers,
-      // Before a gameweek is played the model cannot tell a starter from a
-      // squad player, so it must not spend points on the difference.
-      minutesKnown: context.basis !== "prior-season",
+      // One value, computed once — see CandidatePool.minutesKnown. This was
+      // `basis !== "prior-season"`, which a single played gameweek satisfied.
+      minutesKnown: context.minutesKnown,
       bank: context.bank,
     },
     solver,

@@ -86,6 +86,27 @@ export const NO_HISTORY_START_PRIOR = 0.5;
 /** Number of recent gameweeks used to estimate a start rate from history. */
 export const START_RATE_WINDOW = 6;
 
+/**
+ * Gameweeks that must be played before the engine will spend points on a hit.
+ *
+ * The guard used to ask whether ANY gameweek had been played, which one
+ * gameweek satisfies. The morning GW1 was finalised the engine went from
+ * refusing every hit to recommending an 8-point one, on projections whose
+ * largest input was a single match — it wanted three moves for De Cuyper,
+ * Hinshelwood and Guéhi, who between them were GW1's first, second and fifth
+ * highest scorers.
+ *
+ * The reasoning that justified the guard does not weaken after one gameweek;
+ * it barely moves. A hit is four certain points against an uncertain gain, and
+ * a gain inferred from one match is the most uncertain kind there is.
+ *
+ * Derived rather than picked: this is the first gameweek at which observed
+ * minutes carry more weight than last season's under the shrinkage in
+ * `minutes.ts`. Before it, the model is still mostly quoting last season back,
+ * and paying four points for that is paying for a year-old opinion.
+ */
+export const MINUTES_KNOWN_GAMEWEEKS = Math.floor(START_RATE_WINDOW / 2) + 1;
+
 // ---------------------------------------------------------------------------
 // Opponent adjustment
 // ---------------------------------------------------------------------------

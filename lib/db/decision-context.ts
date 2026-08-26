@@ -66,6 +66,10 @@ export interface ReadyDecisionContext {
   projectable: boolean;
   /** What the projections rest on, so the UI can say so. */
   basis: "none" | "prior-season" | "this-season";
+  /** Distinct gameweeks with results behind them. */
+  gameweeksPlayed: number;
+  /** Whether the model knows enough about minutes to justify a hit. */
+  minutesKnown: boolean;
 }
 
 export type DecisionContext =
@@ -178,6 +182,8 @@ async function loadDecisionContextUncached(
     ),
     projectable: pool.projectable,
     basis: pool.basis,
+    gameweeksPlayed: pool.gameweeksPlayed,
+    minutesKnown: pool.minutesKnown,
   };
 }
 

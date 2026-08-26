@@ -8,6 +8,7 @@ import type {
 import { projectMinutes } from "@/lib/engine/minutes";
 import type { PriorSeasonWorkload } from "@/lib/engine/prior-season";
 import { readNewsSignal } from "@/lib/engine/news-signal";
+import { MINUTES_KNOWN_GAMEWEEKS } from "@/lib/engine/constants";
 import {
   fixtureContextsFor,
   historyFor,
@@ -81,6 +82,20 @@ export interface CandidatePool {
    * quality rather than who is going to start.
    */
   basis: "none" | "prior-season" | "this-season";
+  /** Distinct gameweeks with results behind them. */
+  gameweeksPlayed: number;
+  /**
+   * Whether the model knows enough about who starts to justify a points hit.
+   *
+   * A VALUE rather than a condition each caller re-derives. It was
+   * `basis !== "prior-season"` in three places — the journal, the transfer
+   * board and a script — which is one predicate with three chances to drift,
+   * and all three were wrong in the same way: `basis` flips to "this-season"
+   * on the first stats row that exists, so a single gameweek satisfied it.
+   *
+   * See MINUTES_KNOWN_GAMEWEEKS for why one is not enough.
+   */
+  minutesKnown: boolean;
   /** The gameweeks projected, ascending. */
   gameweeks: number[];
 }
@@ -150,6 +165,10 @@ export function buildCandidatePool(
         ? "prior-season"
         : "none";
 
+  // Counted from the rows rather than inferred from the gameweek number, for
+  // the same reason `matchesPerTeam` is: a blank counts for what it is.
+  const gameweeksPlayed = new Set(input.stats.map((stat) => stat.gw)).size;
+
   const candidates: Candidate[] = [];
   for (const player of input.players) {
     const history = historyFor(player.id, byPlayer);
@@ -203,6 +222,8 @@ export function buildCandidatePool(
     candidates,
     projectable: basis !== "none",
     basis,
+    gameweeksPlayed,
+    minutesKnown: gameweeksPlayed >= MINUTES_KNOWN_GAMEWEEKS,
     gameweeks,
   };
 }

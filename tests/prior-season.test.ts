@@ -257,17 +257,81 @@ describe("workload reaching the minutes model", () => {
     expect(unknown.pAppears).toBeCloseTo(0.675, 3);
   });
 
-  it("lets this season override last season once there is any", () => {
-    // Observed beats remembered. A player who has started every game this
-    // season is a starter whatever last season says.
+  const fringeLastSeason = { startRate: 1 / 38, minutesPerStart: 45, cameoRate: 0.1 };
+
+  it("lets a full window of this season override last season", () => {
+    // Observed beats remembered, once there is enough of it. A player who has
+    // started every game this season is a starter whatever last season says.
     const started = projectMinutes({
       status: "a",
       chanceOfPlayingNextRound: null,
-      recentStarts: [true, true, true, true],
-      recentMinutes: [90, 90, 88, 90],
-      priorSeason: { startRate: 1 / 38, minutesPerStart: 45, cameoRate: 0.1 },
+      recentStarts: [true, true, true, true, true, true],
+      recentMinutes: [90, 90, 88, 90, 90, 90],
+      priorSeason: fringeLastSeason,
     });
     expect(started.pAppears).toBeGreaterThan(0.9);
+  });
+
+  it("does not let ONE appearance override a season", () => {
+    /*
+     * This test used to assert the opposite, and the opposite shipped.
+     *
+     * The morning GW1 was finalised, De Cuyper's start rate went from last
+     * season's 0.45 to 1.00 on the strength of one match. Expected minutes
+     * nearly doubled, and since everything downstream scales with minutes a
+     * £4.6m defender came out at 8.8 points a gameweek — whereupon the
+     * optimiser wanted an 8-point hit to buy him.
+     *
+     * One start is evidence. It is not six.
+     */
+    const once = projectMinutes({
+      status: "a",
+      chanceOfPlayingNextRound: null,
+      recentStarts: [true],
+      recentMinutes: [90],
+      priorSeason: fringeLastSeason,
+    });
+    expect(once.pAppears).toBeLessThan(0.4);
+    // But it is not ignored either — it moves him off last season's rate.
+    expect(once.pAppears).toBeGreaterThan(0.15);
+  });
+
+  it("moves toward the observed rate as evidence accumulates", () => {
+    const after = (n: number) =>
+      projectMinutes({
+        status: "a",
+        chanceOfPlayingNextRound: null,
+        recentStarts: Array<boolean>(n).fill(true),
+        recentMinutes: Array<number>(n).fill(90),
+        priorSeason: fringeLastSeason,
+      }).pAppears;
+
+    // Monotone, which is the property that matters: no gameweek should ever
+    // move a player AWAY from what he has been observed doing.
+    expect(after(1)).toBeLessThan(after(3));
+    expect(after(3)).toBeLessThan(after(6));
+    expect(after(6)).toBeGreaterThan(0.9);
+  });
+
+  it("shrinks minutes-per-start on the same schedule", () => {
+    // Left unshrunk this undid half the fix: the start rate would be pulled
+    // back toward last season while minutes-per-start stayed pinned at 90.
+    const once = projectMinutes({
+      status: "a",
+      chanceOfPlayingNextRound: null,
+      recentStarts: [true],
+      recentMinutes: [90],
+      priorSeason: { startRate: 1, minutesPerStart: 45, cameoRate: 0 },
+    });
+    const full = projectMinutes({
+      status: "a",
+      chanceOfPlayingNextRound: null,
+      recentStarts: [true, true, true, true, true, true],
+      recentMinutes: [90, 90, 90, 90, 90, 90],
+      priorSeason: { startRate: 1, minutesPerStart: 45, cameoRate: 0 },
+    });
+    expect(once.expectedMinutes).toBeLessThan(full.expectedMinutes);
+    expect(full.expectedMinutes).toBeGreaterThan(85);
   });
 
   it("does not resurrect an injured player", () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MINUTES_KNOWN_GAMEWEEKS } from "@/lib/engine/constants";
 import {
   buildCandidatePool,
   toPlayerCandidate,
@@ -328,3 +329,64 @@ describe("the projectable gate", () => {
     expect(pool.candidates[0].ep).toBeCloseTo(plain.candidates[0].ep, 10);
   });
 });
+
+describe("minutesKnown", () => {
+  /**
+   * The gate on spending points.
+   *
+   * It used to be `basis !== "prior-season"` re-derived at three call sites,
+   * and `basis` flips on the first stats row that exists. So the morning GW1
+   * finalised, the engine went from refusing every hit to recommending an
+   * 8-point one — on projections whose largest input was a single match.
+   *
+   * It is a value on the pool now, computed once, so the three callers cannot
+   * disagree about it.
+   */
+  const poolBase = { gw: 5, horizon: 3, teams, fixtures: [fixture(5, 1, 2)] };
+
+  const poolAfter = (gameweeks: number[]) =>
+    buildCandidatePool({
+      ...poolBase,
+      players: [player()],
+      stats: gameweeks.map((gw) => stat(1, gw)),
+    });
+
+  it("counts gameweeks played rather than trusting the gameweek number", () => {
+    // Counted from rows, so a blank counts for what it is.
+    expect(poolAfter([]).gameweeksPlayed).toBe(0);
+    expect(poolAfter([1, 2, 3]).gameweeksPlayed).toBe(3);
+  });
+
+  it("counts each gameweek once however many rows it has", () => {
+    const pool = buildCandidatePool({
+      ...poolBase,
+      players: [player()],
+      stats: [stat(1, 1), stat(1, 1), stat(1, 2)],
+    });
+    expect(pool.gameweeksPlayed).toBe(2);
+  });
+
+  it("withholds hits after a single gameweek", () => {
+    // The exact regression. One played gameweek is not knowing who starts.
+    expect(poolAfter([1]).minutesKnown).toBe(false);
+  });
+
+  it("withholds hits with nothing played at all", () => {
+    expect(poolAfter([]).minutesKnown).toBe(false);
+  });
+
+  it("allows them once observed minutes outweigh last season's", () => {
+    expect(poolAfter([1, 2, 3]).minutesKnown).toBe(false);
+    expect(poolAfter([1, 2, 3, 4]).minutesKnown).toBe(true);
+  });
+
+  it("is the threshold the constant names, not a number picked here", () => {
+    // Guards against the test and the constant drifting apart, which would
+    // leave the test passing while the engine changed behaviour.
+    const below = Array.from({ length: MINUTES_KNOWN_GAMEWEEKS - 1 }, (_, i) => i + 1);
+    const at = Array.from({ length: MINUTES_KNOWN_GAMEWEEKS }, (_, i) => i + 1);
+    expect(poolAfter(below).minutesKnown).toBe(false);
+    expect(poolAfter(at).minutesKnown).toBe(true);
+  });
+});
+

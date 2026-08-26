@@ -83,7 +83,7 @@ const NEVER: MinutesProjection = {
 function recentRates(
   starts: boolean[],
   minutes: number[],
-): { start: number; cameo: number } | null {
+): { start: number; cameo: number; samples: number } | null {
   const startWindow = starts.slice(0, START_RATE_WINDOW);
   const minuteWindow = minutes.slice(0, START_RATE_WINDOW);
   const size = Math.max(startWindow.length, minuteWindow.length);
@@ -97,7 +97,39 @@ function recentRates(
   // can disagree at the edges of a short window.
   const cameo = Math.max(0, (appeared - started) / size);
 
-  return { start, cameo };
+  // How much was actually seen, so the caller can decide how far to trust it.
+  return { start, cameo, samples: size };
+}
+
+/**
+ * Observed appearances, shrunk toward what came before them.
+ *
+ * The fallback used to be `observed ?? prior ?? flat`, which let ONE gameweek
+ * replace an entire season. Measured the morning GW1 finalised: De Cuyper
+ * started once, his start rate went from last season's 0.45 to 1.00, his
+ * expected minutes therefore nearly doubled, and — because everything
+ * downstream scales with minutes — a £4.6m defender came out projected at 8.8
+ * points a gameweek. The optimiser then wanted to take an 8-point hit to buy
+ * him.
+ *
+ * One start is evidence. It is not six. So the observed rate earns weight in
+ * proportion to how many gameweeks it actually rests on, over the same window
+ * the rate itself is measured over.
+ *
+ * The shrinkage target is last season where there is one, and the flat prior
+ * where there is not — a promoted club's player with one good match is exactly
+ * the case that produced the most extreme projections, and he has nothing else
+ * behind him.
+ */
+function shrinkToPrior(
+  observed: { start: number; cameo: number; samples: number },
+  target: { start: number; cameo: number },
+): { start: number; cameo: number } {
+  const weight = Math.min(1, observed.samples / START_RATE_WINDOW);
+  return {
+    start: observed.start * weight + target.start * (1 - weight),
+    cameo: observed.cameo * weight + target.cameo * (1 - weight),
+  };
 }
 
 export function projectMinutes(input: MinutesInput): MinutesProjection {
@@ -159,18 +191,20 @@ export function projectMinutes(input: MinutesInput): MinutesProjection {
    * a genuine new signing is.
    */
   const prior = input.priorSeason;
+  const fallback = prior
+    ? {
+        start: prior.startRate,
+        // Measured from his own minutes, not assumed from a flat rate.
+        cameo: prior.cameoRate,
+      }
+    : {
+        start: NO_HISTORY_START_PRIOR,
+        cameo: (1 - NO_HISTORY_START_PRIOR) * P_BENCH_CAMEO,
+      };
+
+  const observedRates = recentRates(recentStarts, recentMinutes);
   const rates =
-    recentRates(recentStarts, recentMinutes) ??
-    (prior
-      ? {
-          start: prior.startRate,
-          // Measured from his own minutes, not assumed from a flat rate.
-          cameo: prior.cameoRate,
-        }
-      : {
-          start: NO_HISTORY_START_PRIOR,
-          cameo: (1 - NO_HISTORY_START_PRIOR) * P_BENCH_CAMEO,
-        });
+    observedRates === null ? fallback : shrinkToPrior(observedRates, fallback);
 
   // News multiplies fitness rather than replacing it, so a club percentage and
   // a news category compose: 75% fitness and a match-fitness note is a player
@@ -185,15 +219,27 @@ export function projectMinutes(input: MinutesInput): MinutesProjection {
   const pShort = pStart * (1 - P_STARTER_COMPLETES_60) + pCameo;
   const pAppears = pSixty + pShort;
 
-  // Expected minutes from observed history where it exists, so a
-  // regularly-substituted starter is not credited with 90.
-  const observed = recentMinutes
+  /*
+   * Minutes when playing, shrunk on the same schedule and for the same reason.
+   *
+   * A single full ninety says "plays ninety" just as loudly as six of them do,
+   * and it is the same £4.6m defender either way. Left unshrunk this quietly
+   * undid half the fix above: the start rate would be pulled back toward last
+   * season while the minutes-per-start stayed pinned at 90.
+   */
+  const playedMinutes = recentMinutes
     .slice(0, START_RATE_WINDOW)
     .filter((m) => m > 0);
+  const priorMinutes = prior?.minutesPerStart ?? 75;
   const meanWhenPlaying =
-    observed.length > 0
-      ? observed.reduce((a, b) => a + b, 0) / observed.length
-      : (prior?.minutesPerStart ?? 75);
+    playedMinutes.length === 0
+      ? priorMinutes
+      : (() => {
+          const mean =
+            playedMinutes.reduce((a, b) => a + b, 0) / playedMinutes.length;
+          const weight = Math.min(1, playedMinutes.length / START_RATE_WINDOW);
+          return mean * weight + priorMinutes * (1 - weight);
+        })();
 
   const expectedMinutes = pStart * meanWhenPlaying + pCameo * 20;
 

@@ -31,7 +31,7 @@ export async function TransferBoard({
       freeTransfers: context.freeTransfers,
       // Before a gameweek is played the model cannot tell a starter from a
       // squad player, so it must not spend points on the difference.
-      minutesKnown: context.basis !== "prior-season",
+      minutesKnown: context.minutesKnown,
       bank: context.bank,
     },
     solver,

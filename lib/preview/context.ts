@@ -391,6 +391,8 @@ export async function loadPreviewContext(
       priceDeltas: new Map(),
       projectable: pool.projectable,
       basis: pool.basis,
+      gameweeksPlayed: pool.gameweeksPlayed,
+      minutesKnown: pool.minutesKnown,
     },
     matched,
     stats,
