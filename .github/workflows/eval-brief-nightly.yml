@@ -27,7 +27,40 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Does the key exist?
+  #
+  # Only so the job below can be SKIPPED rather than pass. The first version
+  # checked inside the step and exited zero, which meant a workflow that had
+  # never once run showed a green tick every morning — the exact failure this
+  # repo keeps finding elsewhere, a gate that looks like coverage and is not.
+  # Written here two days before it was noticed.
+  #
+  # A skipped job is grey in the UI and legibly different from a passing one.
+  # Failing instead would be wrong: a missing key is a configuration state, not
+  # a broken build, and red for configuration is what teaches people to ignore
+  # red.
+  #
+  # The job-level `if` cannot read `secrets`, which is why this exists as a
+  # separate job at all rather than a condition.
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - id: check
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::ANTHROPIC_API_KEY is not set; the brief eval cannot run."
+          fi
+
   judged:
+    needs: preflight
+    if: needs.preflight.outputs.configured == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -41,18 +74,12 @@ jobs:
           cache: npm
       - run: npm ci
 
-      # The `secrets` context is not available in a job-level `if`, so the
-      # guard has to live in the shell. Skipping is the right answer: a job
-      # that fails for want of configuration teaches people to ignore red.
+      # No guard here any more. `preflight` decided, and this job does not run
+      # at all without a key — so a failure below is a real one.
       - name: Generate, record and judge
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "::notice::ANTHROPIC_API_KEY is not configured; skipping."
-            exit 0
-          fi
-          npm run eval:brief -- --live --judge
+        run: npm run eval:brief -- --live --samples=3 --judge
 
       # Recordings are committed even when the eval fails, and deliberately so.
       # A failing run is the one whose output someone needs to read.
