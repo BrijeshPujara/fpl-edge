@@ -120,7 +120,24 @@ export interface PlayerTileView {
 }
 
 export interface SquadView {
+  /** The gameweek being PROJECTED — what the fixtures and EP describe. */
   gw: number;
+  /**
+   * The gameweek the fifteen actually came from.
+   *
+   * Usually the same as `gw`, and pointedly not always. FPL does not publish a
+   * manager's picks until a gameweek's deadline passes, so between one deadline
+   * and the next the newest squad we can see is LAST week's. The page used to
+   * render those under the target gameweek's number, which reads as "here is
+   * your team for GW4" when it is really "here was your team for GW3" — and
+   * during a wildcard, when all fifteen can change, that is the difference
+   * between a squad you own and one you have already replaced.
+   *
+   * Projections are still built against `gw`, which is right: the question is
+   * what this squad is worth NEXT, not what it was worth last week. Only the
+   * claim about whose picks these are had to become honest.
+   */
+  picksGw: number;
   formation: string;
   rows: { position: PositionId; label: string; players: PlayerTileView[] }[];
   bench: PlayerTileView[];
@@ -135,6 +152,8 @@ export interface SquadView {
   };
   /** True when no gameweek has been played, so EP carries no information yet. */
   preSeason: boolean;
+  /** True when the picks predate `gw` — see `picksGw`. */
+  picksAreStale: boolean;
 }
 
 const ORDER: PositionId[] = [
@@ -216,6 +235,14 @@ export interface BuildSquadViewInput {
    * `BuildCandidatePoolInput.teamRatings` — absent means neutral fixtures.
    */
   teamRatings?: TeamRatingLike[];
+  /**
+   * The gameweek the picks came from. Defaults to `gw`.
+   *
+   * Passed rather than inferred because only the caller knows: the picks are
+   * read with `getLatestSquad(entryId, upToGw)`, which returns the newest squad
+   * at or before the target and says nothing about which it found.
+   */
+  picksGw?: number;
 }
 
 export function buildSquadView(input: BuildSquadViewInput): SquadView {
@@ -306,6 +333,8 @@ export function buildSquadView(input: BuildSquadViewInput): SquadView {
 
   return {
     gw: input.gw,
+    picksGw: input.picksGw ?? input.gw,
+    picksAreStale: (input.picksGw ?? input.gw) !== input.gw,
     formation,
     rows,
     bench,

@@ -204,3 +204,34 @@ describe("buildSquadView", () => {
     expect(view.totals.meanDifficulty!).toBeLessThan(5);
   });
 });
+
+describe("picks that predate the gameweek being projected", () => {
+  /*
+   * FPL publishes a squad only once its deadline passes, so between deadlines
+   * the newest picks available are last week's. The page renders them against
+   * the TARGET gameweek's fixtures, which is right, and used to label them
+   * with the target's number, which was not — "your GW4 squad" when it is
+   * really your GW3 squad. During a wildcard all fifteen can differ.
+   */
+  it("defaults to the projected gameweek when the caller says nothing", () => {
+    const view = buildSquadView(squadInput());
+    expect(view.picksGw).toBe(view.gw);
+    expect(view.picksAreStale).toBe(false);
+  });
+
+  it("reports the gameweek the picks actually came from", () => {
+    const view = buildSquadView({ ...squadInput(), gw: 4, picksGw: 3 });
+    expect(view.gw).toBe(4);
+    expect(view.picksGw).toBe(3);
+    expect(view.picksAreStale).toBe(true);
+  });
+
+  it("still projects against the gameweek being decided, not the picks'", () => {
+    // The staleness is a claim about whose players these are, not about which
+    // fixtures they face. Projecting last week's fixtures would be a second,
+    // worse bug on top of the first.
+    const fresh = buildSquadView({ ...squadInput(), gw: 4 });
+    const stale = buildSquadView({ ...squadInput(), gw: 4, picksGw: 3 });
+    expect(stale.totals.startingEp).toBeCloseTo(fresh.totals.startingEp, 10);
+  });
+});

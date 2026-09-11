@@ -122,6 +122,7 @@ export default async function SquadPage({
     stats,
     teamRatings,
     epByPlayer,
+    picksGw: stored.squad.gw,
   });
 
   /*
@@ -159,8 +160,25 @@ export default async function SquadPage({
           <SectionLabel
             meta={`FIXTURE DIFFICULTY GW${view.gw}–${view.gw + 4} · LEFT TO RIGHT`}
           >
-            SQUAD · {view.formation} · GW{view.gw}
+            SQUAD · {view.formation} · GW{view.picksGw}
           </SectionLabel>
+          {view.picksAreStale ? (
+            <Panel padded>
+              <div className="font-mono text-tiny tracking-[0.14em] text-warn">
+                THESE ARE YOUR GW{view.picksGw} PICKS
+              </div>
+              <p className="mt-2 text-sm text-secondary">
+                FPL does not publish a squad until its deadline passes, so
+                GW{view.gw} picks cannot be read yet — this is the last
+                confirmed fifteen, projected against GW{view.gw} fixtures.{" "}
+                <span className="text-tertiary">
+                  Transfers, a wildcard or a captain change made since the
+                  GW{view.picksGw} deadline will not appear here until
+                  GW{view.gw} locks.
+                </span>
+              </p>
+            </Panel>
+          ) : null}
           <Pitch squad={view} live={liveByPlayer} />
         </div>
 
