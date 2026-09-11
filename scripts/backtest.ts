@@ -34,6 +34,8 @@ import {
   type GameweekSample,
 } from "@/lib/engine/expected-points";
 import { setPieceCredit } from "@/lib/engine/set-pieces";
+import { gameweekDistribution } from "@/lib/engine/captain";
+import { mean as pmfMean, MIN_POINTS } from "@/lib/engine/distribution";
 import { POSITION, POSITION_SHORT, type PositionId } from "@/lib/rules";
 import { FORM_WINDOW } from "@/lib/engine/constants";
 import { NO_SET_PIECE_DUTY } from "@/lib/engine/set-pieces";
@@ -58,12 +60,15 @@ const NO_SET_PIECES = process.argv.includes("--no-set-pieces");
 // --- Stats -----------------------------------------------------------------
 
 interface Acc {
+  /** Sum of E|X - E[X]| over the model's own distributions — the MAE floor. */
+  irreducible: number;
   absModel: number; absBase: number; count: number;
   sumActual: number; sumModel: number; sumBase: number;
   playedCount: number; playedAbsModel: number; playedSumActual: number; playedSumModel: number;
   blankCount: number; blankAbsModel: number; blankSumModel: number;
 }
 const acc = (): Acc => ({
+  irreducible: 0,
   absModel: 0, absBase: 0, count: 0,
   sumActual: 0, sumModel: 0, sumBase: 0,
   playedCount: 0, playedAbsModel: 0, playedSumActual: 0, playedSumModel: 0,
@@ -152,6 +157,30 @@ async function main() {
 
       const predicted = expectedPoints(modelInput, fixture).total;
 
+      /*
+       * The IRREDUCIBLE error, and the most important number in this file.
+       *
+       * MAE is usually read as "how wrong the model is", which invites the
+       * conclusion that a better model would drive it toward zero. It would
+       * not. Football is a handful of near-Poisson events: a striker with a
+       * true xG of 0.6 scores 0, 1 or 2 goals, never 0.6, and no amount of
+       * modelling removes that draw. Even a model that knew every player's
+       * exact underlying rate would still post a large MAE.
+       *
+       * That floor is computable here rather than guessed at, because the
+       * engine already produces a full distribution per player-gameweek and
+       * not just its mean. E|X - E[X]| over the model's OWN pmf is the error a
+       * perfectly calibrated version of this model would still make. The gap
+       * between it and the measured MAE is the only part any modelling work
+       * can ever recover.
+       */
+      const pmf = gameweekDistribution(modelInput, [fixture]);
+      const mu = pmfMean(pmf);
+      let expectedAbsDeviation = 0;
+      for (let i = 0; i < pmf.length; i++) {
+        expectedAbsDeviation += pmf[i] * Math.abs(i + MIN_POINTS - mu);
+      }
+
       const duty = duties.get(row.element);
       if (duty && (duty.penaltiesOrder !== null || duty.cornersOrder !== null)) {
         dutyRows += 1;
@@ -166,6 +195,7 @@ async function main() {
       const b = Math.abs(baseline - row.points);
 
       for (const bucket of [overall, perPosition.get(row.position)!]) {
+        bucket.irreducible += expectedAbsDeviation;
         bucket.absModel += a;
         bucket.absBase += b;
         bucket.count += 1;
@@ -202,6 +232,7 @@ async function main() {
       `  ${label.padEnd(8)} n=${String(x.count).padStart(6)}  ` +
       `mean actual=${(x.sumActual / x.count).toFixed(2).padStart(5)}  ` +
       `model MAE=${m.toFixed(3)}  baseline MAE=${b.toFixed(3)}  ` +
+      `floor=${(x.irreducible / x.count).toFixed(3)}  ` +
       `${verdict} by ${Math.abs(delta).toFixed(1)}%`
     );
   };
@@ -219,6 +250,46 @@ async function main() {
   console.log("");
   for (const [pos, bucket] of [...perPosition].sort((a, b) => a[0] - b[0])) {
     if (bucket.count > 0) console.log(line(POSITION_SHORT[pos], bucket));
+  }
+
+  console.log("\nHOW MUCH OF THE ERROR IS EVEN REMOVABLE");
+  {
+    const floor = overall.irreducible / overall.count;
+    const m = overall.absModel / overall.count;
+    const b = overall.absBase / overall.count;
+    console.log(
+      `  irreducible floor  ${floor.toFixed(3)} — the MAE a PERFECTLY calibrated`,
+    );
+    console.log(
+      "                     version of this model would still post, because a",
+    );
+    console.log(
+      "                     player with a true xG of 0.6 scores 0, 1 or 2, never 0.6",
+    );
+    console.log(`  this model         ${m.toFixed(3)}`);
+    console.log(`  naive baseline     ${b.toFixed(3)}`);
+    console.log(
+      `  headroom           ${(m - floor).toFixed(3)} of ${m.toFixed(3)} ` +
+      `(${(((m - floor) / m) * 100).toFixed(1)}% of the error is modelling; ` +
+      `${((floor / m) * 100).toFixed(1)}% is football)`,
+    );
+    console.log(
+      `  the whole race     ${(b - floor).toFixed(3)} separates a naive baseline ` +
+      `from a perfect model`,
+    );
+    console.log(
+      `  captured           ${(b - m).toFixed(3)} of that ${(b - floor).toFixed(3)} ` +
+      `(${(((b - m) / (b - floor)) * 100).toFixed(0)}% of what is winnable)`,
+    );
+    console.log(
+      "  CAVEAT: the floor is E|X-E[X]| over the model's OWN distributions, so it",
+    );
+    console.log(
+      "          assumes they are shaped right. It is an estimate of the limit,",
+    );
+    console.log(
+      "          not a proof of it — but the limit is real and it is not near zero.",
+    );
   }
 
   console.log("\nDIAGNOSTICS");
