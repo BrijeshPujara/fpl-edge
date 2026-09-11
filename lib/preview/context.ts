@@ -393,6 +393,7 @@ export async function loadPreviewContext(
       basis: pool.basis,
       gameweeksPlayed: pool.gameweeksPlayed,
       minutesKnown: pool.minutesKnown,
+      fixtureAware: pool.fixtureAware,
     },
     matched,
     stats,

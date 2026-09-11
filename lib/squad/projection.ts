@@ -9,7 +9,7 @@ import { readNewsSignal } from "@/lib/engine/news-signal";
 import type { PriorSeasonRates } from "@/lib/engine/expected-points";
 import type { PriorSeasonWorkload } from "@/lib/engine/prior-season";
 import type { PositionId } from "@/lib/rules";
-import type { FixtureLike, PlayerLike, StatLike, TeamLike } from "./view";
+import type { FixtureLike, PlayerLike, StatLike } from "./view";
 
 /**
  * Turning database rows into expected points.
@@ -29,13 +29,37 @@ export interface RatingStats {
   std: number;
 }
 
-export interface LeagueRatings {
-  attack: RatingStats | null;
-  defence: RatingStats | null;
+/**
+ * One club's fitted rating, as `team_ratings` stores it.
+ *
+ * Structural rather than the generated row type, for the same reason every
+ * other `*Like` here is: this module stays testable with literals.
+ */
+export interface TeamRatingLike {
+  team_id: number;
+  /** Goals scored relative to league average. Higher is better. */
+  attack: number;
+  /** Goals CONCEDED relative to league average. Higher is WORSE. */
+  defence: number;
 }
 
 /**
- * League mean and spread of a rating, ignoring the zeros reported pre-season.
+ * Per-club strength plus the league distribution to normalise it against.
+ *
+ * Both numbers are in STRENGTH convention — higher is stronger — which is what
+ * `FixtureContext` documents and what `opponentAdjustment` assumes. Converting
+ * once, here, is what keeps that assumption true at every call site.
+ */
+export interface FixtureRatings {
+  byTeam: Map<number, { attack: number; defence: number }>;
+  attack: RatingStats | null;
+  defence: RatingStats | null;
+  /** False when nothing usable was supplied and every fixture reads neutral. */
+  usable: boolean;
+}
+
+/**
+ * League mean and spread of a rating.
  *
  * Null when there is nothing to normalise against, which the model reads as
  * "no opponent information" and answers with a neutral adjustment. That is the
@@ -50,14 +74,58 @@ export function ratingStats(values: number[]): RatingStats | null {
   return { mean, std: Math.sqrt(variance) };
 }
 
-export function leagueRatings(teams: TeamLike[]): LeagueRatings {
+/**
+ * Fixture strengths, from the ratings this project fits itself.
+ *
+ * WHY NOT THE API'S OWN STRENGTH FIELDS, which this used to read. FPL has
+ * served `strength_attack_home`, `strength_attack_away`, `strength_defence_home`
+ * and `strength_defence_away` as ZERO for all twenty clubs for the whole of
+ * 2026/27 — verified against the live bootstrap, not inferred. They parse, the
+ * schema is satisfied, and `ratingStats` then discards them as pre-season
+ * zeros and hands back null. The model dutifully answered "no opponent
+ * information" for every fixture in the season: Haaland away at Man United and
+ * Haaland at home to Hull projected identically, and the term is worth ±1.2
+ * points a gameweek on him. Nothing threw. 627 tests stayed green.
+ *
+ * `team_ratings` is the fix and was already sitting there — a Dixon-Coles fit
+ * over played matches blended toward three prior seasons, refitted by the sync,
+ * and until now read only by the scoreline model. One rating per club rather
+ * than a home and an away one, deliberately: venue is applied once, by
+ * `HOME_ADVANTAGE` inside `expectedGoalsAgainst`, and carrying it in the
+ * ratings as well would count it twice.
+ *
+ * THE SIGN. `attack` already means what `FixtureContext` wants — higher is
+ * better — but `defence` is a concession factor, so higher is WORSE, the exact
+ * opposite of the FPL field it replaces. Passed through unconverted the model
+ * would rate every fixture backwards, which is worse than the zeros it
+ * replaces. The reciprocal puts it back: a side conceding at 0.7x the league
+ * rate is 1/0.7 as hard to score against.
+ *
+ * Mirroring around the mean (`2 * mean - defence`), the idiom used for attack
+ * in `expectedGoalsAgainst`, was tried first and rejected: it goes non-positive
+ * for a defence worse than twice the league average, and `opponentAdjustment`
+ * silently returns neutral for a non-positive rating — muting the league's
+ * worst defence precisely where the adjustment matters most. A reciprocal
+ * cannot, and composes the way a rate factor should.
+ */
+export function fixtureRatings(rows: TeamRatingLike[]): FixtureRatings {
+  const byTeam = new Map<number, { attack: number; defence: number }>();
+
+  for (const row of rows) {
+    // A non-positive fit is not a rating; skipping beats dividing by it.
+    if (!(row.attack > 0) || !(row.defence > 0)) continue;
+    byTeam.set(row.team_id, { attack: row.attack, defence: 1 / row.defence });
+  }
+
+  const values = [...byTeam.values()];
+  const attack = ratingStats(values.map((v) => v.attack));
+  const defence = ratingStats(values.map((v) => v.defence));
+
   return {
-    attack: ratingStats(
-      teams.flatMap((t) => [t.strength_attack_home, t.strength_attack_away]),
-    ),
-    defence: ratingStats(
-      teams.flatMap((t) => [t.strength_defence_home, t.strength_defence_away]),
-    ),
+    byTeam,
+    attack,
+    defence,
+    usable: attack !== null && defence !== null,
   };
 }
 
@@ -72,12 +140,11 @@ export function leagueRatings(teams: TeamLike[]): LeagueRatings {
 export function fixtureContextsFor(
   teamId: number,
   fixtures: FixtureLike[],
-  teamsById: Map<number, TeamLike>,
-  ratings: LeagueRatings,
+  ratings: FixtureRatings,
   gameweeks: number[],
 ): FixtureContext[] {
   const wanted = new Set(gameweeks);
-  const team = teamsById.get(teamId);
+  const team = ratings.byTeam.get(teamId);
 
   return fixtures
     .filter(
@@ -88,27 +155,15 @@ export function fixtureContextsFor(
     )
     .map((f) => {
       const isHome = f.home_team === teamId;
-      const opponent = teamsById.get(isHome ? f.away_team : f.home_team);
+      const opponent = ratings.byTeam.get(isHome ? f.away_team : f.home_team);
       return {
         gw: f.gw as number,
         isHome,
-        teamDefence: team
-          ? isHome
-            ? team.strength_defence_home
-            : team.strength_defence_away
-          : null,
-        opponentAttack: opponent
-          ? isHome
-            ? opponent.strength_attack_away
-            : opponent.strength_attack_home
-          : null,
+        teamDefence: team?.defence ?? null,
+        opponentAttack: opponent?.attack ?? null,
         leagueMeanAttack: ratings.attack?.mean ?? null,
         leagueStdAttack: ratings.attack?.std ?? null,
-        opponentDefence: opponent
-          ? isHome
-            ? opponent.strength_defence_away
-            : opponent.strength_defence_home
-          : null,
+        opponentDefence: opponent?.defence ?? null,
         leagueMeanDefence: ratings.defence?.mean ?? null,
         leagueStdDefence: ratings.defence?.std ?? null,
       };

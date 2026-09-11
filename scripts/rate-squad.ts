@@ -49,7 +49,7 @@ async function main() {
     process.exit(1);
   }
 
-  const pool = await loadPool({ horizon, useFdr: process.argv.includes("--fdr") });
+  const pool = await loadPool({ horizon });
   const teamName = new Map(pool.teams.map((t) => [t.id, t]));
 
   const squad: Candidate[] = wanted.map((entry) => {
@@ -117,7 +117,7 @@ async function main() {
 
   console.log(
     `\nGW${pool.gw} · ${squad.length} players · basis ${pool.basis}` +
-      (process.argv.includes("--fdr") ? " · FDR live" : " · FDR inert"),
+      (pool.fixtureAware ? " · fixtures live" : " · FIXTURES INERT"),
   );
   console.log(
     `ratings fitted on 2025/26; ${[...unrated].length} promoted sides ` +

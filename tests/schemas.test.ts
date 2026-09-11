@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   bootstrapStaticSchema,
-  hasStrengthRatings,
   teamSchema,
   leagueStandingsSchema,
 } from "@/lib/fpl/schemas";
@@ -52,23 +51,6 @@ describe("teamSchema", () => {
     const { short_name, ...withoutShortName } = preSeasonTeam;
     void short_name;
     expect(() => teamSchema.parse(withoutShortName)).toThrow();
-  });
-});
-
-describe("hasStrengthRatings", () => {
-  it("is false pre-season, when every rating is zero", () => {
-    // The trap this guards: zero is a valid integer, so a naive opponent
-    // adjustment divides by a league mean of zero and silently produces NaN.
-    expect(hasStrengthRatings(teamSchema.parse(preSeasonTeam))).toBe(false);
-  });
-
-  it("is true once real ratings are published", () => {
-    expect(hasStrengthRatings(teamSchema.parse(inSeasonTeam))).toBe(true);
-  });
-
-  it("is false if any single rating is missing", () => {
-    const partial = { ...inSeasonTeam, strength_defence_away: 0 };
-    expect(hasStrengthRatings(teamSchema.parse(partial))).toBe(false);
   });
 });
 

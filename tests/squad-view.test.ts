@@ -10,9 +10,9 @@ import {
 import { POSITION } from "@/lib/rules";
 
 const teams: TeamLike[] = [
-  { id: 1, short_name: "ARS", strength_attack_home: 1300, strength_attack_away: 1280, strength_defence_home: 1290, strength_defence_away: 1270 },
-  { id: 2, short_name: "LIV", strength_attack_home: 1310, strength_attack_away: 1290, strength_defence_home: 1280, strength_defence_away: 1260 },
-  { id: 3, short_name: "BUR", strength_attack_home: 1050, strength_attack_away: 1030, strength_defence_home: 1060, strength_defence_away: 1040 },
+  { id: 1, short_name: "ARS" },
+  { id: 2, short_name: "LIV" },
+  { id: 3, short_name: "BUR" },
 ];
 
 function player(id: number, position: number, over: Partial<PlayerLike> = {}): PlayerLike {

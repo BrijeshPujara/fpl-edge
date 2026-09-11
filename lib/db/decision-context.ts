@@ -9,6 +9,7 @@ import {
   cachedPriceMomentum,
   cachedRecentStats,
   cachedSeasonHistory,
+  cachedTeamRatings,
   cachedTeams,
 } from "./cached";
 import { projectPriceChanges } from "@/lib/engine/price-model";
@@ -70,6 +71,8 @@ export interface ReadyDecisionContext {
   gameweeksPlayed: number;
   /** Whether the model knows enough about minutes to justify a hit. */
   minutesKnown: boolean;
+  /** Whether the opponent adjustment is live. See `CandidatePool`. */
+  fixtureAware: boolean;
 }
 
 export type DecisionContext =
@@ -117,10 +120,19 @@ async function loadDecisionContextUncached(
    * longer forces the wait. Six round trips over a second became one cache
    * read after the first request.
    */
-  const [storedPlayers, teams, fixtures, stats, historyRows, momentum, availability] =
-    await Promise.all([
+  const [
+    storedPlayers,
+    teams,
+    teamRatings,
+    fixtures,
+    stats,
+    historyRows,
+    momentum,
+    availability,
+  ] = await Promise.all([
       cachedPlayers(),
       cachedTeams(),
+      cachedTeamRatings(),
       // One extra gameweek beyond the horizon so the final entry is a real
       // projection rather than a truncated one.
       cachedFixtures(target.id, target.id + horizon),
@@ -148,6 +160,7 @@ async function loadDecisionContextUncached(
     horizon,
     players,
     teams,
+    teamRatings,
     fixtures,
     stats,
     priorSeasons,
@@ -184,6 +197,7 @@ async function loadDecisionContextUncached(
     basis: pool.basis,
     gameweeksPlayed: pool.gameweeksPlayed,
     minutesKnown: pool.minutesKnown,
+    fixtureAware: pool.fixtureAware,
   };
 }
 

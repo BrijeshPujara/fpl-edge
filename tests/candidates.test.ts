@@ -4,7 +4,11 @@ import {
   buildCandidatePool,
   toPlayerCandidate,
 } from "@/lib/squad/candidates";
-import { fixtureContextsFor, leagueRatings } from "@/lib/squad/projection";
+import {
+  fixtureContextsFor,
+  fixtureRatings,
+  type TeamRatingLike,
+} from "@/lib/squad/projection";
 import type {
   FixtureLike,
   PlayerLike,
@@ -14,16 +18,33 @@ import type {
 import { POSITION } from "@/lib/rules";
 
 const teams: TeamLike[] = [
-  {
-    id: 1, short_name: "ARS",
-    strength_attack_home: 1300, strength_attack_away: 1280,
-    strength_defence_home: 1250, strength_defence_away: 1230,
-  },
-  {
-    id: 2, short_name: "BUR",
-    strength_attack_home: 1050, strength_attack_away: 1020,
-    strength_defence_home: 1080, strength_defence_away: 1060,
-  },
+  { id: 1, short_name: "ARS" },
+  { id: 2, short_name: "BUR" },
+];
+
+/**
+ * Fitted ratings on the scale `team_ratings` actually stores: a multiplier on
+ * league-average goals. ARS attack well, and concede at half the league rate;
+ * BUR are the mirror image. Defence is a CONCESSION factor, so BUR's 1.31 is
+ * the bad one — the direction this file exists to pin down.
+ */
+const teamRatings: TeamRatingLike[] = [
+  { team_id: 1, attack: 1.38, defence: 0.48 },
+  { team_id: 2, attack: 0.68, defence: 1.31 },
+];
+
+/**
+ * A table long enough to have a real spread. Two clubs would not: the standard
+ * deviation of two values is half the gap between them, so each sits exactly
+ * one deviation from the mean no matter what the ratings say.
+ */
+const deepTable: TeamRatingLike[] = [
+  { team_id: 1, attack: 1.38, defence: 0.70 },
+  { team_id: 2, attack: 1.20, defence: 0.48 },
+  { team_id: 3, attack: 0.68, defence: 1.45 },
+  { team_id: 4, attack: 1.05, defence: 0.95 },
+  { team_id: 5, attack: 0.90, defence: 1.10 },
+  { team_id: 6, attack: 1.10, defence: 1.00 },
 ];
 
 function player(over: Partial<PlayerLike> = {}): PlayerLike {
@@ -53,6 +74,56 @@ function stat(playerId: number, gw: number, over: Partial<StatLike> = {}): StatL
 describe("buildCandidatePool", () => {
   const fixtures = [fixture(5, 1, 2), fixture(6, 2, 1), fixture(7, 1, 2)];
   const base = { gw: 5, horizon: 3, teams, fixtures };
+
+  it("projects a player differently against different opponents", () => {
+    /*
+     * The regression guard for the bug this ratings source exists to fix.
+     *
+     * FPL served `strength_attack_*` and `strength_defence_*` as zero for all
+     * twenty clubs through 2026/27. The schema was satisfied, `ratingStats`
+     * read the zeros as pre-season and returned null, and every fixture in the
+     * season projected neutral — Haaland away at Man United scored the same as
+     * Haaland at home to a promoted side. Nothing threw and every test passed,
+     * because no test had ever asserted that the opponent mattered at all.
+     *
+     * This one does. It fails if the ratings stop arriving, and it fails if
+     * the defence conversion loses its sign.
+     *
+     * The ratings table is held FIXED and only the opponent changes. Varying a
+     * rating instead moves the league mean and spread it is normalised
+     * against, and with a short table that hides the very effect being
+     * measured — two clubs sit exactly one standard deviation apart whatever
+     * their ratings are, so every fixture scores the same.
+     */
+    const striker = player({ team_id: 1 });
+    const stats = [stat(1, 4), stat(1, 3)];
+    const shared = { ...base, players: [striker], stats, teamRatings: deepTable };
+
+    const [versusElite] = buildCandidatePool({
+      ...shared, fixtures: [fixture(5, 1, 2)],
+    }).candidates;
+    const [versusLeaky] = buildCandidatePool({
+      ...shared, fixtures: [fixture(5, 1, 3)],
+    }).candidates;
+
+    expect(versusLeaky.perGameweek[0].ep).toBeGreaterThan(
+      versusElite.perGameweek[0].ep,
+    );
+  });
+
+  it("says so when it has no ratings to judge fixtures with", () => {
+    const pool = buildCandidatePool({
+      ...base, players: [player()], stats: [stat(1, 4)],
+    });
+    expect(pool.fixtureAware).toBe(false);
+  });
+
+  it("is fixture aware once ratings are supplied", () => {
+    const pool = buildCandidatePool({
+      ...base, players: [player()], stats: [stat(1, 4)], teamRatings,
+    });
+    expect(pool.fixtureAware).toBe(true);
+  });
 
   it("reports that nothing is projectable with no history", () => {
     // The honesty gate both screens hang on.
@@ -195,13 +266,12 @@ describe("toPlayerCandidate", () => {
 });
 
 describe("fixtureContextsFor", () => {
-  const ratings = leagueRatings(teams);
+  const ratings = fixtureRatings(teamRatings);
 
   it("returns one context per fixture, not per gameweek", () => {
     const contexts = fixtureContextsFor(
       1,
       [fixture(5, 1, 2), fixture(5, 2, 1), fixture(6, 1, 2)],
-      new Map(teams.map((t) => [t.id, t])),
       ratings,
       [5, 6],
     );
@@ -213,7 +283,6 @@ describe("fixtureContextsFor", () => {
     const contexts = fixtureContextsFor(
       1,
       [fixture(5, 1, 2), fixture(6, 2, 1)],
-      new Map(teams.map((t) => [t.id, t])),
       ratings,
       [5, 6],
     );
@@ -225,7 +294,6 @@ describe("fixtureContextsFor", () => {
     const contexts = fixtureContextsFor(
       1,
       [fixture(5, 1, 2), fixture(9, 1, 2)],
-      new Map(teams.map((t) => [t.id, t])),
       ratings,
       [5],
     );
@@ -236,31 +304,82 @@ describe("fixtureContextsFor", () => {
     const contexts = fixtureContextsFor(
       1,
       [{ gw: null, home_team: 1, away_team: 2, home_difficulty: 3, away_difficulty: 3 }],
-      new Map(teams.map((t) => [t.id, t])),
       ratings,
       [5],
     );
     expect(contexts).toEqual([]);
   });
-});
 
-describe("leagueRatings", () => {
-  it("summarises real ratings", () => {
-    const r = leagueRatings(teams);
-    expect(r.attack?.mean).toBeGreaterThan(0);
-    expect(r.defence?.std).toBeGreaterThan(0);
+  it("carries one rating per club regardless of venue", () => {
+    // Venue is applied once, by HOME_ADVANTAGE inside expectedGoalsAgainst.
+    // A home and an away rating here would count it twice.
+    const [home, away] = fixtureContextsFor(
+      1,
+      [fixture(5, 1, 2), fixture(6, 2, 1)],
+      ratings,
+      [5, 6],
+    );
+    expect(home.teamDefence).toBe(away.teamDefence);
   });
 
-  it("is null pre-season, when every rating reads zero", () => {
+  it("reads neutral for a club with no fitted rating", () => {
+    const [context] = fixtureContextsFor(
+      3,
+      [fixture(5, 3, 1)],
+      ratings,
+      [5],
+    );
+    expect(context.teamDefence).toBeNull();
+  });
+});
+
+describe("fixtureRatings", () => {
+  it("inverts defence, which is a concession factor", () => {
+    // The whole point. `attack` already means "higher is better", but
+    // `defence` means "higher concedes more" — the opposite of the FPL field
+    // it replaced. Passed through unconverted every fixture reads backwards,
+    // which is worse than the zeros that prompted the change.
+    const ratings = fixtureRatings(teamRatings);
+    const arsenal = ratings.byTeam.get(1)!;
+    const burnley = ratings.byTeam.get(2)!;
+
+    expect(arsenal.defence).toBeGreaterThan(burnley.defence);
+    expect(arsenal.attack).toBeGreaterThan(burnley.attack);
+  });
+
+  it("stays positive for a defence worse than twice the league average", () => {
+    // Mirroring around the mean would go negative here, and
+    // `opponentAdjustment` silently neutralises a non-positive rating — which
+    // would mute the league's worst defence exactly where it matters most.
+    const ratings = fixtureRatings([
+      ...teamRatings,
+      { team_id: 3, attack: 0.5, defence: 2.6 },
+    ]);
+    expect(ratings.byTeam.get(3)!.defence).toBeGreaterThan(0);
+  });
+
+  it("summarises the league distribution", () => {
+    const r = fixtureRatings(teamRatings);
+    expect(r.attack?.mean).toBeGreaterThan(0);
+    expect(r.defence?.std).toBeGreaterThan(0);
+    expect(r.usable).toBe(true);
+  });
+
+  it("is unusable with nothing stored", () => {
     // Not a fallback — "no information" is the correct answer, and the model
-    // turns the opponent adjustment off rather than dividing by zero.
-    const preSeason = teams.map((t) => ({
-      ...t,
-      strength_attack_home: 0, strength_attack_away: 0,
-      strength_defence_home: 0, strength_defence_away: 0,
-    }));
-    expect(leagueRatings(preSeason).attack).toBeNull();
-    expect(leagueRatings(preSeason).defence).toBeNull();
+    // turns the opponent adjustment off rather than inventing a scale.
+    const r = fixtureRatings([]);
+    expect(r.attack).toBeNull();
+    expect(r.defence).toBeNull();
+    expect(r.usable).toBe(false);
+  });
+
+  it("drops a non-positive fit rather than dividing by it", () => {
+    const r = fixtureRatings([
+      ...teamRatings,
+      { team_id: 3, attack: 0, defence: 0 },
+    ]);
+    expect(r.byTeam.has(3)).toBe(false);
   });
 });
 

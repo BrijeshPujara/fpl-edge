@@ -13,6 +13,7 @@ import {
   getRecentStats,
   getTeams,
 } from "@/lib/db/queries";
+import { getTeamRatingRows } from "@/lib/db/ratings";
 import { buildSquadView } from "@/lib/squad/view";
 import { notFound } from "next/navigation";
 import { parseEntryId } from "@/lib/fpl/entry";
@@ -81,13 +82,15 @@ export default async function SquadPage({
   }
 
   const playerIds = stored.picks.map((p) => p.player_id);
-  const [storedPlayers, teams, fixtures, stats, availability] = await Promise.all([
-    getPlayersByIds(db, playerIds),
-    getTeams(db),
-    getFixturesFrom(db, target.id, target.id + 6),
-    getRecentStats(db, playerIds, Math.max(1, target.id - FORM_WINDOW)),
-    getAvailability(),
-  ]);
+  const [storedPlayers, teams, teamRatings, fixtures, stats, availability] =
+    await Promise.all([
+      getPlayersByIds(db, playerIds),
+      getTeams(db),
+      getTeamRatingRows(db),
+      getFixturesFrom(db, target.id, target.id + 6),
+      getRecentStats(db, playerIds, Math.max(1, target.id - FORM_WINDOW)),
+      getAvailability(),
+    ]);
 
   // Fitness from the API, not from the overnight sync — see getAvailability.
   const players = applyAvailability(storedPlayers, availability);
@@ -117,6 +120,7 @@ export default async function SquadPage({
     teams,
     fixtures,
     stats,
+    teamRatings,
     epByPlayer,
   });
 

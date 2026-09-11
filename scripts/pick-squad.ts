@@ -22,8 +22,7 @@ import { money, ep as fmtEp } from "@/lib/format";
 
 async function main() {
   const horizon = Number(process.argv[2] ?? DEFAULT_HORIZON);
-  const useFdr = process.argv.includes("--fdr");
-  const pool = await loadPool({ horizon, useFdr });
+  const pool = await loadPool({ horizon });
   const { evidenceFor, teams, fixtures } = pool;
 
   // Anyone the API says cannot be selected at all is not a candidate. Flagged
@@ -48,7 +47,7 @@ async function main() {
     `\nGW${pool.gw} · ${pool.gwName} · horizon ${horizon} · basis ${pool.basis} · ` +
       `${selectable.length} selectable of ${pool.candidates.length}` +
       (minMinutes > 0 ? ` · gate ${minMinutes}min in ${LAST_SEASON}` : "") +
-      (useFdr ? " · FDR live" : " · FDR inert") +
+      (pool.fixtureAware ? " · fixtures live" : " · FIXTURES INERT") +
       `\n`,
   );
 

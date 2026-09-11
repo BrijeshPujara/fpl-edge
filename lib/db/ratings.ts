@@ -3,6 +3,7 @@ import "server-only";
 import type { Db } from "./client";
 import type { TablesInsert } from "./types.generated";
 import type { TeamStrength } from "@/lib/engine/scoreline";
+import type { TeamRatingLike } from "@/lib/squad/projection";
 import {
   basisFor,
   blendSeasons,
@@ -46,6 +47,28 @@ export interface StoredRatings {
   /** Clubs carrying the promoted prior rather than a fitted rating. */
   prior: Set<number>;
   updatedAt: string;
+}
+
+/**
+ * Just the per-club attack and defence, as plain rows.
+ *
+ * Exists alongside `getRatings` because the expected-points path needs only
+ * these three columns and is read through `unstable_cache`, which serialises
+ * via JSON — `StoredRatings` carries Maps and a Set, none of which survive the
+ * round trip. Returning rows rather than a fitted object is the same reasoning
+ * that keeps every other reader in `cached.ts` row-shaped.
+ */
+export async function getTeamRatingRows(db: Db): Promise<TeamRatingLike[]> {
+  const { data, error } = await db
+    .from("team_ratings")
+    .select("team_id, attack, defence");
+  if (error) throw new Error(`Failed to read ratings: ${error.message}`);
+
+  return (data ?? []).map((row) => ({
+    team_id: row.team_id,
+    attack: Number(row.attack),
+    defence: Number(row.defence),
+  }));
 }
 
 /** Everything needed to price a fixture, or null when nothing is stored. */

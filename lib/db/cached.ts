@@ -13,6 +13,7 @@ import {
   type TeamRow,
 } from "./queries";
 import { loadPriceMomentumInputs } from "./price-momentum";
+import { getTeamRatingRows } from "./ratings";
 
 /**
  * The reads that are identical for every manager, cached between requests.
@@ -101,6 +102,18 @@ export const cachedPlayers = cachedOrDirect(
 export const cachedTeams = cachedOrDirect(
   async (): Promise<TeamRow[]> => getTeams(getDb()),
   ["all-teams"],
+);
+
+/**
+ * The fitted team ratings the opponent adjustment runs on.
+ *
+ * Separate from `cachedTeams` because it is a different table with a different
+ * update cadence — the sync refits these after results land, while the team
+ * rows change almost never.
+ */
+export const cachedTeamRatings = cachedOrDirect(
+  async () => getTeamRatingRows(getDb()),
+  ["team-ratings"],
 );
 
 export const cachedFixtures = cachedOrDirect(

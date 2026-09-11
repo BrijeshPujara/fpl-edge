@@ -118,10 +118,11 @@ export const MINUTES_KNOWN_GAMEWEEKS = Math.floor(START_RATE_WINDOW / 2) + 1;
  * infrequently and lag reality.
  *
  * The adjustment is computed against the *observed* league mean and spread of
- * the ratings rather than an assumed scale, because the FPL strength fields
- * have changed scale between seasons and read as zero pre-season. See
- * `hasStrengthRatings` in `lib/fpl/schemas.ts` — when it returns false, skip
- * the adjustment entirely and use a neutral 1.0.
+ * the ratings rather than an assumed scale, because the ratings have no fixed
+ * scale to assume — a z-score is comparable whatever units they arrive in.
+ * `fixtureRatings` in `lib/squad/projection.ts` supplies them from
+ * `team_ratings`; when it has nothing usable, the adjustment falls back to a
+ * neutral 1.0, which is the correct answer rather than a fallback.
  */
 export const OPPONENT_ADJUSTMENT_SCALE = 0.2;
 

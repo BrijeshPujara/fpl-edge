@@ -17,6 +17,7 @@ import {
   type PlayerRow,
   type TeamRow,
 } from "@/lib/db/queries";
+import { getTeamRatingRows } from "@/lib/db/ratings";
 import { getSeasonContext } from "@/lib/fpl/season";
 import { buildCandidatePool, type Candidate } from "@/lib/squad/candidates";
 import {
@@ -47,22 +48,13 @@ export interface LoadedPool {
   fixtures: FixtureRow[];
   candidates: Candidate[];
   basis: "none" | "prior-season" | "this-season";
+  /** Whether the opponent adjustment is live. See `CandidatePool`. */
+  fixtureAware: boolean;
   evidenceFor: (playerId: number) => Evidence | undefined;
 }
 
 export interface LoadPoolOptions {
   horizon: number;
-  /**
-   * Substitute overall strength into the attack and defence splits.
-   *
-   * Pre-season FPL leaves those splits at zero, so `ratingStats` finds nothing
-   * usable and every opponent is scored league-average — the documented
-   * neutral-1.0 fallback, working as designed, but it means fixture difficulty
-   * contributes NOTHING to the ranking. This is an approximation, since a side
-   * strong overall is assumed strong at both ends, but a far better one than
-   * "every opponent is identical".
-   */
-  useFdr?: boolean;
 }
 
 export async function loadPool(options: LoadPoolOptions): Promise<LoadedPool> {
@@ -72,9 +64,10 @@ export async function loadPool(options: LoadPoolOptions): Promise<LoadedPool> {
   const { target } = season.gameweek;
 
   const db = getDb();
-  const [players, teams, fixtures] = await Promise.all([
+  const [players, teams, teamRatings, fixtures] = await Promise.all([
     getAllPlayers(db),
     getTeams(db),
+    getTeamRatingRows(db),
     getFixturesFrom(db, target.id, target.id + horizon),
   ]);
   const stats = await getRecentStats(
@@ -140,23 +133,22 @@ export async function loadPool(options: LoadPoolOptions): Promise<LoadedPool> {
     });
   }
 
-  const ratedTeams = options.useFdr
-    ? teams.map((t) => ({
-        ...t,
-        strength_attack_home: t.strength_attack_home || t.strength_overall_home,
-        strength_attack_away: t.strength_attack_away || t.strength_overall_away,
-        strength_defence_home:
-          t.strength_defence_home || t.strength_overall_home,
-        strength_defence_away:
-          t.strength_defence_away || t.strength_overall_away,
-      }))
-    : teams;
-
+  /*
+   * There is no `--fdr` escape hatch any more, and its absence is the point.
+   *
+   * It existed to substitute the coarse 1-5 `strength_overall_*` tiers into the
+   * attack and defence splits, because those splits read zero and fixture
+   * difficulty contributed nothing. The splits are no longer where difficulty
+   * comes from — `team_ratings` is — so the flag would now be a SECOND, worse
+   * projection path, and a script quietly ranking players differently from the
+   * app is the failure this codebase works hardest to avoid.
+   */
   const pool = buildCandidatePool({
     gw: target.id,
     horizon,
     players,
-    teams: ratedTeams,
+    teams,
+    teamRatings,
     fixtures,
     stats,
     priorSeasons,
@@ -174,6 +166,7 @@ export async function loadPool(options: LoadPoolOptions): Promise<LoadedPool> {
     fixtures,
     candidates: pool.candidates,
     basis: pool.basis,
+    fixtureAware: pool.fixtureAware,
     evidenceFor: (playerId) => evidence.get(codeOf.get(playerId) ?? -1),
   };
 }

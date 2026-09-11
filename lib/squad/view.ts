@@ -7,10 +7,11 @@ import {
 } from "@/lib/rules";
 import {
   fixtureContextsFor,
+  fixtureRatings,
   historyFor,
-  leagueRatings,
   projectPlayer,
   statsByPlayer,
+  type TeamRatingLike,
 } from "./projection";
 
 /**
@@ -48,13 +49,19 @@ export interface PlayerLike {
   direct_freekicks_order?: number | null;
 }
 
+/**
+ * A club, for names and crests only.
+ *
+ * It used to carry `strength_attack_*` and `strength_defence_*` as well, and
+ * the projection read fixture difficulty straight out of them. FPL has served
+ * those four as zero all season, so they are gone from here rather than left
+ * to be re-wired by someone who reasonably assumes a field that exists is a
+ * field that means something. Difficulty comes from `team_ratings` now — see
+ * `fixtureRatings`.
+ */
 export interface TeamLike {
   id: number;
   short_name: string;
-  strength_attack_home: number;
-  strength_attack_away: number;
-  strength_defence_home: number;
-  strength_defence_away: number;
 }
 
 export interface FixtureLike {
@@ -204,6 +211,11 @@ export interface BuildSquadViewInput {
    * with no context — but every real page passes it.
    */
   epByPlayer?: Map<number, number>;
+  /**
+   * Fitted team ratings, for the opponent adjustment. Same contract as
+   * `BuildCandidatePoolInput.teamRatings` — absent means neutral fixtures.
+   */
+  teamRatings?: TeamRatingLike[];
 }
 
 export function buildSquadView(input: BuildSquadViewInput): SquadView {
@@ -211,7 +223,7 @@ export function buildSquadView(input: BuildSquadViewInput): SquadView {
   const teamsById = new Map(input.teams.map((t) => [t.id, t]));
   const playersById = new Map(input.players.map((p) => [p.id, p]));
 
-  const ratings = leagueRatings(input.teams);
+  const ratings = fixtureRatings(input.teamRatings ?? []);
   const byPlayer = statsByPlayer(input.stats);
   const anyHistory = input.stats.length > 0;
 
@@ -235,13 +247,9 @@ export function buildSquadView(input: BuildSquadViewInput): SquadView {
     // Every fixture in the target gameweek, not just the first. A double
     // gameweek is two fixtures and should project as two — taking only the
     // first understated it by half.
-    const contexts = fixtureContextsFor(
-      player.team_id,
-      input.fixtures,
-      teamsById,
-      ratings,
-      [input.gw],
-    );
+    const contexts = fixtureContextsFor(player.team_id, input.fixtures, ratings, [
+      input.gw,
+    ]);
 
     const supplied = input.epByPlayer?.get(player.id);
     const ep = projectPlayer(player, history, contexts, [input.gw]);

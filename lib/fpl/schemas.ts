@@ -56,16 +56,22 @@ export type FplEvent = z.infer<typeof eventSchema>;
 /**
  * Team strength ratings.
  *
- * Two pre-season quirks, both verified against the live API in August 2026 and
- * both capable of silently poisoning the model if not handled:
+ * `strength` is NULL for every team until the season is under way, and
+ * `strength_attack_*` and `strength_defence_*` have read ZERO for all twenty
+ * clubs for the whole of 2026/27 — not just pre-season, as was assumed when
+ * this was written. FPL appears to have stopped publishing them.
  *
- *  - `strength` is NULL for every team until the season is under way.
- *  - `strength_attack_*` and `strength_defence_*` are all ZERO pre-season.
- *    They are not on the same scale as `strength_overall_*` either.
+ * NOTHING MODELS ON THESE FOUR FIELDS ANY MORE, and a guard that used to say
+ * whether they were usable has been deleted rather than left for someone to
+ * wire back up. Fixture difficulty comes from `team_ratings`, fitted from
+ * results we have seen — see `fixtureRatings` in `lib/squad/projection.ts` for
+ * what reading these zeros cost.
  *
- * A zero is indistinguishable from a real rating to a naive consumer, so the
- * opponent adjustment must check `hasStrengthRatings` before using them rather
- * than dividing by a league mean of zero.
+ * They stay REQUIRED here regardless, because that is what invariant 5 is for:
+ * they are still in the payload, and the day their shape changes we want to
+ * hear about it. A zero that parses is a different problem from a field that
+ * vanishes, and loosening the schema would hide the second while fixing
+ * neither.
  */
 export const teamSchema = z.object({
   id: z.number().int(),
@@ -81,23 +87,6 @@ export const teamSchema = z.object({
 });
 
 export type FplTeam = z.infer<typeof teamSchema>;
-
-/**
- * Whether a team's attack/defence ratings carry real information yet.
- *
- * Pre-season every one of them is zero. The expected-points model's opponent
- * adjustment must fall back to a neutral multiplier when this is false — using
- * the zeros directly produces a division by a zero league mean, and worse,
- * appears to work.
- */
-export function hasStrengthRatings(team: FplTeam): boolean {
-  return (
-    team.strength_attack_home > 0 &&
-    team.strength_attack_away > 0 &&
-    team.strength_defence_home > 0 &&
-    team.strength_defence_away > 0
-  );
-}
 
 export const elementTypeSchema = z.object({
   id: z.number().int(),

@@ -11,11 +11,12 @@ import { readNewsSignal } from "@/lib/engine/news-signal";
 import { MINUTES_KNOWN_GAMEWEEKS } from "@/lib/engine/constants";
 import {
   fixtureContextsFor,
+  fixtureRatings,
   historyFor,
-  leagueRatings,
   modelInputFor,
   projectPlayer,
   statsByPlayer,
+  type TeamRatingLike,
 } from "./projection";
 import type { FixtureLike, PlayerLike, StatLike, TeamLike } from "./view";
 
@@ -96,6 +97,22 @@ export interface CandidatePool {
    * See MINUTES_KNOWN_GAMEWEEKS for why one is not enough.
    */
   minutesKnown: boolean;
+  /**
+   * Whether the projections know who each club is playing.
+   *
+   * False means the opponent adjustment is neutral everywhere and the numbers
+   * describe form and minutes alone — a Man City striker away at Arsenal reads
+   * exactly as he would at home to a promoted side. That was true, unnoticed,
+   * for the whole of 2026/27 up to GW4, because the API's strength fields went
+   * to zero and nothing anywhere said so out loud.
+   *
+   * It is on the pool rather than derived at each call site so that the state
+   * has one name. `pick-squad` and `rate-squad` print it; no screen captions it
+   * yet, and until one does a silent false is still possible — narrower than
+   * before, because the ratings now come from a table this project writes
+   * itself rather than a field the API can abandon. See `fixtureRatings`.
+   */
+  fixtureAware: boolean;
   /** The gameweeks projected, ascending. */
   gameweeks: number[];
 }
@@ -124,6 +141,14 @@ export interface BuildCandidatePoolInput {
    * first appearance. See `workloadFromSeason`.
    */
   priorWorkloads?: Map<number, PriorSeasonWorkload>;
+  /**
+   * Fitted team ratings, for the opponent adjustment.
+   *
+   * Optional, and absent means every fixture projects neutral — which is what
+   * the preview harness wants and what the whole app was silently doing while
+   * it read the API's zeroed strength fields. Every real page passes it.
+   */
+  teamRatings?: TeamRatingLike[];
 }
 
 function flagFor(player: PlayerLike): Candidate["flag"] {
@@ -138,7 +163,7 @@ export function buildCandidatePool(
   input: BuildCandidatePoolInput,
 ): CandidatePool {
   const teamsById = new Map(input.teams.map((t) => [t.id, t]));
-  const ratings = leagueRatings(input.teams);
+  const ratings = fixtureRatings(input.teamRatings ?? []);
   const byPlayer = statsByPlayer(input.stats);
   const gameweeks = Array.from(
     { length: input.horizon },
@@ -151,7 +176,7 @@ export function buildCandidatePool(
   const contextsByTeam = new Map(
     input.teams.map((t) => [
       t.id,
-      fixtureContextsFor(t.id, input.fixtures, teamsById, ratings, gameweeks),
+      fixtureContextsFor(t.id, input.fixtures, ratings, gameweeks),
     ]),
   );
 
@@ -224,6 +249,7 @@ export function buildCandidatePool(
     basis,
     gameweeksPlayed,
     minutesKnown: gameweeksPlayed >= MINUTES_KNOWN_GAMEWEEKS,
+    fixtureAware: ratings.usable,
     gameweeks,
   };
 }
