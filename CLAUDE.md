@@ -86,6 +86,7 @@ our bug, and it must stay loud.
 npm run check        # typecheck + lint + tests. The gate. Run before finishing.
 npm test             # vitest
 npm run backtest     # replay the EP model over a season vs a naive baseline
+npm run backtest:squad # replay SELECTION — does it pick well, not just predict well
 npm run eval:brief   # grade recorded briefs for groundedness (free, no key)
 npm run ep:smoke     # rank every player; catches "GK above Haaland" bugs
 npm run db:types     # regenerate lib/db/types.generated.ts after a migration

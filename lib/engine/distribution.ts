@@ -134,6 +134,32 @@ export function mean(pmf: Pmf): number {
   return total;
 }
 
+/**
+ * Spread around the mean.
+ *
+ * The quantity a risk-adjusted objective can actually use, and the reason it is
+ * variance rather than a quantile. Variance is ADDITIVE over independent
+ * players, so a sum of per-player `mean - γ·variance` scores is exactly
+ * `E[total] - γ·Var[total]` — the objective stays linear and the MILP is
+ * unchanged. Summing per-player quantiles looks equivalent and is not: the 25th
+ * percentile of eleven players is nothing like the sum of eleven 25th
+ * percentiles, because they do not all blank together.
+ *
+ * Independence is the assumption, and it is worth naming twice. It is false
+ * exactly where FPL squads concentrate risk — three defenders from one club
+ * share a clean sheet — so this UNDERSTATES the variance of a club stack. See
+ * the note at the top of this file.
+ */
+export function variance(pmf: Pmf): number {
+  const mu = mean(pmf);
+  let total = 0;
+  for (let i = 0; i < SIZE; i++) {
+    const x = i + MIN_POINTS;
+    total += pmf[i] * (x - mu) ** 2;
+  }
+  return total;
+}
+
 /** P(score >= points). The ceiling question. */
 export function atLeast(pmf: Pmf, points: number): number {
   let total = 0;

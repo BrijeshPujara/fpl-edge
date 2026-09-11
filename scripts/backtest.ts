@@ -28,8 +28,6 @@
  *    FLATTERS the set-piece term. Run with `--no-set-pieces` to remove it.
  */
 
-import { mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import {
   expectedPoints,
   type FixtureContext,
@@ -38,15 +36,17 @@ import {
 import { setPieceCredit } from "@/lib/engine/set-pieces";
 import { POSITION, POSITION_SHORT, type PositionId } from "@/lib/rules";
 import { FORM_WINDOW } from "@/lib/engine/constants";
+import { NO_SET_PIECE_DUTY } from "@/lib/engine/set-pieces";
 import {
-  NO_SET_PIECE_DUTY,
-  type SetPieceDuty,
-} from "@/lib/engine/set-pieces";
+  loadSeason,
+  num as n,
+  TOTAL_GWS,
+  type Row,
+} from "./season-data";
 
-const BASE =
-  "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2025-26";
-const CACHE = ".backtest-cache";
-const TOTAL_GWS = 38;
+const mean = (a: number[]) =>
+  a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+
 /** First gameweek projected. Needs FORM_WINDOW of history behind it. */
 const START_GW = FORM_WINDOW + 1;
 /** Gameweeks averaged by the naive baseline, per PLAN.md section 5. */
@@ -54,80 +54,6 @@ const BASELINE_WINDOW = 4;
 
 const NEUTRAL = process.argv.includes("--neutral");
 const NO_SET_PIECES = process.argv.includes("--no-set-pieces");
-
-// --- CSV -------------------------------------------------------------------
-
-/** Minimal RFC-4180 parser — player names contain commas. */
-function parseCsv(text: string): Record<string, string>[] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let quoted = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (quoted) {
-      if (c === '"') {
-        if (text[i + 1] === '"') { field += '"'; i++; } else quoted = false;
-      } else field += c;
-    } else if (c === '"') quoted = true;
-    else if (c === ",") { row.push(field); field = ""; }
-    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
-    else if (c !== "\r") field += c;
-  }
-  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
-
-  const [header, ...body] = rows;
-  return body
-    .filter((r) => r.length === header.length)
-    .map((r) => Object.fromEntries(header.map((h, i) => [h, r[i]])));
-}
-
-async function cached(path: string, name: string): Promise<string> {
-  mkdirSync(CACHE, { recursive: true });
-  const file = join(CACHE, name);
-  if (existsSync(file)) return readFileSync(file, "utf8");
-  const res = await fetch(BASE + path);
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`);
-  const text = await res.text();
-  writeFileSync(file, text);
-  return text;
-}
-
-const n = (v: string | undefined) => {
-  const x = Number.parseFloat(v ?? "");
-  return Number.isFinite(x) ? x : 0;
-};
-
-// --- Types -----------------------------------------------------------------
-
-interface Row {
-  element: number;
-  position: PositionId;
-  gw: number;
-  minutes: number;
-  starts: number;
-  xG: number;
-  xA: number;
-  defcon: number;
-  bonus: number;
-  goalsConceded: number;
-  yellow: number;
-  red: number;
-  points: number;
-  opponentTeam: number;
-  wasHome: boolean;
-}
-
-const POS_MAP: Record<string, PositionId> = {
-  GK: POSITION.GK, GKP: POSITION.GK,
-  DEF: POSITION.DEF, MID: POSITION.MID, FWD: POSITION.FWD,
-};
-
-interface TeamRatings {
-  attackHome: number; attackAway: number;
-  defenceHome: number; defenceAway: number;
-}
 
 // --- Stats -----------------------------------------------------------------
 
@@ -144,77 +70,11 @@ const acc = (): Acc => ({
   blankCount: 0, blankAbsModel: 0, blankSumModel: 0,
 });
 
-function mean(a: number[]) { return a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0; }
-function std(a: number[]) {
-  if (a.length < 2) return 0;
-  const m = mean(a);
-  return Math.sqrt(mean(a.map((x) => (x - m) ** 2)));
-}
-
 async function main() {
-  process.stdout.write("Loading 2025/26 data");
-  const teamRows = parseCsv(await cached("/teams.csv", "teams.csv"));
-  const ratings = new Map<number, TeamRatings>();
-  for (const t of teamRows) {
-    ratings.set(n(t.id), {
-      attackHome: n(t.strength_attack_home),
-      attackAway: n(t.strength_attack_away),
-      defenceHome: n(t.strength_defence_home),
-      defenceAway: n(t.strength_defence_away),
-    });
-  }
-
-  // Set-piece duty, from the season-end player snapshot. See the caveat above.
-  const duties = new Map<number, SetPieceDuty>();
-  if (!NO_SET_PIECES) {
-    const order = (v: string | undefined) => {
-      const x = Number.parseInt(v ?? "", 10);
-      return Number.isFinite(x) && x > 0 ? x : null;
-    };
-    for (const r of parseCsv(
-      await cached("/players_raw.csv", "players_raw.csv"),
-    )) {
-      duties.set(n(r.id), {
-        penaltiesOrder: order(r.penalties_order),
-        cornersOrder: order(r.corners_and_indirect_freekicks_order),
-        directFreekicksOrder: order(r.direct_freekicks_order),
-      });
-    }
-  }
-
-  const byGw = new Map<number, Row[]>();
-  for (let gw = 1; gw <= TOTAL_GWS; gw++) {
-    const text = await cached(`/gws/gw${gw}.csv`, `gw${gw}.csv`);
-    const rows = parseCsv(text)
-      .map((r): Row | null => {
-        const pos = POS_MAP[(r.position ?? "").toUpperCase()];
-        if (!pos) return null;
-        return {
-          element: n(r.element), position: pos, gw,
-          minutes: n(r.minutes), starts: n(r.starts),
-          xG: n(r.expected_goals), xA: n(r.expected_assists),
-          defcon: n(r.defensive_contribution), bonus: n(r.bonus),
-          goalsConceded: n(r.goals_conceded),
-          yellow: n(r.yellow_cards), red: n(r.red_cards),
-          points: n(r.total_points),
-          opponentTeam: n(r.opponent_team),
-          wasHome: (r.was_home ?? "").toLowerCase().startsWith("t"),
-        };
-      })
-      .filter((r): r is Row => r !== null);
-    byGw.set(gw, rows);
-    if (gw % 8 === 0) process.stdout.write(".");
-  }
-  process.stdout.write(" done\n");
-
-  // League mean and spread of the strength ratings, for normalisation.
-  const all = [...ratings.values()];
-  const attacks = all.flatMap((t) => [t.attackHome, t.attackAway]).filter((x) => x > 0);
-  const defences = all.flatMap((t) => [t.defenceHome, t.defenceAway]).filter((x) => x > 0);
-  const meanAttack = attacks.length ? mean(attacks) : null;
-  const stdAttack = attacks.length ? std(attacks) : null;
-  const meanDefence = defences.length ? mean(defences) : null;
-  const stdDefence = defences.length ? std(defences) : null;
+  const { byGw, ratings, duties, league } = await loadSeason({
+    withSetPieces: !NO_SET_PIECES,
+  });
+  const { meanAttack, stdAttack, meanDefence, stdDefence } = league;
 
   // History per player, most recent first.
   const history = new Map<number, Row[]>();
@@ -273,8 +133,7 @@ async function main() {
         leagueStdDefence: useRatings ? stdDefence : null,
       };
 
-      const predicted = expectedPoints(
-        {
+      const modelInput = {
           playerId: row.element,
           position: row.position,
           teamId: 0,
@@ -289,9 +148,9 @@ async function main() {
           recent,
           priorSeason: null,
           setPieces: duties.get(row.element) ?? NO_SET_PIECE_DUTY,
-        },
-        fixture,
-      ).total;
+      };
+
+      const predicted = expectedPoints(modelInput, fixture).total;
 
       const duty = duties.get(row.element);
       if (duty && (duty.penaltiesOrder !== null || duty.cornersOrder !== null)) {

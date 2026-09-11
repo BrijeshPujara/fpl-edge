@@ -279,6 +279,7 @@ npm run dev
 | `npm run pick` | What fifteen would the optimiser buy from a clean £100m? |
 | `npm run seed-ratings` | Fit team ratings from the last three seasons and store them |
 | `npm run backtest` | Replay 2025/26 through the model against a naive baseline |
+| `npm run backtest:squad` | Replay SELECTION: buy a squad each gameweek and score it |
 | `npm run brief:check` | Exercise the LLM brief without a squad |
 | `npm run ep:smoke` | Sanity-check expected points end to end |
 

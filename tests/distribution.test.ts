@@ -8,6 +8,7 @@ import {
   MAX_POINTS,
   mean,
   mix,
+  variance,
   poissonPoints,
   pointMass,
   quantile,
@@ -133,4 +134,32 @@ describe("doubling, which is what the armband does", () => {
       { weight: 0.2, pmf: pointMass(12) },
     ]);
   }
+});
+
+describe("variance", () => {
+  it("is zero for a certainty", () => {
+    expect(variance(pointMass(6))).toBeCloseTo(0, 10);
+  });
+
+  it("matches the closed form for a coin flip", () => {
+    // Bernoulli(p) scaled to {0, k} has variance k^2·p·(1-p).
+    const pmf = bernoulli(0.3, 10, 0);
+    expect(variance(pmf)).toBeCloseTo(100 * 0.3 * 0.7, 6);
+  });
+
+  it("adds under convolution, which is what makes the risk term linear", () => {
+    // The property the optimiser objective depends on. If this stops holding,
+    // summing per-player `ep - γ·variance` stops equalling
+    // `E[total] - γ·Var[total]` and the whole term means something else.
+    const a = bernoulli(0.4, 8, 1);
+    const b = bernoulli(0.6, 5, 2);
+    expect(variance(convolve(a, b))).toBeCloseTo(variance(a) + variance(b), 6);
+  });
+
+  it("separates two players who share a mean", () => {
+    const steady = bernoulli(1, 6, 6);
+    const streaky = bernoulli(0.25, 24, 0);
+    expect(mean(steady)).toBeCloseTo(mean(streaky), 6);
+    expect(variance(streaky)).toBeGreaterThan(variance(steady));
+  });
 });
