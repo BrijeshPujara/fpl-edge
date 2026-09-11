@@ -124,6 +124,7 @@ export function groundedNumbers(text: string, context: BriefContext): Finding[] 
   add(facts.benchTotal);
   add(facts.benchBest?.ep);
   add(facts.captainGap);
+  add(facts.xiTotalWithChip);
   for (const { count } of facts.clubCounts) add(count);
   for (const part of facts.formation.split("-")) add(Number(part));
 

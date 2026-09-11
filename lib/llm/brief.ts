@@ -157,6 +157,18 @@ export interface DerivedFacts {
   clubCounts: { club: string; count: number }[];
   /** How far clear the captain is of the runner-up. */
   captainGap: number | null;
+  /**
+   * The eleven's total with the chip's gain included, when one is advised.
+   *
+   * Here because a live run computed it: given an armband total of 69.0 and a
+   * Triple Captain worth 8.2, the brief wrote 77.2. That sum is CORRECT and
+   * both halves are this-gameweek quantities, so rule 1b does not forbid it —
+   * the model simply had to do arithmetic to reach a number any reader would
+   * want, which rule 1a forbids and which this file exists to pre-empt.
+   *
+   * Null when no chip is advised, which is most weeks.
+   */
+  xiTotalWithChip: number | null;
 }
 
 const round1 = (value: number) => Number(value.toFixed(1));
@@ -195,6 +207,15 @@ export function derivedFacts(context: BriefContext): DerivedFacts {
       context.captain?.runnerUpEp == null
         ? null
         : round1(context.captain.ep - context.captain.runnerUpEp),
+    // Built on the armband total where there is one, because a chip is played
+    // on top of the captain rather than instead of him.
+    xiTotalWithChip:
+      context.chip === null
+        ? null
+        : round1(
+            (context.captain === null ? xiTotal : xiTotal + context.captain.ep) +
+              context.chip.gain,
+          ),
   };
 }
 
@@ -271,13 +292,18 @@ export function buildPrompt(context: BriefContext): string {
   }
 
   if (context.chip) {
+    const chipTotal = facts.xiTotalWithChip;
     lines.push(
       "",
       `Chip: play ${context.chip.name} this gameweek, worth ` +
         `${context.chip.gain.toFixed(1)} THIS GAMEWEEK` +
         (context.chip.margin !== null
           ? `, ${context.chip.margin.toFixed(1)} better than the next available week.`
-          : "."),
+          : ".") +
+        (chipTotal === null
+          ? ""
+          : ` With it the eleven projects ${chipTotal.toFixed(1)} this gameweek —` +
+            ` quote that rather than adding anything up.`),
     );
   }
 

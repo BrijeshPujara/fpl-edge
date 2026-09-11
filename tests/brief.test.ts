@@ -161,6 +161,31 @@ describe("derivedFacts", () => {
     expect(derivedFacts(context({ captain: null })).xiTotalWithArmband).toBeNull();
   });
 
+  it("totals the eleven WITH the chip, so the prose does not add it on", () => {
+    // Measured: given an armband total of 69.0 and a Triple Captain worth 8.2,
+    // a live brief wrote 77.2. The sum is right and both halves are
+    // this-gameweek quantities, so the model was not confusing time periods —
+    // it was doing arithmetic to reach a number any reader wants. Supply it.
+    const facts = derivedFacts(
+      context({ chip: { name: "Triple Captain", gain: 4.0, margin: null } }),
+    );
+    expect(facts.xiTotalWithArmband).toBe(22.5);
+    expect(facts.xiTotalWithChip).toBe(26.5);
+  });
+
+  it("builds the chip total on the armband, not instead of it", () => {
+    // A chip is played on top of the captain. Basing it on the bare eleven
+    // would understate the week by the captain's own projection.
+    const facts = derivedFacts(
+      context({ chip: { name: "Bench Boost", gain: 1.0, margin: null } }),
+    );
+    expect(facts.xiTotalWithChip).toBe(23.5);
+  });
+
+  it("has no chip total when no chip is advised", () => {
+    expect(derivedFacts(context()).xiTotalWithChip).toBeNull();
+  });
+
   it("names the best of the bench", () => {
     // "the only one above 2.5", written of a bench containing a 3.1.
     const facts = derivedFacts(
