@@ -408,6 +408,51 @@ export const BENCH_WEIGHT_INACTIVE = 0.05;
 export const BENCH_WEIGHT_BENCH_BOOST = 1.0;
 
 /**
+ * How much the optimiser dislikes variance: it maximises `ep - γ·variance`.
+ *
+ * Zero. The mechanism is wired up and measured, and the measurement says it
+ * does not pay — which is why this constant exists at zero rather than not
+ * existing at all. Someone will have this idea again.
+ *
+ * Variance rather than a quantile because variance is ADDITIVE over
+ * independent players, so summing per-player scores gives exactly
+ * `E[total] - γ·Var[total]` and the objective stays linear. See
+ * `variance` in `distribution.ts`.
+ *
+ * MEASURED with `npm run backtest:squad` over 2025/26 GW7-38 — a fresh squad
+ * every gameweek, auto-subs applied, scored on what actually happened. Paired
+ * against γ=0 week by week, because unpaired the between-gameweek spread (sd
+ * ≈ 16 pts) buries everything:
+ *
+ *     γ        pts/gw   diff/gw   sd(diff)      t
+ *     -0.10     56.2     +1.59       6.00     1.50
+ *     -0.05     56.4     +1.88       5.74     1.85
+ *     -0.02     54.9     +0.34       2.86     0.68
+ *      0        54.6        .           .        .
+ *     +0.02     54.4     -0.19       4.49    -0.24
+ *     +0.05     54.1     -0.50       6.42    -0.44
+ *     +0.10     56.0     +1.41       9.86     0.81
+ *     +0.20     55.0     +0.41      16.58     0.14
+ *
+ * Not one arm clears |t| = 2. The pts/gw column looks like γ=-0.05 wins by
+ * 1.8 a gameweek; the error bar says that is a coin landing heads. Taking the
+ * argmax of that column would have put a tuned constant in this file with a
+ * table underneath it that appeared to justify it — the exact failure this
+ * file's header warns about, dressed as evidence.
+ *
+ * What the knob demonstrably DOES do is change the squad in the intended
+ * direction: from γ=-0.1 to γ=+0.2 the auto-substitutions needed fall from
+ * 1.00 to 0.63 a gameweek and starting blanks from 0.03 to 0.00. It buys
+ * consistency exactly as designed. Consistency just is not worth points here.
+ *
+ * Thirty-two gameweeks is too few to resolve a one-point effect against a
+ * paired sd of 6. The honest next step is more seasons, not a different γ —
+ * and note that 2024/25 and earlier cannot be pooled in, because
+ * `defensive_contribution` did not exist and the scoring model differs.
+ */
+export const RISK_AVERSION = 0;
+
+/**
  * Minimum P(minutes) for a bench player to count as genuine injury cover.
  *
  * 0.5 is the point at which a player is more likely to feature than not. Below

@@ -8,13 +8,14 @@ import type {
 import { projectMinutes } from "@/lib/engine/minutes";
 import type { PriorSeasonWorkload } from "@/lib/engine/prior-season";
 import { readNewsSignal } from "@/lib/engine/news-signal";
-import { MINUTES_KNOWN_GAMEWEEKS } from "@/lib/engine/constants";
+import { MINUTES_KNOWN_GAMEWEEKS, RISK_AVERSION } from "@/lib/engine/constants";
 import {
   fixtureContextsFor,
   fixtureRatings,
   historyFor,
   modelInputFor,
   projectPlayer,
+  projectVariance,
   statsByPlayer,
   type TeamRatingLike,
 } from "./projection";
@@ -43,6 +44,13 @@ export interface Candidate {
   /** Undiscounted EP per gameweek — what chip gains are computed from. */
   perGameweek: { gw: number; ep: number; fixtures: number }[];
   pMinutes: number;
+  /**
+   * Variance of `ep` over the same horizon, or null when nobody asked.
+   *
+   * Null rather than zero so a caller cannot mistake "not computed" for "this
+   * player is a certainty" — the two would select very differently.
+   */
+  variance: number | null;
   /** Null when fully available; otherwise what the club actually said. */
   flag: { chance: number | null; note: string } | null;
   /** True when the API says the player cannot be selected at all. */
@@ -149,6 +157,14 @@ export interface BuildCandidatePoolInput {
    * it read the API's zeroed strength fields. Every real page passes it.
    */
   teamRatings?: TeamRatingLike[];
+  /**
+   * Risk weight the optimiser will use. Defaults to RISK_AVERSION.
+   *
+   * Read here only to decide whether computing per-player variance is worth
+   * it — at zero it is not, and the whole pass is skipped. The optimiser is
+   * what actually applies it.
+   */
+  riskAversion?: number;
 }
 
 function flagFor(player: PlayerLike): Candidate["flag"] {
@@ -164,6 +180,8 @@ export function buildCandidatePool(
 ): CandidatePool {
   const teamsById = new Map(input.teams.map((t) => [t.id, t]));
   const ratings = fixtureRatings(input.teamRatings ?? []);
+  const riskAversion = input.riskAversion ?? RISK_AVERSION;
+  const wantsVariance = riskAversion !== 0;
   const byPlayer = statsByPlayer(input.stats);
   const gameweeks = Array.from(
     { length: input.horizon },
@@ -231,6 +249,18 @@ export function buildCandidatePool(
       ep: projection.total,
       perGameweek: projection.perGameweek,
       pMinutes,
+      variance: wantsVariance
+        ? projectVariance(
+            modelInputFor(
+              player,
+              history,
+              input.priorSeasons?.get(player.code) ?? null,
+              input.priorWorkloads?.get(player.code) ?? null,
+            ),
+            contexts,
+            gameweeks,
+          )
+        : null,
       flag: flagFor(player),
       unavailable: player.status !== PLAYER_STATUS.available,
       modelInput: modelInputFor(
@@ -266,6 +296,7 @@ export function toPlayerCandidate(
     price: candidate.price,
     ep: candidate.ep,
     pMinutes: candidate.pMinutes,
+    variance: candidate.variance ?? undefined,
     expectedPriceDelta,
   };
 }

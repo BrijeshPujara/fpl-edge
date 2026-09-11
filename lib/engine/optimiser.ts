@@ -6,6 +6,7 @@ import {
   MIN_BENCH_PLAYING_PROB,
   MIN_NAILED_BENCH_OUTFIELD,
   PRICE_WEIGHT_DEFAULT,
+  RISK_AVERSION,
 } from "./constants";
 import type { LpConstraint, LpProblem, LpSolver } from "./lp";
 import {
@@ -55,6 +56,14 @@ export interface PlayerCandidate {
    * the sell-on fee — `realisableDelta` from the price model.
    */
   expectedPriceDelta?: number;
+  /**
+   * Variance of this player's points over the same horizon as `ep`.
+   *
+   * Only read when `riskAversion` is non-zero, and only computed then — see
+   * `buildCandidatePool`. Absent means zero, which makes the risk term vanish
+   * rather than silently treating an unknown spread as a certainty.
+   */
+  variance?: number;
 }
 
 export interface OptimiserOptions {
@@ -106,6 +115,13 @@ export interface OptimiserOptions {
    * showing it, or you will present "money is worth nothing here" as a finding.
    */
   shadowPrice?: boolean;
+  /**
+   * Penalty per unit of points variance. Defaults to RISK_AVERSION (zero).
+   *
+   * Positive buys consistency, negative chases ceiling. Requires `variance` on
+   * the candidates; without it the term is zero whatever this says.
+   */
+  riskAversion?: number;
 }
 
 export interface OptimisedSquad {
@@ -147,6 +163,7 @@ const BUDGET_CONSTRAINT = "budget";
 
 interface BuildOptions {
   benchWeight: number;
+  riskAversion: number;
   priceWeight: number;
   budget: number;
   lockedIn: Set<number>;
@@ -171,11 +188,23 @@ function buildProblem(
 
   for (const p of players) {
     const priceTerm = opts.priceWeight * (p.expectedPriceDelta ?? 0);
-    // A squad place earns the bench weight on EP plus the full price term;
-    // starting earns the remaining EP. The two coefficients sum to the full EP
-    // for a starter, and to the bench-weighted EP for a bench player.
-    objective[inSquad(p.id)] = opts.benchWeight * p.ep + priceTerm;
-    objective[inXi(p.id)] = (1 - opts.benchWeight) * p.ep;
+    /*
+     * The risk-adjusted score, which is still LINEAR and so leaves the
+     * programme exactly as it was. Variance is additive over independent
+     * players, so summing `ep - γ·variance` over the eleven gives precisely
+     * `E[total] - γ·Var[total]`. A quantile would not: the 25th percentile of
+     * an XI is nothing like the sum of eleven 25th percentiles, and coding it
+     * that way optimises a quantity that does not exist.
+     *
+     * γ defaults to zero, where this is a no-op — see RISK_AVERSION for the
+     * sweep that says it should stay there.
+     */
+    const score = p.ep - opts.riskAversion * (p.variance ?? 0);
+    // A squad place earns the bench weight on the score plus the full price
+    // term; starting earns the remainder. The two coefficients sum to the full
+    // score for a starter, and to the bench-weighted score for a bench player.
+    objective[inSquad(p.id)] = opts.benchWeight * score + priceTerm;
+    objective[inXi(p.id)] = (1 - opts.benchWeight) * score;
   }
 
   // Squad size.
@@ -349,6 +378,7 @@ export function optimiseSquad(
 
   const base = {
     benchWeight,
+    riskAversion: options.riskAversion ?? RISK_AVERSION,
     budget,
     lockedIn,
     excluded,

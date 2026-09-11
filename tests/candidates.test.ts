@@ -111,6 +111,25 @@ describe("buildCandidatePool", () => {
     );
   });
 
+  it("skips variance entirely when the risk weight is zero", () => {
+    // The default. Computing a distribution per player per gameweek costs
+    // ~55ms across a full pool, and at γ=0 the optimiser would multiply it by
+    // nothing. Null rather than 0 so the optimiser can tell "not computed"
+    // from "certain".
+    const pool = buildCandidatePool({
+      ...base, players: [player()], stats: [stat(1, 4)], teamRatings,
+    });
+    expect(pool.candidates[0].variance).toBeNull();
+  });
+
+  it("computes variance when a risk weight is set", () => {
+    const pool = buildCandidatePool({
+      ...base, players: [player()], stats: [stat(1, 4)], teamRatings,
+      riskAversion: 0.05,
+    });
+    expect(pool.candidates[0].variance).toBeGreaterThan(0);
+  });
+
   it("says so when it has no ratings to judge fixtures with", () => {
     const pool = buildCandidatePool({
       ...base, players: [player()], stats: [stat(1, 4)],

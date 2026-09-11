@@ -199,3 +199,63 @@ describe("price momentum in the objective", () => {
     expect(result.priceWeightUsed).toBeCloseTo(result.marginalEpPerTenth, 4);
   });
 });
+
+describe("risk aversion", () => {
+  /**
+   * Two MIDFIELDERS identical but for spread — outfield deliberately, because
+   * the second keeper is a 5%-weighted bench slot and the optimiser rightly
+   * refuses to spend on one, which has nothing to do with risk.
+   */
+  const A = 29;
+  const B = 30;
+
+  function pair(): PlayerCandidate[] {
+    return pool([
+      { id: A, ep: 40, variance: 4, price: 60, teamId: 19, pMinutes: 0.95 },
+      { id: B, ep: 40, variance: 40, price: 60, teamId: 20, pMinutes: 0.95 },
+    ]);
+  }
+
+  const chosen = (squad: {
+    starting: PlayerCandidate[];
+    bench: PlayerCandidate[];
+  }) => new Set([...squad.starting, ...squad.bench].map((p) => p.id));
+
+  it("ignores variance at zero, which is the default", () => {
+    const squad = optimiseSquad(pair(), solver, { shadowPrice: false });
+    expect(chosen(squad).has(A)).toBe(true);
+    expect(chosen(squad).has(B)).toBe(true);
+  });
+
+  it("drops the volatile player when asked for consistency", () => {
+    const squad = optimiseSquad(pair(), solver, {
+      shadowPrice: false,
+      riskAversion: 1,
+    });
+    expect(chosen(squad).has(A)).toBe(true);
+    expect(chosen(squad).has(B)).toBe(false);
+  });
+
+  it("keeps the volatile player when chasing a ceiling", () => {
+    const squad = optimiseSquad(pair(), solver, {
+      shadowPrice: false,
+      riskAversion: -1,
+    });
+    expect(chosen(squad).has(B)).toBe(true);
+  });
+
+  it("treats a missing variance as no information, not as certainty", () => {
+    // "Not computed" must not beat "computed and small", which is what would
+    // happen if absent defaulted to anything other than no penalty at all.
+    const squad = optimiseSquad(
+      pool([
+        { id: A, ep: 40, variance: 0.0001, price: 60, teamId: 19, pMinutes: 0.95 },
+        { id: B, ep: 40, variance: undefined, price: 60, teamId: 20, pMinutes: 0.95 },
+      ]),
+      solver,
+      { shadowPrice: false, riskAversion: 1 },
+    );
+    expect(chosen(squad).has(A)).toBe(true);
+    expect(chosen(squad).has(B)).toBe(true);
+  });
+});

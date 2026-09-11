@@ -32,6 +32,7 @@ function pool(): Candidate[] {
           price: 40 + tier * 50,
           ep: 10 + tier * 5,
           perGameweek: [],
+          variance: null,
           pMinutes: 0.9,
           flag: null,
           unavailable: false,

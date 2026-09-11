@@ -4,7 +4,9 @@ import {
   type GameweekSample,
   type PlayerModelInput,
 } from "@/lib/engine/expected-points";
-import { FORM_WINDOW } from "@/lib/engine/constants";
+import { FORM_WINDOW, HORIZON_DISCOUNT } from "@/lib/engine/constants";
+import { gameweekDistribution } from "@/lib/engine/captain";
+import { variance } from "@/lib/engine/distribution";
 import { readNewsSignal } from "@/lib/engine/news-signal";
 import type { PriorSeasonRates } from "@/lib/engine/expected-points";
 import type { PriorSeasonWorkload } from "@/lib/engine/prior-season";
@@ -268,4 +270,33 @@ export function projectPlayer(
   });
 
   return { total: discounted.total, perGameweek };
+}
+
+/**
+ * Variance of the same discounted horizon total `projectPlayer` returns.
+ *
+ * Matched to `ep` term by term, which is the only thing that makes the two
+ * comparable in one objective: `ep` is `Σ dᵢ·EPᵢ` with `dᵢ` the horizon
+ * discount, so the variance of that sum is `Σ dᵢ²·Varᵢ` — the discount is
+ * SQUARED. Getting that wrong would not throw; it would quietly scale the risk
+ * term against a mean it no longer matches.
+ *
+ * Independence across gameweeks, like everything else here. Computed only when
+ * the caller intends to use it: it is four convolutions per player per
+ * gameweek, about 55ms across a full pool and a full horizon, and wasted
+ * entirely when the risk weight is zero — which, per RISK_AVERSION, it is.
+ */
+export function projectVariance(
+  input: PlayerModelInput,
+  fixtures: FixtureContext[],
+  gameweeks: number[],
+): number {
+  let total = 0;
+  gameweeks.forEach((gw, index) => {
+    const inGw = fixtures.filter((f) => f.gw === gw);
+    if (inGw.length === 0) return;
+    const discount = Math.pow(HORIZON_DISCOUNT, index);
+    total += discount * discount * variance(gameweekDistribution(input, inGw));
+  });
+  return total;
 }
