@@ -39,12 +39,7 @@ import { mean as pmfMean, MIN_POINTS } from "@/lib/engine/distribution";
 import { POSITION, POSITION_SHORT, type PositionId } from "@/lib/rules";
 import { FORM_WINDOW } from "@/lib/engine/constants";
 import { NO_SET_PIECE_DUTY } from "@/lib/engine/set-pieces";
-import {
-  loadSeason,
-  num as n,
-  TOTAL_GWS,
-  type Row,
-} from "./season-data";
+import { loadSeason, TOTAL_GWS, type Row } from "./season-data";
 
 const mean = (a: number[]) =>
   a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;

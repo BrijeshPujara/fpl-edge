@@ -30,11 +30,10 @@
  *  - Season-end team ratings, so the opponent adjustment partly encodes the
  *    future. This FLATTERS the model against the baselines. Run `--neutral`.
  */
-import {
-  expectedPoints,
-  type FixtureContext,
-  type GameweekSample,
-  type PlayerModelInput,
+import type {
+  FixtureContext,
+  GameweekSample,
+  PlayerModelInput,
 } from "@/lib/engine/expected-points";
 import { gameweekDistribution } from "@/lib/engine/captain";
 import { mean as pmfMean, variance as pmfVariance } from "@/lib/engine/distribution";
@@ -43,7 +42,6 @@ import { createGlpkSolver } from "@/lib/solver/glpk";
 import { projectMinutes } from "@/lib/engine/minutes";
 import {
   POSITION,
-  POSITION_SHORT,
   FORMATION_BOUNDS,
   SQUAD_BUDGET,
   STARTING_XI_SIZE,
