@@ -5,6 +5,7 @@ import {
   bootstrapStaticSchema,
   elementSummarySchema,
   entryHistorySchema,
+  entryTransfersSchema,
   entryPicksSchema,
   entrySchema,
   eventLiveSchema,
@@ -244,6 +245,20 @@ export async function getEntryPicksIfAvailable(
     if (error instanceof FplApiError && error.status === 404) return null;
     throw error;
   }
+}
+
+/**
+ * Every transfer a manager has made this season, newest first.
+ *
+ * Not stored by the sync and deliberately read live: it is only ever needed to
+ * score advice after the fact, and a snapshot of it would be one more thing to
+ * keep in step with a source that never changes retrospectively.
+ */
+export function getEntryTransfers(teamId: number, options?: FetchOptions) {
+  return fetchAndParse(`/entry/${teamId}/transfers/`, entryTransfersSchema, {
+    revalidate: 900,
+    ...options,
+  });
 }
 
 export function getEntryHistory(teamId: number, options?: FetchOptions) {

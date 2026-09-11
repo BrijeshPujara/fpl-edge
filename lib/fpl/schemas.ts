@@ -88,6 +88,27 @@ export const teamSchema = z.object({
 
 export type FplTeam = z.infer<typeof teamSchema>;
 
+/**
+ * One transfer a manager actually made.
+ *
+ * `event` is the gameweek the move was made FOR, which is what the journal
+ * comparison keys on — not when it was clicked. Required, like everything else
+ * we read: a transfer with no gameweek cannot be compared against advice for
+ * one, and silently dropping it would quietly flatter whichever side is being
+ * measured. See invariant 5.
+ */
+export const entryTransferSchema = z.object({
+  element_in: z.number().int(),
+  element_out: z.number().int(),
+  event: z.number().int(),
+  element_in_cost: z.number().int(),
+  element_out_cost: z.number().int(),
+});
+
+export const entryTransfersSchema = z.array(entryTransferSchema);
+
+export type FplEntryTransfer = z.infer<typeof entryTransferSchema>;
+
 export const elementTypeSchema = z.object({
   id: z.number().int(),
   singular_name_short: z.string(),

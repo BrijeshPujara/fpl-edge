@@ -14,6 +14,7 @@
     "check": "npm run typecheck && npm run lint && npm run test",
     "backtest": "tsx --tsconfig tsconfig.scripts.json scripts/backtest.ts",
     "backtest:squad": "tsx --tsconfig tsconfig.scripts.json scripts/backtest-squad.ts",
+    "journal:verdict": "tsx --tsconfig tsconfig.scripts.json scripts/journal-verdict.ts",
     "db:types": "supabase gen types typescript --project-id ehfuwpslwzxsjjaatgng > lib/db/types.generated.ts.tmp && mv lib/db/types.generated.ts.tmp lib/db/types.generated.ts || (rm -f lib/db/types.generated.ts.tmp; exit 1)",
     "db:push": "supabase db push",
     "sync": "tsx --tsconfig tsconfig.scripts.json scripts/sync.ts",
