@@ -662,25 +662,33 @@ export const SET_PIECE_CREDIT_APPEARANCES = FORM_WINDOW;
 export const CHIP_SCAN_HORIZON = 10;
 
 /**
- * Gameweeks over which confidence in a chip projection halves.
+ * Gameweeks over which confidence in a chip projection's DEPARTURE from an
+ * ordinary week halves.
  *
  * Distant projections are worth less than near ones, but not nothing: the
  * biggest chip weeks of a season are precisely the far-off doubles, so a hard
  * horizon cut-off would blind the planner to exactly what it exists to find.
  * Geometric decay discounts them without discarding them.
  *
+ * Applied to how far a week sits from the chip's ordinary week, not to the
+ * whole gain — see `planChips`. Applied to the whole gain it made a flat week
+ * nearer always beat a flat week later, and the planner booked every chip into
+ * the next three gameweeks.
+ *
  * Five gameweeks is roughly the span over which a squad and the fixture list
  * both stop resembling today's — the same reasoning behind DEFAULT_HORIZON.
+ * NOT SWEPT: chip timing has no instrument that can resolve it, at four chips
+ * a season, so this is a stated judgement rather than a measured one.
  */
 export const CHIP_CONFIDENCE_HALF_LIFE = 5;
 
 /**
  * Floor under that decay.
  *
- * Without it, a gameweek far enough out is worth arbitrarily close to zero and
- * the planner would sooner burn a chip on a mediocre week now than hold it for
- * a known double later. The floor keeps distant opportunities visible; it is a
- * deliberate refusal to let the discount run to nothing.
+ * Without it a spike far enough out would be shrunk all the way to an ordinary
+ * week, and a known double gameweek at the edge of the scan would be treated as
+ * no better than any other week. The floor keeps a quarter of a distant
+ * departure visible. Also a judgement, not a sweep — see the half-life.
  */
 export const CHIP_CONFIDENCE_FLOOR = 0.25;
 

@@ -55,10 +55,14 @@ export interface ChipGainInput {
 }
 
 /**
- * How much a projection that many gameweeks out is trusted.
+ * How much of a projection's departure from an ordinary week is trusted, that
+ * many gameweeks out.
  *
- * Halves every CHIP_CONFIDENCE_HALF_LIFE gameweeks, down to a floor. This is
- * the term that stops the planner chasing a speculative double gameweek fifteen
+ * Halves every CHIP_CONFIDENCE_HALF_LIFE gameweeks, down to a floor. `planChips`
+ * applies it to how far a week sits above or below the chip's ordinary week,
+ * not to the gain itself — discounting the whole gain made every flat week
+ * nearer than the next look better, and burned chips early. This is still the
+ * term that stops the planner chasing a speculative double gameweek fifteen
  * weeks away over a solid opportunity next month, without pretending distant
  * gameweeks do not exist at all — which is what a hard horizon cut-off does,
  * and it is worse, because the biggest chip weeks of a season are exactly the

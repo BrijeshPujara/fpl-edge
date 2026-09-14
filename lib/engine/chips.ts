@@ -144,8 +144,6 @@ export function planChips(options: ChipPlanOptions): ChipPlan {
     gainAt.set(k, byGw);
   }
 
-  const adjusted = (g: ChipGain) => g.gain * (g.confidence ?? 1);
-
   // Build the edge set, recording why each chip instance has no edges when it
   // has none. A chip that silently vanishes from the plan is indistinguishable
   // from a chip the model decided not to play, and those mean opposite things.
@@ -181,25 +179,54 @@ export function planChips(options: ChipPlanOptions): ChipPlan {
     const byGw = gainAt.get(k);
     // Only gameweeks that are inside the window AND still ahead of us.
     const from = Math.max(window.startEvent, currentGw);
-    const candidates: Edge[] = [];
+    const ahead: ChipGain[] = [];
     for (let gw = from; gw <= window.stopEvent; gw++) {
       const g = byGw?.get(gw);
-      if (g === undefined) continue;
-      candidates.push({
-        window,
-        gw,
-        gain: g.gain,
-        adjustedGain: adjusted(g),
-      });
+      if (g !== undefined) ahead.push(g);
     }
 
-    if (candidates.length === 0) {
+    if (ahead.length === 0) {
       reject(window, "no-projections");
       continue;
     }
+
+    /*
+     * Confidence shrinks a week toward this chip's ORDINARY week, not toward
+     * zero.
+     *
+     * It used to be `gain × confidence`, and that burned every chip early. A
+     * Free Hit projected at 15–19 in every week of the scan — no week special —
+     * was worth 18.1 now and 9.7 in five weeks, so the nearest week won every
+     * time, and the same happened to Bench Boost and Triple Captain: all three
+     * were booked into the next three gameweeks. Discounting toward zero
+     * assumes that holding a chip is worth nothing, when holding it is worth at
+     * least an ordinary week — you can always play it in one.
+     *
+     * What distance makes unreliable is a projected DEPARTURE from ordinary: a
+     * double gameweek twelve weeks out may not stay that good. So only the
+     * departure is discounted. Flat gains now stay flat and nothing is played
+     * early for want of a reason not to; a spike far away still counts for less
+     * than the same spike next week, which is what the discount was for.
+     *
+     * Ordinary is the median of this chip's projections over the weeks still
+     * open to it — the median so that the one double gameweek worth waiting for
+     * does not raise the bar it has to clear. The obvious alternative, a
+     * hand-set "only play above X" threshold, is exactly what this module
+     * exists to replace (see the header).
+     */
+    const ordinary = median(ahead.map((g) => g.gain));
+    const candidates: Edge[] = ahead.map((g) => ({
+      window,
+      gw: g.gw,
+      gain: g.gain,
+      adjustedGain: ordinary + (g.gain - ordinary) * (g.confidence ?? 1),
+    }));
+
     // A chip is never worth playing for a negative gain, and dropping those
     // edges keeps them from being chosen to fill an otherwise idle gameweek.
-    const positive = candidates.filter((c) => c.adjustedGain > 0);
+    // Checked on the raw gain as well: shrinking toward a positive ordinary
+    // week must not turn a projected loss into something worth playing.
+    const positive = candidates.filter((c) => c.gain > 0 && c.adjustedGain > 0);
     if (positive.length === 0) {
       reject(window, "no-positive-gain");
       continue;
@@ -329,6 +356,13 @@ export function planChips(options: ChipPlanOptions): ChipPlan {
     unassigned,
     totalGain: assignments.reduce((sum, a) => sum + a.adjustedGain, 0),
   };
+}
+
+/** Median of a non-empty list. */
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 /**

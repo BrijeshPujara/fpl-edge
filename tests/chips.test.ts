@@ -7,6 +7,7 @@ import {
   tripleCaptainGain,
   type ChipGain,
 } from "@/lib/engine/chips";
+import { chipConfidence } from "@/lib/engine/chip-gains";
 import type { LpSolver } from "@/lib/engine/lp";
 import type { ChipWindow } from "@/lib/fpl/gameweek";
 import { CAPTAIN_MULTIPLIER, CHIP, TRIPLE_CAPTAIN_MULTIPLIER } from "@/lib/rules";
@@ -274,21 +275,93 @@ describe("planChips", () => {
     ]);
   });
 
-  it("discounts a distant projection through confidence", () => {
-    // GW30's raw 20 beats GW8's 12, but at 40% confidence it is worth 8.
+  it("shrinks a distant projection toward an ordinary week, not toward zero", () => {
+    // Ordinary Bench Boost weeks are worth 12. GW30 is projected at 20 at 40%
+    // confidence: 12 + (20 − 12) × 0.4 = 15.2. Discounting the WHOLE gain made
+    // it 8, below any ordinary week, and the chip was played now instead.
     const plan = planChips({
       windows: [window(CHIP.benchBoost, 20, 38, 2)],
       gains: [
         gain(CHIP.benchBoost, 22, 12, 2, 1),
+        gain(CHIP.benchBoost, 24, 12, 2, 0.87),
+        gain(CHIP.benchBoost, 26, 12, 2, 0.66),
         gain(CHIP.benchBoost, 30, 20, 2, 0.4),
       ],
       currentGw: 21,
       solver,
     });
 
+    expect(plan.assignments[0].gw).toBe(30);
+    expect(plan.assignments[0].adjustedGain).toBeCloseTo(15.2, 6);
+  });
+
+  it("still prefers a solid week now to a speculative one far away", () => {
+    // What the discount is for. Ordinary is 13 (the median of 12, 12, 14, 16).
+    // GW22 is 14 and certain. GW34 is projected higher, at 16, but at the
+    // confidence floor it counts as 13 + 3 × 0.25 = 13.75 — short of 14.
+    const plan = planChips({
+      windows: [window(CHIP.benchBoost, 20, 38, 2)],
+      gains: [
+        gain(CHIP.benchBoost, 22, 14, 2, 1),
+        gain(CHIP.benchBoost, 26, 12, 2, 0.66),
+        gain(CHIP.benchBoost, 28, 12, 2, 0.5),
+        gain(CHIP.benchBoost, 34, 16, 2, 0.25),
+      ],
+      currentGw: 22,
+      solver,
+    });
+
     expect(plan.assignments[0].gw).toBe(22);
-    expect(plan.assignments[0].gain).toBe(12);
-    expect(plan.assignments[0].adjustedGain).toBeCloseTo(12, 6);
+  });
+
+  it("does not favour the week in front of you when no week is special", () => {
+    // The bug, measured. Ten weeks of Free Hit gains at 17 ± 2 — flat, with the
+    // noise a projection carries — and the real confidence decay. With nothing
+    // to choose between them, playing THIS week should be roughly one chance
+    // in ten, not a certainty.
+    let seed = 20260914;
+    const random = () => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = seed;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+
+    const TRIALS = 200;
+    let playedNow = 0;
+    let wholeGainNow = 0;
+    for (let trial = 0; trial < TRIALS; trial++) {
+      const gains = Array.from({ length: 10 }, (_, i) =>
+        gain(CHIP.freeHit, 5 + i, 17 + (random() * 4 - 2), 1, chipConfidence(5 + i, 5)),
+      );
+      const plan = planChips({
+        windows: [window(CHIP.freeHit, 2, 19)],
+        gains,
+        currentGw: 5,
+        solver,
+      });
+      if (plan.assignments[0]?.gw === 5) playedNow += 1;
+
+      // The old rule, for the comparison: argmax of gain × confidence.
+      const old = gains.reduce((best, g) =>
+        g.gain * g.confidence! > best.gain * best.confidence! ? g : best,
+      );
+      if (old.gw === 5) wholeGainNow += 1;
+    }
+
+    // Measured at this seed:
+    //
+    //     rule                          played this week
+    //     gain × confidence (old)       188 / 200   94%
+    //     shrink toward ordinary (new)   45 / 200   22.5%
+    //     no preference at all                      10%
+    //
+    // The remaining lean toward this week is intended, not residue: a
+    // departure projected for next week is trusted more than the same
+    // departure in nine, so a genuinely good week now should usually win.
+    expect(wholeGainNow / TRIALS).toBeGreaterThan(0.9);
+    expect(playedNow / TRIALS).toBeLessThan(0.35);
   });
 
   it("counts gameweeks to expiry inclusively", () => {
