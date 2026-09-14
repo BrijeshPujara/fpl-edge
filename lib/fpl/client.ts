@@ -11,6 +11,7 @@ import {
   eventLiveSchema,
   fixturesSchema,
   leagueStandingsSchema,
+  type FplBootstrapStatic,
 } from "./schemas";
 
 /**
@@ -65,11 +66,23 @@ export class FplSchemaError extends Error {
 
 export interface FetchOptions {
   /**
-   * Seconds to cache the response for. Next's data cache handles this; the
+   * Seconds a cached response may be served for; 0 always fetches. The
    * defaults per endpoint reflect how often the upstream data actually moves.
+   *
+   * Next's data cache handles this for every endpoint EXCEPT bootstrap-static,
+   * which is too large for it. See `getBootstrapStatic`.
    */
   revalidate?: number;
   signal?: AbortSignal;
+}
+
+interface InternalFetchOptions extends FetchOptions {
+  /**
+   * False keeps the response out of Next's data cache entirely. Not exposed:
+   * whether an endpoint fits in that cache is a property of the endpoint, not
+   * a choice for its caller.
+   */
+  dataCache?: boolean;
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -86,10 +99,10 @@ async function sleep(ms: number): Promise<void> {
 async function fetchAndParse<T>(
   path: string,
   schema: z.ZodType<T>,
-  options: FetchOptions = {},
+  options: InternalFetchOptions = {},
 ): Promise<T> {
   const url = `${BASE_URL}${path}`;
-  const { revalidate = 3600, signal } = options;
+  const { revalidate = 3600, signal, dataCache = true } = options;
 
   let lastError: unknown;
 
@@ -102,7 +115,8 @@ async function fetchAndParse<T>(
           "User-Agent": USER_AGENT,
           Accept: "application/json",
         },
-        next: { revalidate },
+        // Never both: Next ignores `cache` and `next.revalidate` together.
+        ...(dataCache ? { next: { revalidate } } : { cache: "no-store" as const }),
         signal,
       });
     } catch (error) {
@@ -165,15 +179,60 @@ async function fetchAndParse<T>(
 // Endpoints
 // ---------------------------------------------------------------------------
 
+const BOOTSTRAP_REVALIDATE_SECONDS = 900;
+
+/** The last bootstrap download and when it started. One per server process. */
+let bootstrapMemo: { at: number; promise: Promise<FplBootstrapStatic> } | null = null;
+
 /**
  * Everything static: players, teams, gameweeks, chip windows.
  * This is the single source of truth for "what gameweek is it".
+ *
+ * KEPT OUT OF NEXT'S DATA CACHE, which refuses entries over 2MB. This response
+ * is ~2.3MB, and it grew past the limit mid-season — so the data cache held an
+ * older copy from when it still fitted, every refresh failed to replace it
+ * ("items over 2MB can not be cached", logged and otherwise silent), and that
+ * copy was served indefinitely. The app showed GW2 while GW5 was next; scripts,
+ * which bypass the data cache, were right the whole time. That is invariant 4
+ * broken with nothing on screen to say so.
+ *
+ * So it is fetched `no-store` and held in this process instead, for the same
+ * fifteen minutes. A process-local copy cannot outlive its window or a restart,
+ * and cannot be silently refused. Parallel callers share one download, a
+ * failure is never kept, and a `revalidate: 0` fetch — the sync's — replaces
+ * the copy every other caller then sees.
+ *
+ * The obvious alternative, caching the PARSED response (zod drops the fields
+ * we do not read), was rejected: it only moves the same 2MB cliff a little
+ * further away, to be fallen off just as silently later in the season.
  */
-export function getBootstrapStatic(options?: FetchOptions) {
-  return fetchAndParse("/bootstrap-static/", bootstrapStaticSchema, {
-    revalidate: 900,
+export function getBootstrapStatic(
+  options?: FetchOptions,
+): Promise<FplBootstrapStatic> {
+  const revalidate = options?.revalidate ?? BOOTSTRAP_REVALIDATE_SECONDS;
+  const now = Date.now();
+
+  if (
+    revalidate > 0 &&
+    !options?.signal &&
+    bootstrapMemo !== null &&
+    now - bootstrapMemo.at < revalidate * 1000
+  ) {
+    return bootstrapMemo.promise;
+  }
+
+  const promise = fetchAndParse("/bootstrap-static/", bootstrapStaticSchema, {
     ...options,
+    revalidate,
+    dataCache: false,
   });
+  const memo = { at: now, promise };
+  bootstrapMemo = memo;
+  promise.catch(() => {
+    // Only evict this attempt; a newer one may already have replaced it.
+    if (bootstrapMemo === memo) bootstrapMemo = null;
+  });
+  return promise;
 }
 
 export function getFixtures(options?: FetchOptions) {
