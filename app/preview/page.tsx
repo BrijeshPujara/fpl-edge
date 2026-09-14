@@ -28,6 +28,11 @@ const SCREENS = [
     name: "Chips",
     note: "Which gameweek to play each chip, and the margin over the alternative",
   },
+  {
+    href: "/preview/shadow",
+    name: "Shadow",
+    note: "The cumulative gap chart and its luck band, with invented weeks",
+  },
 ];
 
 export default function PreviewIndex() {

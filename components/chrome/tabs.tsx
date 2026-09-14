@@ -29,6 +29,7 @@ const TABS = [
   { path: "/captain", label: "CAPTAIN" },
   { path: "/chips", label: "CHIPS" },
   { path: "/history", label: "HISTORY" },
+  { path: "/shadow", label: "SHADOW" },
   { path: "/leagues", label: "LEAGUES" },
 ] as const;
 

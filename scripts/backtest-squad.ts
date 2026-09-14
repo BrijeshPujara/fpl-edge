@@ -38,11 +38,10 @@ import type {
 import { gameweekDistribution } from "@/lib/engine/captain";
 import { mean as pmfMean, variance as pmfVariance } from "@/lib/engine/distribution";
 import { optimiseSquad, type PlayerCandidate } from "@/lib/engine/optimiser";
+import { applyAutoSubs } from "@/lib/engine/auto-subs";
 import { createGlpkSolver } from "@/lib/solver/glpk";
 import { projectMinutes } from "@/lib/engine/minutes";
 import {
-  POSITION,
-  FORMATION_BOUNDS,
   SQUAD_BUDGET,
   STARTING_XI_SIZE,
   type PositionId,
@@ -137,62 +136,9 @@ function groupByPlayer(rows: Row[]): Map<number, PlayerGameweek> {
   return out;
 }
 
-// ---------------------------------------------------------------------------
-// Auto-substitutions
-// ---------------------------------------------------------------------------
-
-/**
- * FPL's real rule, not an optimisation.
- *
- * Bench players replace non-playing starters in BENCH ORDER, and only where the
- * formation stays legal; the reserve keeper only ever covers the keeper. This
- * is modelled properly rather than approximated because it is the mechanism
- * that pays for risk — a policy that buys volatile starters is protected by its
- * bench, and scoring without auto-subs would punish exactly the behaviour this
- * script exists to measure.
- */
-function applyAutoSubs(
-  starting: PlayerGameweek[],
-  bench: PlayerGameweek[],
-): PlayerGameweek[] {
-  const xi = [...starting];
-  const available = [...bench];
-
-  const countsOf = (team: PlayerGameweek[]) => {
-    const counts = new Map<PositionId, number>();
-    for (const p of team) counts.set(p.position, (counts.get(p.position) ?? 0) + 1);
-    return counts;
-  };
-
-  for (let i = 0; i < xi.length; i++) {
-    if (xi[i].played) continue;
-
-    const out = xi[i];
-    for (let b = 0; b < available.length; b++) {
-      const sub = available[b];
-      if (!sub.played) continue;
-
-      // A keeper can only be replaced by a keeper, and vice versa.
-      const keeperInvolved =
-        out.position === POSITION.GK || sub.position === POSITION.GK;
-      if (keeperInvolved && out.position !== sub.position) continue;
-
-      const trial = [...xi];
-      trial[i] = sub;
-      const counts = countsOf(trial);
-      const legal = ([...Object.values(POSITION)] as PositionId[]).every((pos) => {
-        const n = counts.get(pos) ?? 0;
-        return n >= FORMATION_BOUNDS[pos].min && n <= FORMATION_BOUNDS[pos].max;
-      });
-      if (!legal) continue;
-
-      xi[i] = sub;
-      available.splice(b, 1);
-      break;
-    }
-  }
-  return xi;
-}
+// Auto-substitutions live in `lib/engine/auto-subs.ts`, shared with the shadow
+// manager, so the backtest and the live comparison cannot score a bench
+// differently.
 
 // ---------------------------------------------------------------------------
 // Policies

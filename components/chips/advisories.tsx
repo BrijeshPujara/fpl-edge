@@ -9,6 +9,7 @@ import { computeChipGains } from "@/lib/engine/chip-gains";
 import {
   chipUrgency,
   planChips,
+  playedChipSets,
   type ChipAssignment,
   type UnassignedChip,
 } from "@/lib/engine/chips";
@@ -208,27 +209,13 @@ export async function ChipPlanPanels({
   );
 }
 
-/**
- * Chips already used, paired with the set whose window contains the gameweek
- * they were played in. A chip played outside every known window is dropped
- * rather than guessed at.
- */
+/** Chips this manager has already used. See `playedChipSets`. */
 async function resolvePlayedChips(
   entryId: number,
   windows: ChipWindow[],
 ): Promise<{ chip: ChipName; set: number }[]> {
   if (!isDbConfigured()) return [];
-  const rows = await getChipsPlayed(getDb(), entryId);
-
-  return rows.flatMap((row) => {
-    const window = windows.find(
-      (w) =>
-        w.name === row.chip &&
-        row.gw >= w.startEvent &&
-        row.gw <= w.stopEvent,
-    );
-    return window ? [{ chip: window.name, set: window.set }] : [];
-  });
+  return playedChipSets(await getChipsPlayed(getDb(), entryId), windows);
 }
 
 function AssignmentRow({

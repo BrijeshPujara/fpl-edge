@@ -29,6 +29,7 @@ import { syncResults } from "@/lib/db/sync-results";
 import { resolveEntryId } from "@/lib/fpl/entry";
 import { syncHistory } from "@/lib/db/sync-history";
 import { syncJournal } from "@/lib/db/sync-journal";
+import { syncShadow } from "@/lib/db/sync-shadow";
 
 config({ path: ".env.local", quiet: true });
 config({ quiet: true });
@@ -87,6 +88,24 @@ async function main() {
       } catch (error) {
         failed = true;
         log(`sync-journal FAILED: ${(error as Error).message}`);
+      }
+    }
+  }
+
+  // After the journal, on the same schedule and for the same reason: it needs
+  // the day's squad, prices and results in first. Also runnable on its own.
+  if (which === "all" || which === "journal" || which === "shadow") {
+    const teamId = resolveEntryId();
+    if (teamId === null) {
+      log("sync-shadow skipped: FPL_TEAM_ID is not set to a valid entry id");
+    } else {
+      try {
+        const started = Date.now();
+        const result = await syncShadow(teamId);
+        log(`sync-shadow ${result.status} in ${Date.now() - started}ms`, result);
+      } catch (error) {
+        failed = true;
+        log(`sync-shadow FAILED: ${(error as Error).message}`);
       }
     }
   }

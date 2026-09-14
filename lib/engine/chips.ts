@@ -399,3 +399,26 @@ export function benchBoostGain(benchEp: number[]): number {
 export function tripleCaptainGain(captainEp: number): number {
   return captainEp * (TRIPLE_CAPTAIN_MULTIPLIER - CAPTAIN_MULTIPLIER);
 }
+
+/**
+ * Chips already used, paired with the set whose window contains the gameweek
+ * they were played in. A chip played outside every known window is dropped
+ * rather than guessed at.
+ *
+ * Shared by the chips screen and the shadow manager, so both mean the same
+ * thing by "already played".
+ */
+export function playedChipSets(
+  rows: { gw: number; chip: string }[],
+  windows: ChipWindow[],
+): { chip: ChipName; set: number }[] {
+  return rows.flatMap((row) => {
+    const window = windows.find(
+      (w) =>
+        w.name === row.chip &&
+        row.gw >= w.startEvent &&
+        row.gw <= w.stopEvent,
+    );
+    return window ? [{ chip: window.name, set: window.set }] : [];
+  });
+}

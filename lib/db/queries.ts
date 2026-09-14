@@ -34,7 +34,7 @@ const PAGE_SIZE = 1000;
  * Paging stops when a page comes back short, which is the only reliable signal
  * PostgREST gives that there is nothing left.
  */
-async function fetchAll<T>(
+export async function fetchAll<T>(
   fetchPage: (from: number, to: number) => PromiseLike<{
     data: T[] | null;
     error: { message: string } | null;
