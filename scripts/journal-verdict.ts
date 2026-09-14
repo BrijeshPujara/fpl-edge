@@ -13,7 +13,7 @@ import { config } from "dotenv";
 config({ path: ".env.local", quiet: true });
 
 import { getDb } from "@/lib/db/client";
-import { getEntryTransfers } from "@/lib/fpl/client";
+import { getEntryHistory, getEntryTransfers } from "@/lib/fpl/client";
 import { resolveEntryId } from "@/lib/fpl/entry";
 import {
   compareJournal,
@@ -29,13 +29,19 @@ async function main() {
 
   const db = getDb();
   const transfers = await getEntryTransfers(entryId).catch(() => []);
-  const actions = await loadManagerActions(db, entryId, transfers);
+  // Not caught: without the history a wildcard week scores as thirteen
+  // ordinary transfers and every hit as free. Better no verdict than that one.
+  const history = await getEntryHistory(entryId);
+  const actions = await loadManagerActions(db, entryId, transfers, history);
   const verdict = await compareJournal(db, entryId, actions);
 
   const { data: players } = await db.from("players").select("id, web_name");
   const name = new Map((players ?? []).map((p) => [p.id, p.web_name]));
-  const label = (id: number | undefined) =>
-    id === undefined || id === -1 ? "—" : (name.get(id) ?? `#${id}`);
+  // A multi-move side is labelled by its first player bought plus a count, so
+  // one name never passes for a one-move plan.
+  const label = (id: number | undefined, moves = 1) =>
+    (id === undefined || id === -1 ? "—" : (name.get(id) ?? `#${id}`)) +
+    (moves > 1 ? ` +${moves - 1}` : "");
 
   console.log(`\nJOURNAL VERDICT — entry ${entryId}`);
   console.log("Engine advice vs what you actually did, same gameweek.\n");
@@ -43,10 +49,10 @@ async function main() {
   console.log("gw  kind      engine                manager               delta  note");
   for (const c of verdict.comparisons) {
     const engine = c.engineChoice
-      ? `${label(c.engineChoice.playerId).padEnd(14)} ${c.engineChoice.points.toFixed(0).padStart(4)}`
+      ? `${label(c.engineChoice.playerId, c.engineChoice.moves).padEnd(14)} ${c.engineChoice.points.toFixed(0).padStart(4)}`
       : "—".padEnd(19);
     const manager = c.managerChoice
-      ? `${label(c.managerChoice.playerId).padEnd(14)} ${c.managerChoice.points.toFixed(0).padStart(4)}`
+      ? `${label(c.managerChoice.playerId, c.managerChoice.moves).padEnd(14)} ${c.managerChoice.points.toFixed(0).padStart(4)}`
       : "—".padEnd(19);
     const delta =
       c.delta === null

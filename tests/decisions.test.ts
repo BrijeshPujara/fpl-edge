@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { scoreDecision } from "@/lib/db/decisions";
+import { movesOf, recordDecisions, scoreDecision } from "@/lib/db/decisions";
+import type { Db } from "@/lib/db/client";
 
 type Decision = Parameters<typeof scoreDecision>[0];
 
@@ -81,5 +82,119 @@ describe("scoreDecision", () => {
         points({ 1: 5 }),
       ),
     ).toBeNull();
+  });
+
+  it("scores a multi-move plan against keeping everyone it sold", () => {
+    const scored = scoreDecision(
+      decision({
+        kind: "transfer",
+        player_in: 1,
+        player_out: 9,
+        moves: [
+          { in: 1, out: 9 },
+          { in: 2, out: 8 },
+        ] as unknown as Decision["moves"],
+        alternatives: [] as unknown as Decision["alternatives"],
+      }),
+      points({ 1: 3, 9: 1, 2: 6, 8: 2 }),
+    )!;
+    // Bought 3 + 6 = 9, sold 1 + 2 = 3.
+    expect(scored.actual_points).toBe(9);
+    expect(scored.best_alternative_points).toBe(3);
+    expect(scored.delta).toBe(6);
+  });
+
+  it("refuses a legacy row that recorded only the first swap of several", () => {
+    expect(
+      scoreDecision(
+        decision({
+          kind: "transfer",
+          player_in: 1,
+          player_out: 9,
+          rationale: "Semenyo, Hughes → Mundle, Mbeumo: 47.9 over 5 gameweeks, free.",
+        }),
+        points({ 1: 3, 9: 1 }),
+      ),
+    ).toBeNull();
+  });
+
+  it("takes the hit off the move", () => {
+    const scored = scoreDecision(
+      decision({
+        kind: "transfer",
+        player_in: 1,
+        player_out: 9,
+        hit_cost: 4,
+        alternatives: [] as unknown as Decision["alternatives"],
+      }),
+      points({ 1: 10, 9: 2 }),
+    )!;
+    expect(scored.actual_points).toBe(6);
+    expect(scored.delta).toBe(4);
+  });
+});
+
+describe("movesOf", () => {
+  it("reads a legacy one-move row as the whole plan", () => {
+    expect(
+      movesOf({ player_in: 1, player_out: 9, moves: [], rationale: "A → B: 3.0" }),
+    ).toEqual([{ in: 1, out: 9 }]);
+  });
+
+  it("is not fooled by a comma in a captain's rationale", () => {
+    // "Haaland — 5.1 expected, 13% chance of a haul." has a comma and no
+    // arrow; it must not read as a truncated plan.
+    expect(
+      movesOf({
+        player_in: 1,
+        player_out: null,
+        rationale: "Haaland — 5.1 expected, 13% chance of a haul.",
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe("recordDecisions", () => {
+  it("stores the whole plan and stamps every write, not just the first", async () => {
+    // `created_at` defaults on insert and an upsert onto an existing row is an
+    // update, so it kept the first advice's time beside the last advice's
+    // content. `updated_at` has to be sent on every write to mean anything.
+    let written: Record<string, unknown>[] = [];
+    let options: unknown;
+    const db = {
+      from: () => ({
+        upsert: async (rows: Record<string, unknown>[], opts: unknown) => {
+          written = rows;
+          options = opts;
+          return { error: null };
+        },
+      }),
+    } as unknown as Db;
+
+    const before = Date.now();
+    await recordDecisions(db, 7, [
+      {
+        gw: 5,
+        kind: "transfer",
+        playerIn: 1,
+        playerOut: 9,
+        moves: [
+          { in: 1, out: 9 },
+          { in: 2, out: 8 },
+        ],
+        hitCost: 4,
+        predictedEp: 3,
+        alternatives: [],
+        rationale: "",
+      },
+    ]);
+
+    expect(written[0].moves).toEqual([
+      { in: 1, out: 9 },
+      { in: 2, out: 8 },
+    ]);
+    expect(written[0].hit_cost).toBe(4);
+    expect(Date.parse(written[0].updated_at as string)).toBeGreaterThanOrEqual(before);
+    expect(options).toEqual({ onConflict: "entry_id,gw,kind" });
   });
 });

@@ -107,6 +107,8 @@ export async function syncJournal(
       kind: "captain",
       playerIn: pick.playerId,
       playerOut: null,
+      moves: [],
+      hitCost: 0,
       predictedEp: pick.ep * CAPTAIN_MULTIPLIER,
       // Every other starter is an alternative that was passed over. Recording
       // them is what makes the outcome scoreable against a real counterfactual
@@ -158,6 +160,8 @@ export async function syncJournal(
       kind: "hold",
       playerIn: null,
       playerOut: null,
+      moves: [],
+      hitCost: 0,
       predictedEp: 0,
       alternatives,
       rationale: withheld
@@ -174,6 +178,13 @@ export async function syncJournal(
       kind: "transfer",
       playerIn: move.playersIn[0]?.id ?? null,
       playerOut: move.playersOut[0]?.id ?? null,
+      // Paired by index, which is arbitrary for a multi-move plan — but every
+      // score is a sum over the pairs, so the pairing never changes a number.
+      moves: move.playersIn.map((p, i) => ({
+        in: p.id,
+        out: move.playersOut[i].id,
+      })),
+      hitCost: move.hitCost,
       predictedEp: move.netGain,
       alternatives,
       rationale:
@@ -211,8 +222,11 @@ export async function syncJournal(
           }
         : {
             kind: "transfer",
-            out: nameOf.get(move.playersOut[0]?.id ?? -1) ?? null,
-            in: nameOf.get(move.playersIn[0]?.id ?? -1) ?? null,
+            // Every player in the plan. Naming the first swap only put a
+            // two-move gain beside a one-move description. A single move
+            // renders exactly as before, so its recordings stay fresh.
+            out: move.playersOut.map((p) => nameOf.get(p.id) ?? `#${p.id}`).join(", "),
+            in: move.playersIn.map((p) => nameOf.get(p.id) ?? `#${p.id}`).join(", "),
             epGain: move.epGain,
             hitCost: move.hitCost,
             netGain: move.netGain,

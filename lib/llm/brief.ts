@@ -386,6 +386,9 @@ export async function generateBrief(
           gw: context.gw,
           body: result.text,
           model: result.model,
+          // Sent explicitly: the default fires on insert only, and a brief is
+          // rewritten in place every sync. See decisions.updated_at.
+          updated_at: new Date().toISOString(),
         },
         { onConflict: "entry_id,gw" },
       );

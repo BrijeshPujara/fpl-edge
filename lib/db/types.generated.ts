@@ -29,6 +29,7 @@ export type Database = {
           entry_id: number
           gw: number
           model: string
+          updated_at: string
         }
         Insert: {
           body: string
@@ -36,6 +37,7 @@ export type Database = {
           created_at?: string
           gw: number
           model: string
+          updated_at?: string
         }
         Update: {
           body?: string
@@ -43,6 +45,7 @@ export type Database = {
           entry_id?: number
           gw?: number
           model?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -52,39 +55,48 @@ export type Database = {
           created_at: string
           entry_id: number
           gw: number
+          hit_cost: number
           id: string
           kind: string
+          moves: Json
           player_in: number | null
           player_out: number | null
           predicted_ep: number | null
           rationale: string | null
           source: string
+          updated_at: string
         }
         Insert: {
           alternatives?: Json
           created_at?: string
           entry_id: number
           gw: number
+          hit_cost?: number
           id?: string
           kind: string
+          moves?: Json
           player_in?: number | null
           player_out?: number | null
           predicted_ep?: number | null
           rationale?: string | null
           source: string
+          updated_at?: string
         }
         Update: {
           alternatives?: Json
           created_at?: string
           entry_id?: number
           gw?: number
+          hit_cost?: number
           id?: string
           kind?: string
+          moves?: Json
           player_in?: number | null
           player_out?: number | null
           predicted_ep?: number | null
           rationale?: string | null
           source?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -734,6 +746,68 @@ export type Database = {
             columns: ["player_id"]
             isOneToOne: false
             referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shadow_squads: {
+        Row: {
+          bank: number
+          chip_played: string | null
+          created_at: string
+          entry_id: number
+          free_transfers: number | null
+          gw: number
+          hit_cost: number
+          id: string
+          moves: Json
+          origin: string
+          picks: Json
+          points: number | null
+          projected_ep: number | null
+          scored_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          bank: number
+          chip_played?: string | null
+          created_at?: string
+          entry_id: number
+          free_transfers?: number | null
+          gw: number
+          hit_cost?: number
+          id?: string
+          moves?: Json
+          origin: string
+          picks: Json
+          points?: number | null
+          projected_ep?: number | null
+          scored_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bank?: number
+          chip_played?: string | null
+          created_at?: string
+          entry_id?: number
+          free_transfers?: number | null
+          gw?: number
+          hit_cost?: number
+          id?: string
+          moves?: Json
+          origin?: string
+          picks?: Json
+          points?: number | null
+          projected_ep?: number | null
+          scored_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shadow_squads_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "entries"
             referencedColumns: ["id"]
           },
         ]

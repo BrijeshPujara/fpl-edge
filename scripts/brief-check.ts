@@ -108,10 +108,13 @@ async function main() {
           }
         : {
             kind: "transfer",
-            out: byId.get(move.playersOut[0]?.id ?? -1)?.name ?? null,
-            in:
-              context.pool.find((c) => c.id === move.playersIn[0]?.id)?.name ??
-              null,
+            // Every player in the plan, matching sync-journal.
+            out: move.playersOut
+              .map((p) => byId.get(p.id)?.name ?? `#${p.id}`)
+              .join(", "),
+            in: move.playersIn
+              .map((p) => context.pool.find((c) => c.id === p.id)?.name ?? `#${p.id}`)
+              .join(", "),
             epGain: move.epGain,
             hitCost: move.hitCost,
             netGain: move.netGain,

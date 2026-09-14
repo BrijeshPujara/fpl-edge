@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getDb, isDbConfigured } from "@/lib/db/client";
-import { getJournal, type JournalEntry } from "@/lib/db/decisions";
+import { getJournal, movesOf, type JournalEntry } from "@/lib/db/decisions";
 import { getPlayersByIds } from "@/lib/db/queries";
 import { parseEntryId } from "@/lib/fpl/entry";
 import { ep as formatEp, epDelta } from "@/lib/format";
@@ -60,9 +60,11 @@ export default async function HistoryPage({
   const playerIds = [
     ...new Set(
       journal.flatMap((entry) =>
-        [entry.decision.player_in, entry.decision.player_out].filter(
-          (id): id is number => id !== null,
-        ),
+        [
+          entry.decision.player_in,
+          entry.decision.player_out,
+          ...(movesOf(entry.decision) ?? []).flatMap((m) => [m.in, m.out]),
+        ].filter((id): id is number => id !== null),
       ),
     ),
   ];
@@ -164,9 +166,17 @@ function JournalRow({
   const name = (id: number | null) =>
     id === null ? null : (nameOf.get(id) ?? `#${id}`);
 
+  const moves = decision.kind === "transfer" ? movesOf(decision) : [];
+
   const headline =
     decision.kind === "transfer"
-      ? `${name(decision.player_out) ?? "—"} → ${name(decision.player_in) ?? "—"}`
+      ? moves === null
+        ? // Recorded before the whole plan was stored. The rationale was
+          // always written from the full plan, so it still names everyone.
+          (decision.rationale?.split(":")[0] ?? "—")
+        : moves.length === 0
+          ? "— → —"
+          : `${moves.map((m) => name(m.out)).join(", ")} → ${moves.map((m) => name(m.in)).join(", ")}`
       : decision.kind === "hold"
         ? "Rolled the transfer"
         : (name(decision.player_in) ?? "—");

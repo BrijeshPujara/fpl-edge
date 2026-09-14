@@ -2,8 +2,8 @@ import "server-only";
 
 import type { Db } from "./client";
 import { getGameweekPoints } from "./queries";
-import type { DecisionRow } from "./decisions";
-import { CAPTAIN_MULTIPLIER } from "@/lib/rules";
+import { movesOf, type DecisionRow, type Move } from "./decisions";
+import { CAPTAIN_MULTIPLIER, CHIP } from "@/lib/rules";
 
 /**
  * Did the engine beat the manager?
@@ -29,10 +29,14 @@ import { CAPTAIN_MULTIPLIER } from "@/lib/rules";
 export interface GameweekComparison {
   gw: number;
   kind: "captain" | "transfer";
-  /** What the engine advised, and what that returned. */
-  engineChoice: { playerId: number; points: number } | null;
+  /**
+   * What the engine advised, and what that returned. `playerId` is the first
+   * player bought; `moves` says how many swaps the points cover, so a label
+   * showing one name does not pass for a one-move plan.
+   */
+  engineChoice: { playerId: number; points: number; moves: number } | null;
   /** What the manager actually did, and what that returned. */
-  managerChoice: { playerId: number; points: number } | null;
+  managerChoice: { playerId: number; points: number; moves: number } | null;
   /** Engine minus manager. Positive means following the advice would have paid. */
   delta: number | null;
   /**
@@ -102,10 +106,12 @@ export function compareCaptain(
   const engine = {
     playerId: decision.player_in,
     points: enginePoints * CAPTAIN_MULTIPLIER,
+    moves: 0,
   };
   const manager = {
     playerId: managerCaptainId,
     points: managerPoints * CAPTAIN_MULTIPLIER,
+    moves: 0,
   };
 
   return {
@@ -120,13 +126,35 @@ export function compareCaptain(
   };
 }
 
+/** What the manager did in one gameweek's transfer market. */
+export interface ManagerWeek {
+  transfers: { inId: number; outId: number }[];
+  /** Points paid in hits that gameweek, from the entry history. */
+  hitCost: number;
+  /** The chip played that gameweek, if any. */
+  chip: string | null;
+}
+
+/** The same swaps, regardless of the order they were listed in. */
+function sameMoves(a: Move[], b: Move[]): boolean {
+  if (a.length !== b.length) return false;
+  const key = (moves: Move[]) =>
+    moves.map((m) => `${m.out}>${m.in}`).sort().join(",");
+  return key(a) === key(b);
+}
+
 /**
  * Transfer comparison for one gameweek.
  *
  * A transfer is a SWAP, so the thing to compare is the swing each side bought:
- * points gained by the player brought in, less points given up by the player
- * sold. Comparing the incoming players alone would flatter whichever side sold
- * the better player, which is exactly backwards.
+ * points gained by the players brought in, less points given up by the players
+ * sold, less any hit. Comparing the incoming players alone would flatter
+ * whichever side sold the better player, which is exactly backwards; leaving
+ * the hit out would flatter whichever side paid one.
+ *
+ * Both sides are scored on EVERY swap they made. The engine's plan used to be
+ * scored on its first swap only — half of a two-move plan against all of the
+ * manager's moves.
  *
  * Only the immediate gameweek is scored. A transfer is usually made for several
  * weeks and one week is a thin read on it — stated here rather than corrected,
@@ -135,7 +163,7 @@ export function compareCaptain(
  */
 export function compareTransfer(
   decision: DecisionRow,
-  managerTransfers: { inId: number; outId: number }[],
+  manager: ManagerWeek,
   pointsFor: (playerId: number) => number | null,
 ): GameweekComparison {
   const base: GameweekComparison = {
@@ -147,33 +175,41 @@ export function compareTransfer(
     note: null,
   };
 
-  const swing = (inId: number, outId: number): number | null => {
-    const gained = pointsFor(inId);
-    const lost = pointsFor(outId);
-    if (gained === null || lost === null) return null;
-    return gained - lost;
-  };
-
-  const engineSwing =
-    decision.player_in !== null && decision.player_out !== null
-      ? swing(decision.player_in, decision.player_out)
-      : null;
-
-  // The manager may have made several moves, or none. Their combined swing is
-  // what the engine's single recommendation is up against.
-  let managerSwing: number | null = managerTransfers.length === 0 ? 0 : null;
-  if (managerTransfers.length > 0) {
-    let total = 0;
-    let complete = true;
-    for (const move of managerTransfers) {
-      const s = swing(move.inId, move.outId);
-      if (s === null) { complete = false; break; }
-      total += s;
-    }
-    managerSwing = complete ? total : null;
+  // A wildcard or free hit rebuilds the squad without the transfer rules. The
+  // engine's advice was made WITHIN those rules, so scoring one move against a
+  // free rebuild of fifteen compares two different games. Carried, not scored.
+  if (manager.chip === CHIP.wildcard || manager.chip === CHIP.freeHit) {
+    return {
+      ...base,
+      note: `manager played ${manager.chip} — not comparable with a transfer`,
+    };
   }
 
-  if (engineSwing === null && decision.kind === "hold") {
+  const swing = (moves: Move[]): number | null => {
+    let total = 0;
+    for (const move of moves) {
+      const gained = pointsFor(move.in);
+      const lost = pointsFor(move.out);
+      if (gained === null || lost === null) return null;
+      total += gained - lost;
+    }
+    return total;
+  };
+
+  const managerMoves = manager.transfers.map((t) => ({
+    in: t.inId,
+    out: t.outId,
+  }));
+  const managerRaw = swing(managerMoves);
+  const managerSwing =
+    managerRaw === null ? null : managerRaw - manager.hitCost;
+  const managerChoice = (points: number) => ({
+    playerId: managerMoves[0]?.in ?? -1,
+    points,
+    moves: managerMoves.length,
+  });
+
+  if (decision.kind === "hold") {
     // The engine said hold. Holding buys a swing of zero, which is a real
     // position and scoreable against whatever the manager did instead.
     if (managerSwing === null) {
@@ -181,36 +217,39 @@ export function compareTransfer(
     }
     return {
       ...base,
-      engineChoice: { playerId: -1, points: 0 },
-      managerChoice: { playerId: -1, points: managerSwing },
+      engineChoice: { playerId: -1, points: 0, moves: 0 },
+      managerChoice: managerChoice(managerSwing),
       delta: 0 - managerSwing,
-      note: managerTransfers.length === 0 ? "both held" : "engine held",
+      note: managerMoves.length === 0 ? "both held" : "engine held",
     };
   }
 
-  if (engineSwing === null) {
+  const engineMoves = movesOf(decision);
+  if (engineMoves === null) {
+    return { ...base, note: "only the first of the engine's moves was recorded" };
+  }
+  const engineRaw = engineMoves.length > 0 ? swing(engineMoves) : null;
+  if (engineRaw === null) {
     return { ...base, note: "engine's move cannot be scored" };
   }
   if (managerSwing === null) {
     return { ...base, note: "manager's transfers cannot be scored" };
   }
 
-  const agreed =
-    managerTransfers.length === 1 &&
-    managerTransfers[0].inId === decision.player_in &&
-    managerTransfers[0].outId === decision.player_out;
+  const engineSwing = engineRaw - (decision.hit_cost ?? 0);
 
   return {
     ...base,
-    engineChoice: { playerId: decision.player_in!, points: engineSwing },
-    managerChoice: {
-      playerId: managerTransfers[0]?.inId ?? -1,
-      points: managerSwing,
+    engineChoice: {
+      playerId: engineMoves[0].in,
+      points: engineSwing,
+      moves: engineMoves.length,
     },
+    managerChoice: managerChoice(managerSwing),
     delta: engineSwing - managerSwing,
-    note: agreed
+    note: sameMoves(engineMoves, managerMoves)
       ? "engine and manager agreed"
-      : managerTransfers.length === 0
+      : managerMoves.length === 0
         ? "manager held, engine moved"
         : null,
   };
@@ -221,6 +260,10 @@ export interface ManagerActions {
   captainByGw: Map<number, number>;
   /** The transfers the manager actually made, by gameweek. */
   transfersByGw: Map<number, { inId: number; outId: number }[]>;
+  /** Points paid in hits, by gameweek. */
+  hitCostByGw: Map<number, number>;
+  /** The chip played, by gameweek. */
+  chipByGw: Map<number, string>;
 }
 
 /**
@@ -281,7 +324,11 @@ export async function compareJournal(
       comparisons.push(
         compareTransfer(
           decision,
-          actions.transfersByGw.get(decision.gw) ?? [],
+          {
+            transfers: actions.transfersByGw.get(decision.gw) ?? [],
+            hitCost: actions.hitCostByGw.get(decision.gw) ?? 0,
+            chip: actions.chipByGw.get(decision.gw) ?? null,
+          },
           pointsFor,
         ),
       );
@@ -311,17 +358,25 @@ export async function compareJournal(
 }
 
 /**
- * What the manager actually did, from stored squads and the live transfer log.
+ * What the manager actually did, from stored squads and the live FPL API.
  *
  * The captain comes from `squads`, which the sync already records per
- * gameweek. Transfers are not stored anywhere — they are read live, because
- * they are only needed after a deadline has passed and the source never
- * changes retrospectively.
+ * gameweek. Transfers, hits and chips are not stored anywhere — they are read
+ * live, because they are only needed after a deadline has passed and the
+ * source never changes retrospectively.
+ *
+ * `history` is required rather than optional. Without it a wildcard week looks
+ * like thirteen ordinary transfers and every hit looks free, which is a wrong
+ * verdict and not a partial one.
  */
 export async function loadManagerActions(
   db: Db,
   entryId: number,
   transfers: { element_in: number; element_out: number; event: number }[],
+  history: {
+    current: { event: number; event_transfers_cost: number }[];
+    chips: { name: string; event: number }[];
+  },
 ): Promise<ManagerActions> {
   const { data, error } = await db
     .from("squads")
@@ -342,5 +397,10 @@ export async function loadManagerActions(
     transfersByGw.set(t.event, list);
   }
 
-  return { captainByGw, transfersByGw };
+  const hitCostByGw = new Map(
+    history.current.map((row) => [row.event, row.event_transfers_cost]),
+  );
+  const chipByGw = new Map(history.chips.map((chip) => [chip.event, chip.name]));
+
+  return { captainByGw, transfersByGw, hitCostByGw, chipByGw };
 }

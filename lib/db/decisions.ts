@@ -32,14 +32,79 @@ export interface DecisionAlternative {
   reason: string;
 }
 
+/** One swap within a transfer plan. */
+export interface Move {
+  in: number;
+  out: number;
+}
+
 export interface RecordedDecision {
   gw: number;
   kind: "transfer" | "captain" | "chip" | "hold";
+  /** The first swap, kept for readers that predate `moves`. */
   playerIn: number | null;
   playerOut: number | null;
+  /**
+   * Every swap in the plan. Required, not defaulted: a plan of several moves
+   * stored as its first was exactly the bug, and an optional field is how it
+   * comes back.
+   */
+  moves: Move[];
+  hitCost: number;
   predictedEp: number | null;
   alternatives: DecisionAlternative[];
   rationale: string;
+}
+
+function isMove(value: unknown): value is Move {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as Move).in === "number" &&
+    typeof (value as Move).out === "number"
+  );
+}
+
+/**
+ * Every swap a transfer decision advised, or null when the row cannot say.
+ *
+ * Rows written before `moves` existed carry only their first swap. For a
+ * one-move plan that pair is the whole plan. Where the rationale lists several
+ * players sold it is half of one — and scoring half the advice as if it were
+ * all of it is a false record, where refusing to score it is only a gap. The
+ * rationale is safe to read for this because the recorder always wrote it
+ * from the full plan, as "A, B → C, D: ...".
+ */
+export function movesOf(
+  decision: Pick<DecisionRow, "player_in" | "player_out"> &
+    Partial<Pick<DecisionRow, "moves" | "rationale">>,
+): Move[] | null {
+  const stored = Array.isArray(decision.moves)
+    ? (decision.moves as unknown[]).filter(isMove)
+    : [];
+  if (stored.length > 0) return stored;
+
+  if (decision.player_in === null || decision.player_out === null) return [];
+
+  const rationale = decision.rationale ?? "";
+  if (rationale.includes(" → ") && rationale.split(" → ")[0].includes(", ")) {
+    return null;
+  }
+  return [{ in: decision.player_in, out: decision.player_out }];
+}
+
+/** Summed points for several players, or null if any of them has no result. */
+function sumPoints(
+  ids: number[],
+  pointsFor: (playerId: number) => number | null,
+): number | null {
+  let total = 0;
+  for (const id of ids) {
+    const points = pointsFor(id);
+    if (points === null) return null;
+    total += points;
+  }
+  return total;
 }
 
 /**
@@ -62,6 +127,13 @@ export async function recordDecisions(
     kind: decision.kind,
     player_in: decision.playerIn,
     player_out: decision.playerOut,
+    moves: decision.moves as unknown as TablesInsert<"decisions">["moves"],
+    hit_cost: decision.hitCost,
+    // Set on every write rather than left to the column default, which fires
+    // only on insert. An upsert landing on an existing row is an update, and
+    // relying on the default would repeat created_at's mistake: a timestamp
+    // from the first advice beside the content of the last.
+    updated_at: new Date().toISOString(),
     predicted_ep: decision.predictedEp,
     alternatives: decision.alternatives as unknown as TablesInsert<"decisions">["alternatives"],
     rationale: decision.rationale,
@@ -165,18 +237,41 @@ export async function resolveOutcomes(
  * for avoiding someone who may simply be missing from the sync.
  */
 export function scoreDecision(
-  decision: Pick<DecisionRow, "kind" | "player_in" | "player_out" | "alternatives">,
+  decision: Pick<DecisionRow, "kind" | "player_in" | "player_out" | "alternatives"> &
+    Partial<Pick<DecisionRow, "moves" | "rationale" | "hit_cost">>,
   actualPointsFor: (playerId: number) => number | null,
 ): { actual_points: number; best_alternative_points: number; delta: number } | null {
   const alternatives = (decision.alternatives ??
     []) as unknown as DecisionAlternative[];
+  // A hit is paid whether or not the players return, so it comes off the move.
+  const hit = decision.kind === "transfer" ? (decision.hit_cost ?? 0) : 0;
 
-  const chosen =
-    decision.kind === "transfer" ? decision.player_in : decision.player_in;
+  if (decision.kind === "transfer") {
+    const moves = movesOf(decision);
+    if (moves === null || moves.length === 0) return null;
+
+    if (moves.length > 1) {
+      const bought = sumPoints(moves.map((m) => m.in), actualPointsFor);
+      const sold = sumPoints(moves.map((m) => m.out), actualPointsFor);
+      if (bought === null || sold === null) return null;
+      // The recorded alternatives are single players drawn from other options,
+      // not plans of the same size, so the only like-for-like counterfactual
+      // is keeping everyone the plan sold.
+      const actual = bought - hit;
+      return {
+        actual_points: actual,
+        best_alternative_points: sold,
+        delta: actual - sold,
+      };
+    }
+  }
+
+  const chosen = decision.player_in;
   if (chosen === null) return null;
 
-  const actual = actualPointsFor(chosen);
-  if (actual === null) return null;
+  const scoredIn = actualPointsFor(chosen);
+  if (scoredIn === null) return null;
+  const actual = scoredIn - hit;
 
   // The best alternative that actually has a score. An alternative with no
   // data is dropped rather than treated as zero.
