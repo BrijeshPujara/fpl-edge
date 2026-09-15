@@ -2,13 +2,39 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 /**
- * The three primitives every screen in the design is built from: a small
- * uppercase mono section label, a bordered panel below it, and rows inside.
+ * The primitives every screen is built from: a section label, a card below
+ * it, rows inside, and a page header above it all.
  *
- * There are no cards with shadows, no rounded corners and no gradients
- * anywhere in this design. A panel is a 1px border on a slightly lifted
- * surface — that is the whole visual vocabulary.
+ * Restyled for the light redesign — white cards with a quiet border and a
+ * one-pixel shadow, sentence-sized text instead of 9px mono. The props did not
+ * change, so every screen picked the new look up at once; what each screen
+ * puts INSIDE them is what still needs redesigning screen by screen.
  */
+
+/** A page's title, its one line of context, and its controls. */
+export function PageHeader({
+  title,
+  subtitle,
+  actions,
+}: {
+  title: ReactNode;
+  subtitle?: ReactNode;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0">
+        <h1 className="font-display text-2xl font-bold tracking-wide text-primary uppercase">
+          {title}
+        </h1>
+        {subtitle ? (
+          <p className="mt-0.5 text-sm text-muted">{subtitle}</p>
+        ) : null}
+      </div>
+      {actions ? <div className="flex shrink-0 items-end gap-2">{actions}</div> : null}
+    </div>
+  );
+}
 
 export function SectionLabel({
   children,
@@ -27,13 +53,11 @@ export function SectionLabel({
         className,
       )}
     >
-      <div className="font-mono text-tiny tracking-[0.16em] text-label">
+      <div className="font-display text-sm font-bold tracking-[0.06em] text-tertiary uppercase">
         {children}
       </div>
       {meta ? (
-        <div className="font-mono text-tiny tracking-[0.08em] text-fainter">
-          {meta}
-        </div>
+        <div className="text-right text-xs text-fainter">{meta}</div>
       ) : null}
     </div>
   );
@@ -52,8 +76,8 @@ export function Panel({
   return (
     <div
       className={cn(
-        "border border-edge-strong bg-panel",
-        padded && "p-3.5",
+        "overflow-hidden rounded-xl border border-edge-strong bg-panel shadow-xs",
+        padded && "p-4",
         className,
       )}
     >
@@ -63,12 +87,11 @@ export function Panel({
 }
 
 /**
- * A fixed-height row inside a panel. The design uses a small set of heights
- * (30px for dense lists, 34px for tables, 44px for two-line rows) — keeping
- * them named stops the vertical rhythm drifting screen to screen.
+ * A row inside a panel. The small set of heights keeps the vertical rhythm from
+ * drifting screen to screen.
  *
  * "auto" is the exception, for rows carrying wrapping prose. The fixed heights
- * clip rather than grow, so a three-line row inside a 44px slot overlaps the
+ * clip rather than grow, so a three-line row inside a fixed slot overlaps the
  * row beneath it instead of pushing it down.
  */
 export function Row({
@@ -85,12 +108,12 @@ export function Row({
   return (
     <div
       className={cn(
-        "items-center border-b border-edge-subtle px-3.5 last:border-b-0",
+        "items-center border-b border-edge-subtle px-4 last:border-b-0",
         // Touch targets first: 44px is the minimum a thumb hits reliably, so
-        // the dense canvas heights are a desktop enhancement, not the base.
-        height === "dense" && "min-h-11 md:h-[30px] md:min-h-0",
-        height === "table" && "min-h-11 md:h-[34px] md:min-h-0",
-        height === "tall" && "min-h-11 md:h-[44px] md:min-h-0",
+        // the denser heights are a desktop enhancement, not the base.
+        height === "dense" && "min-h-11 md:h-9 md:min-h-0",
+        height === "table" && "min-h-11 md:h-10 md:min-h-0",
+        height === "tall" && "min-h-11 md:h-12 md:min-h-0",
         height === "auto" && "min-h-11 py-2.5",
         hover && "hover:bg-panel-hover",
         className,
@@ -113,10 +136,10 @@ export function StatRow({
 }) {
   return (
     <Row className="flex justify-between gap-2.5" height="table">
-      <div className="text-small text-muted">{label}</div>
+      <div className="text-sm text-muted">{label}</div>
       <div
         className={cn(
-          "font-mono text-cell",
+          "text-sm font-semibold",
           tone === "primary" && "text-primary",
           tone === "accent" && "text-accent",
           tone === "warn" && "text-warn",
@@ -129,9 +152,7 @@ export function StatRow({
   );
 }
 
-/**
- * A masthead readout — the header strip's DEADLINE / PROJ. EP / BANK cells.
- */
+/** A headline number with its label, e.g. bank or overall rank. */
 export function Readout({
   label,
   value,
@@ -144,15 +165,11 @@ export function Readout({
   className?: string;
 }) {
   return (
-    <div
-      className={cn("flex flex-col justify-center py-1.5", className)}
-    >
-      <div className="font-mono text-micro tracking-[0.14em] text-label">
-        {label}
-      </div>
+    <div className={cn("flex flex-col justify-center gap-0.5", className)}>
+      <div className="text-xs font-medium text-muted">{label}</div>
       <div
         className={cn(
-          "font-mono text-value font-medium tracking-[0.02em]",
+          "font-display text-xl font-bold tracking-wide",
           tone === "primary" && "text-primary",
           tone === "warn" && "text-warn",
           tone === "accent" && "text-accent",

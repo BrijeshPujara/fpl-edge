@@ -108,27 +108,32 @@ export async function EntryReadouts({ entryId }: { entryId: number }) {
 
   const rank = entry?.summary_overall_rank ?? null;
 
+  const card = "rounded-xl border border-edge-strong bg-panel px-4 py-3 shadow-xs";
+
   return (
     <div
       className={cn(
-        "grid gap-x-4",
-        points !== null ? "grid-cols-3 sm:grid-cols-5" : "grid-cols-4",
+        "grid grid-cols-2 gap-3",
+        points !== null ? "sm:grid-cols-5" : "sm:grid-cols-4",
       )}
     >
       {points !== null ? (
-        <Readout label="LIVE" tone="accent" value={points} />
+        <Readout className={card} label="Live points" tone="accent" value={points} />
       ) : null}
-      <Readout label="PROJ. EP" value={projected ?? "—"} />
+      <Readout className={card} label="Projected" value={projected ?? "—"} />
       <Readout
-        label="BANK"
+        className={card}
+        label="Bank"
         value={squad ? money(squad.squad.bank) : "—"}
       />
       <Readout
-        label="FT"
+        className={card}
+        label="Free transfers"
         value={squad ? String(squad.squad.free_transfers) : "—"}
       />
       <Readout
-        label="OR"
+        className={card}
+        label="Overall rank"
         // Grouped, because a seven-digit rank is unreadable otherwise.
         value={rank === null ? "—" : rank.toLocaleString("en-GB")}
       />

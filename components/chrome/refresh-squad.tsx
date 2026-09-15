@@ -1,7 +1,10 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
+import { RefreshCw } from "lucide-react";
 import { refreshSquad } from "@/app/actions";
+import { buttonClass } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
 
 /**
  * Pull this manager's squad from FPL now.
@@ -23,12 +26,9 @@ function Button() {
   const { pending } = useFormStatus();
 
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="shrink-0 font-mono text-micro tracking-[0.12em] text-dim underline-offset-4 hover:text-primary hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60"
-    >
-      {pending ? "SYNCING…" : "REFRESH SQUAD"}
+    <button type="submit" disabled={pending} className={buttonClass("secondary")}>
+      <RefreshCw aria-hidden className={cn("size-4", pending && "animate-spin")} />
+      {pending ? "Syncing…" : "Refresh squad"}
     </button>
   );
 }

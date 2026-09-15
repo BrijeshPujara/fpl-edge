@@ -103,6 +103,8 @@ export interface FixtureCellView {
 
 export interface PlayerTileView {
   playerId: number;
+  /** The club's FPL code, which shirt images are keyed on. Null when unknown. */
+  teamCode: number | null;
   name: string;
   club: string;
   position: PositionId;
@@ -243,6 +245,12 @@ export interface BuildSquadViewInput {
    * at or before the target and says nothing about which it found.
    */
   picksGw?: number;
+  /**
+   * Club codes by team id, for shirts. From the live teams payload, because
+   * the stored teams table has no code column. Optional: without it the pitch
+   * draws plain outlines rather than failing.
+   */
+  teamCodes?: Map<number, number>;
 }
 
 export function buildSquadView(input: BuildSquadViewInput): SquadView {
@@ -283,6 +291,7 @@ export function buildSquadView(input: BuildSquadViewInput): SquadView {
 
     tiles.push({
       playerId: player.id,
+      teamCode: input.teamCodes?.get(player.team_id) ?? null,
       name: player.web_name,
       club: team?.short_name ?? "???",
       position: player.position as PositionId,

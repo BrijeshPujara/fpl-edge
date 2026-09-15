@@ -1,30 +1,27 @@
+import { notFound } from "next/navigation";
 import { getSeasonContext } from "@/lib/fpl/season";
 import { getFixtures } from "@/lib/fpl/client";
-import {
-  classifyGameweek,
-  countFixturesByTeam,
-  gameweekInPlay,
-  deadlineOf,
-  gameweeksUntilExpiry,
-} from "@/lib/fpl/gameweek";
-import { CHIP_LABEL, type ChipName } from "@/lib/rules";
-import { deadlineStamp } from "@/lib/format";
-import { notFound } from "next/navigation";
+import { classifyGameweek, countFixturesByTeam } from "@/lib/fpl/gameweek";
 import { loadDecisionContext } from "@/lib/db/decision-context";
+import { getDb } from "@/lib/db/client";
+import { getChipsPlayed } from "@/lib/db/queries";
+import { playedChipSets } from "@/lib/engine/chips";
 import { parseEntryId } from "@/lib/fpl/entry";
-import { DEFAULT_HORIZON } from "@/lib/engine/constants";
-import { DeadlineCountdown } from "@/components/chrome/deadline-countdown";
+import { CHIP_SCAN_HORIZON, DEFAULT_HORIZON } from "@/lib/engine/constants";
 import { BriefPanel } from "@/components/dashboard/brief-panel";
-import { LivePoints } from "@/components/dashboard/live-points";
-import { ScorelinePanel } from "@/components/dashboard/scoreline-panel";
-import { FlagPanel, WeekPanels } from "@/components/dashboard/week-panels";
-import { Panel, Row, SectionLabel, StatRow } from "@/components/ui/panel";
-import {
-  NoEntry,
-  Pending,
-  PriorSeasonBasis,
-} from "@/components/ui/pending";
+import { FlagsCard } from "@/components/dashboard/flags-card";
+import { GameweekScore } from "@/components/dashboard/gameweek-score";
+import { WeekPlan } from "@/components/dashboard/week-plan";
+import { PageHeader } from "@/components/ui/panel";
+import { NoEntry, Pending, PriorSeasonBasis } from "@/components/ui/pending";
 
+/**
+ * The dashboard: this week's plan, last week's score, and who is injured.
+ *
+ * Everything else it used to carry has a home of its own — the EP list and the
+ * live breakdown on My Team, chip windows on Chips, scorelines on Fixtures. See
+ * `WeekPlan` for why.
+ */
 export default async function DashboardPage({
   params,
 }: {
@@ -46,11 +43,9 @@ export default async function DashboardPage({
     );
   }
 
-  const { target, isPreSeason } = season.gameweek;
-  const deadline = deadlineOf(target);
+  const { target } = season.gameweek;
 
-  // Blank and double detection is available from day one — it needs only the
-  // fixture list, no model and no squad.
+  // Blank and double detection needs only the fixture list, no model.
   const fixtures = await getFixtures().catch(() => null);
   const shape =
     fixtures === null
@@ -62,34 +57,38 @@ export default async function DashboardPage({
           ).get(target.id),
         );
 
-  // The squad-dependent half of the screen. Everything above this point works
-  // from the API alone and renders whatever happens here.
-  const context = await loadDecisionContext(entryId, DEFAULT_HORIZON);
-  const ready = context.state === "ready" && context.projectable;
+  // Two horizons, because the questions differ: a transfer is judged over the
+  // weeks it has to pay back in, a chip over the weeks it could be played in.
+  const [context, chipContext] = await Promise.all([
+    loadDecisionContext(entryId, DEFAULT_HORIZON),
+    loadDecisionContext(entryId, CHIP_SCAN_HORIZON),
+  ]);
 
-  const chipUrgency = (["wildcard", "freehit", "3xc", "bboost"] as ChipName[])
-    .map((name) => ({
-      name,
-      remaining: gameweeksUntilExpiry(season.chipWindows, name, target.id),
-    }))
-    .filter((c) => c.remaining !== null);
+  const played =
+    context.state === "ready" && chipContext.state === "ready"
+      ? playedChipSets(await getChipsPlayed(getDb(), entryId), chipContext.chipWindows)
+      : [];
 
   return (
-    <div className="grid grid-cols-1 items-start gap-4 sm:gap-6 lg:grid-cols-[1fr_340px]">
-      <div className="flex flex-col gap-4 sm:gap-6">
-        {ready ? (
+    <div className="grid grid-cols-1 items-start gap-5 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="flex flex-col gap-5">
+        {context.state === "ready" &&
+        context.projectable &&
+        chipContext.state === "ready" ? (
           <>
-            {context.state === "ready" && context.basis === "prior-season" ? (
-              <PriorSeasonBasis />
-            ) : null}
-            <WeekPanels context={context} />
+            {context.basis === "prior-season" ? <PriorSeasonBasis /> : null}
+            <WeekPlan
+              context={context}
+              chipContext={chipContext}
+              played={played}
+              deadline={target.deadline_time}
+              shape={shape}
+            />
             <BriefPanel entryId={entryId} gw={context.gw} />
           </>
         ) : (
-          <div>
-            <SectionLabel meta={`HORIZON ${DEFAULT_HORIZON} GW`}>
-              RECOMMENDED ACTIONS
-            </SectionLabel>
+          <>
+            <PageHeader title={`GW${target.id} plan`} />
             {context.state === "no-db" ? (
               <Pending phase="configuration">
                 Supabase is not configured, so there is no squad to advise on.
@@ -105,118 +104,19 @@ export default async function DashboardPage({
               </Pending>
             ) : (
               <Pending phase="gameweek 1">
-                The engine is built and your squad is loaded, but no gameweek
-                has been played. Expected points need appearance history, and
-                without it every player projects the same — so a ranked list of
-                actions would be an ordering of nothing.
-                <br />
-                <br />
-                To watch the screen work before then, run{" "}
-                <code className="font-mono text-tertiary">npm run backtest</code>{" "}
-                once and open{" "}
-                <code className="font-mono text-tertiary">/preview</code> in
-                development.
+                Your squad is loaded, but no gameweek has been played.
+                Expected points need appearance history, and without it every
+                player projects the same — so a plan would be an ordering of
+                nothing.
               </Pending>
             )}
-          </div>
+          </>
         )}
-
-        <LivePoints entryId={entryId} gw={season.gameweek.current?.id ?? null} />
-        <ScorelinePanel entryId={entryId} gw={gameweekInPlay(season.gameweek).id} />
       </div>
 
-      <div className="flex flex-col gap-4 sm:gap-6">
-        <div>
-          <SectionLabel>DEADLINE PRESSURE</SectionLabel>
-          <Panel padded>
-            <div className="font-mono text-hero font-medium tracking-[-0.02em] text-warn sm:text-display">
-              <DeadlineCountdown deadline={target.deadline_time} />
-            </div>
-            <div className="mt-2 font-mono text-tiny tracking-[0.1em] text-label">
-              {deadlineStamp(deadline)}
-            </div>
-            <div className="mt-3.5 flex flex-col gap-2">
-              <PressureRow label="Gameweek" value={String(target.id)} />
-              <PressureRow
-                label="Gameweek shape"
-                value={shape ? shape.toUpperCase() : "—"}
-                tone={shape === "normal" || shape === null ? "muted" : "warn"}
-              />
-              <PressureRow
-                label="Season state"
-                value={isPreSeason ? "PRE-SEASON" : "IN PROGRESS"}
-              />
-            </div>
-          </Panel>
-        </div>
-
-        <div>
-          <SectionLabel meta="FROM BOOTSTRAP-STATIC">CHIP WINDOWS</SectionLabel>
-          <Panel>
-            {chipUrgency.length === 0 ? (
-              <Row className="flex" height="table">
-                <div className="text-small text-muted">
-                  No chip window is open for {target.name}.
-                </div>
-              </Row>
-            ) : (
-              chipUrgency.map((chip) => (
-                <StatRow
-                  key={chip.name}
-                  label={CHIP_LABEL[chip.name]}
-                  value={`${chip.remaining} GW left`}
-                  tone={
-                    chip.remaining !== null && chip.remaining <= 4
-                      ? "warn"
-                      : "primary"
-                  }
-                />
-              ))
-            )}
-          </Panel>
-        </div>
-
-        <div>
-          <SectionLabel>FLAGS</SectionLabel>
-          {context.state === "ready" ? (
-            <FlagPanel squad={context.squad} />
-          ) : context.state === "no-entry" ? (
-            <NoEntry />
-          ) : (
-            <Pending phase="the first deadline">
-              Fitness flags for your own fifteen. Needs a synced squad, which
-              needs a deadline to have passed.
-            </Pending>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PressureRow({
-  label,
-  value,
-  tone = "primary",
-}: {
-  label: string;
-  value: string;
-  tone?: "primary" | "warn" | "muted";
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 border-t border-edge pt-2">
-      <div className="text-small text-muted">{label}</div>
-      <div
-        className={
-          "font-mono text-small " +
-          (tone === "warn"
-            ? "text-warn"
-            : tone === "muted"
-              ? "text-muted"
-              : "text-primary")
-        }
-      >
-        {value}
+      <div className="flex flex-col gap-4">
+        <GameweekScore entryId={entryId} season={season} />
+        {context.state === "ready" ? <FlagsCard squad={context.squad} /> : null}
       </div>
     </div>
   );

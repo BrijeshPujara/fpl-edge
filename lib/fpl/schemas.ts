@@ -75,6 +75,12 @@ export type FplEvent = z.infer<typeof eventSchema>;
  */
 export const teamSchema = z.object({
   id: z.number().int(),
+  /**
+   * Stable across seasons, unlike `id` — and what FPL's shirt images are keyed
+   * on. Required like every field we read: a pitch of silhouettes because the
+   * code quietly went missing is exactly the failure invariant 5 exists for.
+   */
+  code: z.number().int(),
   name: z.string(),
   short_name: z.string(),
   strength: z.number().int().nullable(),

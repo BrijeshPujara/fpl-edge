@@ -16,6 +16,19 @@ const nextConfig: NextConfig = {
    * relative path is correct.
    */
   serverExternalPackages: ["glpk.js"],
+
+  /**
+   * Club shirts for the pitch, from FPL's own static assets.
+   *
+   * Narrowed to the shirt path rather than the whole host, so the image
+   * optimiser cannot be pointed at anything else on it. See lib/fpl/shirts.ts
+   * for why shirts and not player photos.
+   */
+  images: {
+    remotePatterns: [
+      new URL("https://fantasy.premierleague.com/dist/img/shirts/standard/**"),
+    ],
+  },
 };
 
 export default nextConfig;

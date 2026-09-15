@@ -1,74 +1,122 @@
 @import "tailwindcss";
 
 /*
- * Design tokens extracted verbatim from design/fpl-terminal.dc.html.
- * The canvas is the source of truth: if a value here disagrees with the
- * canvas, the canvas wins. Do not introduce colours that are not in this file.
+ * Design tokens — "Terrace", chosen 2026-09-15.
+ *
+ * Concrete grey, black and steward-vest yellow, with square corners and no
+ * shadows. Picked from five candidates as the easiest to read: it has the
+ * highest contrast of the set, which is what holds up on a phone in daylight.
+ *
+ * Two colours do two different jobs and must not be swapped:
+ *
+ *   --accent  green, and it means a GAIN — points, rank up, a move worth making.
+ *   --signal  yellow, and it means ACTIVE or LOOK HERE — the page you are on,
+ *             the deadline, your own row. It never means good or bad.
+ *
+ * Every token NAME from the earlier themes is kept, so screens not yet
+ * redesigned change with the rest. This file is the source of truth for
+ * colour: do not introduce colours in a component that are not defined here.
  */
 :root {
-  /* Surfaces — near-black, stepped by ~1-3 points of lightness */
-  --surface-page: #08090a;
-  --surface-panel: #0d0f11;
-  --surface-panel-hover: #101315;
-  --surface-sunken: #0b0d0e;
-  --surface-tile: #0f1113;
-  --surface-tile-hover: #131618;
-  --surface-header: #0a0c0d;
-  --surface-active: #0f1214;
-  --surface-track: #141719;
-  --surface-track-strong: #2f3439;
+  /* Surfaces — concrete page, off-white cards */
+  --surface-page: #e7e7e2;
+  --surface-panel: #f7f7f3;
+  --surface-panel-hover: #efefe9;
+  --surface-sunken: #ecece6;
+  --surface-tile: #f7f7f3;
+  --surface-tile-hover: #efefe9;
+  --surface-header: #f7f7f3;
+  --surface-active: #f4dc93;
+  --surface-track: #dcdcd5;
+  --surface-track-strong: #b8b8af;
 
-  /* Borders — three weights */
-  --border-strong: #1b1e21;
-  --border: #17191c;
-  --border-subtle: #131619;
-  --border-faint: #121517;
+  /* Borders — firm, because there are no shadows to separate things */
+  --border-strong: #c9c9c1;
+  --border: #d3d3cb;
+  --border-subtle: #deded7;
+  --border-faint: #e4e4de;
 
-  /* Text — a warm grey ramp, deliberately narrow */
-  --text-primary: #e6e4e1;
-  --text-secondary: #d4d1cd;
-  --text-tertiary: #c9c6c2;
-  --text-quaternary: #a9a6a2;
-  --text-muted: #8b9096;
-  --text-dim: #7d838a;
-  --text-label: #5c6167;
-  --text-faint: #4f5459;
-  --text-fainter: #4a4f55;
-  --text-ghost: #3f4449;
+  /*
+   * Text — a warm black ramp. The first seven clear 4.5:1 on the card colour
+   * and are for anything someone reads; the last three are decoration only.
+   */
+  --text-primary: #111111;
+  --text-secondary: #1f1f1c;
+  --text-tertiary: #2e2e2a;
+  --text-quaternary: #3f3f3a;
+  --text-muted: #53534d;
+  --text-dim: #5e5e57;
+  --text-label: #66665f;
+  --text-faint: #77776f;
+  --text-fainter: #8a8a82;
+  --text-ghost: #a5a59d;
 
-  /* Accent — the single positive colour. Used only for EP gains and good news. */
-  --accent: oklch(0.78 0.13 158);
-  --accent-bright: oklch(0.86 0.13 158);
-  --accent-dim: oklch(0.62 0.1 158);
+  /* Gain */
+  --accent: #0f7a3d;
+  --accent-bright: #0a5c2d;
+  --accent-dim: #8fbf9f;
 
-  /* Warning — deadline pressure, fitness flags, price-change risk */
-  --warn: oklch(0.78 0.15 72);
-  --warn-dim: oklch(0.6 0.13 62);
+  /* Warning and danger */
+  --warn: #7a4f00;
+  --warn-dim: #d9b54a;
+  --danger: #b3261e;
 
-  /* Danger — reserved for negative EP and serious flags */
-  --danger: oklch(0.58 0.16 35);
+  /* Signal — active, and look here */
+  --signal: #f2c230;
+  --signal-ink: #111111;
 
-  /* Fixture difficulty ratings 1 (easiest) to 5 (hardest) */
-  --fdr-1-bg: oklch(0.46 0.09 158);
-  --fdr-1-fg: #dff0e6;
-  --fdr-2-bg: oklch(0.36 0.06 158);
-  --fdr-2-fg: #bfd6c8;
-  --fdr-3-bg: #22262a;
-  --fdr-3-fg: #8b9096;
-  --fdr-4-bg: oklch(0.38 0.08 55);
-  --fdr-4-fg: #e9d5bb;
-  --fdr-5-bg: oklch(0.48 0.13 40);
-  --fdr-5-fg: #f6dccb;
+  /* The sidebar */
+  --sidebar: #111111;
+  --sidebar-text: #f2f2ee;
+  --sidebar-muted: #a3a39b;
+  --sidebar-hover: #242424;
+
+  /* Fixture difficulty 1 (easiest) to 5 (hardest): green, grey, red */
+  --fdr-1-bg: #0f7a3d;
+  --fdr-1-fg: #ffffff;
+  --fdr-2-bg: #cfe3d2;
+  --fdr-2-fg: #0b4d27;
+  --fdr-3-bg: #dcdcd5;
+  --fdr-3-fg: #2e2e2a;
+  --fdr-4-bg: #f0cdbb;
+  --fdr-4-fg: #6b2308;
+  --fdr-5-bg: #b3261e;
+  --fdr-5-fg: #ffffff;
 
   /* Gameweek timeline markers */
-  --gw-double-bg: oklch(0.42 0.08 158);
-  --gw-double-fg: #dff0e6;
-  --gw-blank-bg: oklch(0.4 0.1 45);
-  --gw-blank-fg: #f2ddc6;
-  --gw-current-bg: #2c3237;
-  --gw-past-bg: #111416;
-  --gw-future-bg: #171a1d;
-  --gw-chip-used-bg: #3a4046;
+  --gw-double-bg: #cfe3d2;
+  --gw-double-fg: #0b4d27;
+  --gw-blank-bg: #f0cdbb;
+  --gw-blank-fg: #6b2308;
+  --gw-current-bg: #b8b8af;
+  --gw-past-bg: #ecece6;
+  --gw-future-bg: #dcdcd5;
+  --gw-chip-used-bg: #77776f;
+
+  /* The pitch */
+  --pitch-grass: #2f7d4a;
+  --pitch-grass-alt: #2b7344;
+  --pitch-line: rgb(255 255 255 / 0.35);
+  --pitch-bench: #1f5a37;
+  --pitch-label: #111111;
+
+  /* League table medals, 1st to 3rd */
+  --medal-1-bg: #f2c230;
+  --medal-1-fg: #111111;
+  --medal-2-bg: #dcdcd5;
+  --medal-2-fg: #2e2e2a;
+  --medal-3-bg: #f0cdbb;
+  --medal-3-fg: #6b2308;
+
+  /* Chip pills — one hue each, so a column of them scans at a glance */
+  --chip-wc-bg: #e4dcf5;
+  --chip-wc-fg: #4c1d95;
+  --chip-fh-bg: #dbe6f7;
+  --chip-fh-fg: #1e3a8a;
+  --chip-bb-bg: #d5ead9;
+  --chip-bb-fg: #14532d;
+  --chip-tc-bg: #f4dc93;
+  --chip-tc-fg: #5c4400;
 }
 
 @theme inline {
@@ -106,14 +154,41 @@
   --color-warn-dim: var(--warn-dim);
   --color-danger: var(--danger);
 
-  --font-sans: var(--font-plex-sans), Helvetica, sans-serif;
+  --color-signal: var(--signal);
+  --color-signal-ink: var(--signal-ink);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-text: var(--sidebar-text);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-hover: var(--sidebar-hover);
+
+  --font-sans: var(--font-archivo), Arial, sans-serif;
+  --font-display: var(--font-archivo-narrow), "Arial Narrow", Arial, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 }
 
 /*
- * The canvas uses a small set of non-standard type sizes (9px labels through to
- * 40px readouts). Naming them keeps the ramp intact rather than letting each
- * component pick an arbitrary Tailwind step.
+ * Square corners and no shadows, set once here rather than stripped from every
+ * component. Only the named steps are zeroed: `rounded-full` is not one of
+ * them, so rank badges and the live dot stay round, which they should.
+ */
+@theme {
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
+  --shadow-2xs: 0 0 #0000;
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 0 #0000;
+}
+
+/*
+ * The named type ramp the screens were built against. Kept so the screens not
+ * yet redesigned hold their layout; redesigned screens use Tailwind's own
+ * steps (text-sm, text-lg).
  */
 @theme inline {
   --text-micro: 9px;
@@ -140,31 +215,38 @@
   --text-display--line-height: 1;
 }
 
-html,
-body {
-  margin: 0;
-  padding: 0;
-}
+/*
+ * Base rules live in the base LAYER. Written unlayered they outrank every
+ * Tailwind utility regardless of specificity — which is why every navigation
+ * tab once rendered in the link colour whatever class it was given.
+ */
+@layer base {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
 
-body {
-  background: var(--surface-page);
-  color: var(--text-primary);
-  font-family: var(--font-plex-sans), Helvetica, sans-serif;
-  /* Every number in this app is compared against another number in a column
-     above or below it. Tabular figures are not optional. */
-  font-variant-numeric: tabular-nums;
-  -webkit-font-smoothing: antialiased;
-}
+  body {
+    background: var(--surface-page);
+    color: var(--text-primary);
+    font-family: var(--font-archivo), Arial, sans-serif;
+    /* Every number in this app is compared against another number in a column
+       above or below it. Tabular figures are not optional. */
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
 
-a {
-  color: var(--accent);
-  text-decoration: none;
-}
+  a {
+    color: var(--accent);
+    text-decoration: none;
+  }
 
-a:hover {
-  color: var(--accent-bright);
-}
+  a:hover {
+    color: var(--accent-bright);
+  }
 
-::selection {
-  background: oklch(0.78 0.13 158 / 0.25);
+  ::selection {
+    background: rgb(242 194 48 / 0.45);
+  }
 }

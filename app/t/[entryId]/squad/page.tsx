@@ -19,17 +19,17 @@ import { notFound } from "next/navigation";
 import { parseEntryId } from "@/lib/fpl/entry";
 import { FORM_WINDOW } from "@/lib/engine/constants";
 import { ep as formatEp, money } from "@/lib/format";
-import { Panel, SectionLabel, StatRow } from "@/components/ui/panel";
+import { PageHeader, Panel, SectionLabel, StatRow } from "@/components/ui/panel";
 import { Pending } from "@/components/ui/pending";
-import { FixtureDifficultyKey } from "@/components/ui/fixture-strip";
-import { Bench, Pitch } from "@/components/squad/pitch";
+import { Bench, Pitch, PitchKey } from "@/components/squad/pitch";
 
 /**
- * The squad pitch view, rendered from the database rather than the live API.
+ * My team: the pitch, and the handful of numbers that go with it.
  *
- * Note the pre-deadline case, which is not an error: picks do not exist
- * publicly until a gameweek's deadline has passed, so before the first deadline
- * there is genuinely nothing to render.
+ * Rendered from the database rather than the live API. Note the pre-deadline
+ * case, which is not an error: picks do not exist publicly until a gameweek's
+ * deadline has passed, so before the first deadline there is genuinely nothing
+ * to render.
  */
 export default async function SquadPage({
   params,
@@ -123,6 +123,7 @@ export default async function SquadPage({
     teamRatings,
     epByPlayer,
     picksGw: stored.squad.gw,
+    teamCodes: new Map(season.teams.map((t) => [t.id, t.code])),
   });
 
   /*
@@ -154,79 +155,62 @@ export default async function SquadPage({
     : undefined;
 
   return (
-    <div className="grid grid-cols-1 items-start gap-4 sm:gap-6 lg:grid-cols-[1fr_300px]">
-      <div className="flex flex-col gap-4 sm:gap-6">
-        <div>
-          <SectionLabel
-            meta={`FIXTURE DIFFICULTY GW${view.gw}–${view.gw + 4} · LEFT TO RIGHT`}
-          >
-            SQUAD · {view.formation} · GW{view.picksGw}
-          </SectionLabel>
-          {view.picksAreStale ? (
-            <Panel padded>
-              <div className="font-mono text-tiny tracking-[0.14em] text-warn">
-                THESE ARE YOUR GW{view.picksGw} PICKS
-              </div>
-              <p className="mt-2 text-sm text-secondary">
-                FPL does not publish a squad until its deadline passes, so
-                GW{view.gw} picks cannot be read yet — this is the last
-                confirmed fifteen, projected against GW{view.gw} fixtures.{" "}
-                <span className="text-tertiary">
-                  Transfers, a wildcard or a captain change made since the
-                  GW{view.picksGw} deadline will not appear here until
-                  GW{view.gw} locks.
-                </span>
-              </p>
-            </Panel>
-          ) : null}
-          <Pitch squad={view} live={liveByPlayer} />
-        </div>
+    <div className="grid grid-cols-1 items-start gap-5 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="flex flex-col gap-4">
+        <PageHeader
+          title="My team"
+          subtitle={`GW${view.picksGw} picks · ${view.formation} · projected for GW${view.gw}`}
+        />
 
-        <div>
-          <SectionLabel meta="AUTO-SUB ORDER">BENCH</SectionLabel>
-          <Bench players={view.bench} live={liveByPlayer} />
-        </div>
+        {view.picksAreStale ? (
+          <div className="rounded-xl border border-warn-dim bg-[color-mix(in_oklch,var(--warn)_8%,var(--surface-panel))] px-4 py-3 text-sm text-secondary">
+            <span className="font-semibold text-warn">
+              Showing your GW{view.picksGw} team.
+            </span>{" "}
+            FPL publishes GW{view.gw} picks when the deadline passes, so
+            transfers or a captain change made since won&apos;t show until then.
+          </div>
+        ) : null}
+
+        <Pitch squad={view} live={liveByPlayer} />
+        <Bench players={view.bench} live={liveByPlayer} />
       </div>
 
-      <div className="flex flex-col gap-4 sm:gap-6">
+      <div className="flex flex-col gap-4 lg:pt-[3.25rem]">
         <div>
-          <SectionLabel>SQUAD TOTALS</SectionLabel>
+          <SectionLabel>GW{view.gw} projection</SectionLabel>
           <Panel>
             {view.preSeason ? (
-              <StatRow label="Projections" value="AWAITING GW1" tone="warn" />
+              <StatRow label="Projections" value="After GW1" tone="warn" />
             ) : (
               <>
-                <StatRow
-                  label="Starting XI EP"
-                  value={formatEp(view.totals.startingEp)}
-                />
-                <StatRow
-                  label="Captain bonus"
-                  value={`+${formatEp(view.totals.captainBonus)}`}
-                  tone="accent"
-                />
                 <StatRow
                   label="Projected total"
                   value={formatEp(view.totals.projectedTotal)}
                   tone="accent"
                 />
                 <StatRow
-                  label="Bench EP"
+                  label="Starting eleven"
+                  value={formatEp(view.totals.startingEp)}
+                />
+                <StatRow
+                  label="Captain bonus"
+                  value={`+${formatEp(view.totals.captainBonus)}`}
+                />
+                <StatRow
+                  label="Bench"
                   value={formatEp(view.totals.benchEp)}
                   tone="muted"
                 />
               </>
             )}
+          </Panel>
+        </div>
+
+        <div>
+          <SectionLabel>Squad</SectionLabel>
+          <Panel>
             <StatRow label="Squad value" value={money(view.totals.squadValue)} />
-            <StatRow
-              label="Mean fixture difficulty"
-              value={
-                view.totals.meanDifficulty === null
-                  ? "—"
-                  : view.totals.meanDifficulty.toFixed(2)
-              }
-              tone="muted"
-            />
             <StatRow
               label="Flagged players"
               value={String(view.totals.flaggedCount)}
@@ -236,22 +220,17 @@ export default async function SquadPage({
         </div>
 
         {view.preSeason ? (
-          <div>
-            <SectionLabel>ON THE PROJECTIONS</SectionLabel>
-            <Pending phase="gameweek 1">
-              Expected points need appearance history to mean anything. Until a
-              gameweek has been played the model cannot tell these players
-              apart, so it shows an em dash rather than a number it has not
-              earned. Names, prices, fixture difficulty and fitness flags are
-              all live now.
-            </Pending>
-          </div>
+          <Pending phase="gameweek 1">
+            Expected points need appearance history to mean anything. Until a
+            gameweek has been played the model cannot tell these players apart,
+            so cards show a dash rather than a number it has not earned.
+          </Pending>
         ) : null}
 
         <div>
-          <SectionLabel>DIFFICULTY KEY</SectionLabel>
-          <Panel>
-            <FixtureDifficultyKey />
+          <SectionLabel>Key</SectionLabel>
+          <Panel padded>
+            <PitchKey />
           </Panel>
         </div>
       </div>
