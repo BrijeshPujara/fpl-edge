@@ -4,11 +4,9 @@ import {
 } from "@/lib/db/decision-context";
 import { getChipsPlayed } from "@/lib/db/queries";
 import { getDb, isDbConfigured } from "@/lib/db/client";
-import { toPlayerCandidate } from "@/lib/squad/candidates";
-import { computeChipGains } from "@/lib/engine/chip-gains";
+import { planChipsForSquad } from "@/lib/squad/chip-plan";
 import {
   chipUrgency,
-  planChips,
   playedChipSets,
   type ChipAssignment,
   type UnassignedChip,
@@ -107,29 +105,19 @@ export async function ChipPlanPanels({
   context: ReadyDecisionContext;
 }) {
   const solver = await createGlpkSolver();
-  const priceOf = (id: number) => context.priceDeltas.get(id) ?? 0;
-  const withGameweeks = (c: (typeof context.pool)[number]) => ({
-    ...toPlayerCandidate(c, priceOf(c.id)),
-    epByGameweek: new Map(c.perGameweek.map((g) => [g.gw, g.ep])),
-  });
+  const played = await resolvePlayedChips(context.entryId, context.chipWindows);
 
-  const gains = computeChipGains({
-    squad: context.squad.map(withGameweeks),
-    pool: context.pool.map(withGameweeks),
+  // The shared plan, so this screen, the dashboard and the shadow manager
+  // cannot give three different answers. See `planChipsForSquad`.
+  const plan = planChipsForSquad({
+    squad: context.squad,
+    pool: context.pool,
     gameweeks: context.gameweeks,
     budget: context.teamValue + context.bank,
     windows: context.chipWindows,
     currentGw: context.gw,
-    solver,
-  });
-
-  const played = await resolvePlayedChips(context.entryId, context.chipWindows);
-
-  const plan = planChips({
-    windows: context.chipWindows,
-    gains,
-    alreadyPlayed: played,
-    currentGw: context.gw,
+    played,
+    priceDeltas: context.priceDeltas,
     solver,
   });
 

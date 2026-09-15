@@ -3,8 +3,7 @@ import type { ChipWindow } from "@/lib/fpl/gameweek";
 import { toPlayerCandidate, type Candidate } from "@/lib/squad/candidates";
 import { bestXi } from "@/lib/engine/best-xi";
 import { rankCaptains } from "@/lib/engine/captain";
-import { computeChipGains } from "@/lib/engine/chip-gains";
-import { planChips } from "@/lib/engine/chips";
+import { planChipsForSquad } from "@/lib/squad/chip-plan";
 import type { LpSolver } from "@/lib/engine/lp";
 import { optimiseSquad } from "@/lib/engine/optimiser";
 import { sellingPrice } from "@/lib/engine/selling-price";
@@ -157,37 +156,28 @@ export function chooseShadowChip(input: {
   solver: LpSolver;
 }): ChipName | null {
   const byId = new Map(input.pool.map((c) => [c.id, c]));
-  const priceOf = (id: number) => input.priceDeltas.get(id) ?? 0;
-  const withGameweeks = (c: Candidate, price = c.price) => ({
-    ...toPlayerCandidate(c, priceOf(c.id)),
-    price,
-    epByGameweek: new Map(c.perGameweek.map((g) => [g.gw, g.ep])),
-  });
+  const owned = input.holdings.map((h) => holdingCandidate(byId, h));
+  const sellOf = new Map(
+    input.holdings.map((h) => [
+      h.playerId,
+      sellingPrice(h.purchasePrice, byId.get(h.playerId)!.price),
+    ]),
+  );
 
-  const squad = input.holdings.map((h) => {
-    const c = holdingCandidate(byId, h);
-    return withGameweeks(c, sellingPrice(h.purchasePrice, c.price));
-  });
-
-  // Built exactly as the chips screen builds it (components/chips/advisories),
-  // with the shadow's own squad and its selling value in place of the
-  // manager's. The advice the shadow follows is the advice that screen gives.
-  const gains = computeChipGains({
-    squad,
-    pool: input.pool.map((c) => withGameweeks(c)),
+  // The plan the chips screen and the dashboard use, with the shadow's own
+  // squad valued at what selling it would realise. The advice the shadow
+  // follows is the advice those screens give.
+  const plan = planChipsForSquad({
+    squad: owned,
+    pool: input.pool,
     gameweeks: input.gameweeks,
-    budget: squad.reduce((sum, p) => sum + p.price, 0) + input.bank,
+    budget: owned.reduce((sum, c) => sum + sellOf.get(c.id)!, 0) + input.bank,
     windows: input.windows,
     currentGw: input.gw,
+    played: input.played,
+    priceDeltas: input.priceDeltas,
     solver: input.solver,
-  });
-
-  const plan = planChips({
-    windows: input.windows,
-    gains,
-    alreadyPlayed: input.played,
-    currentGw: input.gw,
-    solver: input.solver,
+    squadPrice: (c) => sellOf.get(c.id) ?? c.price,
   });
 
   return plan.assignments.find((a) => a.gw === input.gw)?.chip ?? null;
