@@ -17,7 +17,7 @@ import { CHIP_LABEL, type ChipName } from "@/lib/rules";
 import type { ChipWindow } from "@/lib/fpl/gameweek";
 import { ep as formatEp } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { Panel, Row, SectionLabel } from "@/components/ui/panel";
+import { Panel, SectionLabel } from "@/components/ui/panel";
 import {
   NoEntry,
   Pending,
@@ -60,7 +60,7 @@ export async function ChipAdvisories({ entryId }: { entryId: number }) {
         Every chip is worth something only relative to the squad you own — a
         Bench Boost is your bench, a Triple Captain is your captain. No squad
         has been synced yet, so there is nothing to value. The windows and the
-        blank/double calendar above are live now.
+        blank and double calendar above are live now.
       </Pending>
     );
   }
@@ -75,9 +75,8 @@ export async function ChipAdvisories({ entryId }: { entryId: number }) {
         recommendation would be an accident of ordering.
         <br />
         <br />
-        Recommendations appear once{" "}
-        <span className="text-tertiary">results have synced</span> for a
-        completed gameweek. To see the screen working before then, run{" "}
+        Recommendations appear once results have synced for a completed
+        gameweek. To see the screen working before then, run{" "}
         <code className="font-mono text-tertiary">npm run backtest</code> once
         and open <code className="font-mono text-tertiary">/preview/chips</code>{" "}
         in development.
@@ -86,10 +85,10 @@ export async function ChipAdvisories({ entryId }: { entryId: number }) {
   }
 
   return (
-    <>
+    <div className="flex flex-col gap-5">
       {context.basis === "prior-season" ? <PriorSeasonBasis /> : null}
       <ChipPlanPanels context={context} />
-    </>
+    </div>
   );
 }
 
@@ -126,24 +125,24 @@ export async function ChipPlanPanels({
   );
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-6">
-      <div>
+    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <section>
         <SectionLabel
-          meta={`SCANNING GW${context.gw}–${context.gw + CHIP_SCAN_HORIZON - 1}`}
+          meta={`Scanning GW${context.gw}–${context.gw + CHIP_SCAN_HORIZON - 1}`}
         >
-          CHIP PLAN
+          The plan
         </SectionLabel>
 
         {plan.assignments.length === 0 ? (
           <Panel padded>
-            <div className="font-mono text-tiny tracking-[0.14em] text-warn">
-              NOTHING WORTH PLAYING YET
+            <div className="font-display text-xl font-bold tracking-wide text-primary uppercase">
+              Hold every chip
             </div>
-            <div className="mt-2 max-w-prose text-small leading-relaxed text-muted text-pretty">
+            <p className="mt-1 max-w-prose text-sm leading-relaxed text-muted text-pretty">
               No chip earns its place in any gameweek currently in view. Holding
               is the recommendation, not a gap in the analysis — a chip played
               into a mediocre week is gone for good.
-            </div>
+            </p>
           </Panel>
         ) : (
           <Panel>
@@ -156,42 +155,42 @@ export async function ChipPlanPanels({
             ))}
           </Panel>
         )}
-      </div>
+      </section>
 
-      {plan.unassigned.length > 0 ? (
-        <div>
-          <SectionLabel meta="AND WHY">NOT PLAYED</SectionLabel>
+      <div className="flex flex-col gap-5">
+        {plan.unassigned.length > 0 ? (
+          <section>
+            <SectionLabel>Not being played</SectionLabel>
+            <Panel>
+              {plan.unassigned.map((chip) => (
+                <UnassignedRow key={`${chip.chip}#${chip.set}`} chip={chip} />
+              ))}
+            </Panel>
+          </section>
+        ) : null}
+
+        <section>
+          <SectionLabel meta="Rises as a window closes">Expiry pressure</SectionLabel>
           <Panel>
-            {plan.unassigned.map((chip) => (
-              <UnassignedRow key={`${chip.chip}#${chip.set}`} chip={chip} />
-            ))}
+            {context.chipWindows
+              .filter((w) => w.stopEvent >= context.gw)
+              .map((window) => {
+                const urgency = chipUrgency(
+                  window,
+                  context.gw,
+                  assignedKeys.has(`${window.name}#${window.set}`),
+                );
+                return (
+                  <UrgencyRow
+                    key={`${window.name}#${window.set}`}
+                    window={window}
+                    urgency={urgency}
+                    remaining={window.stopEvent - context.gw + 1}
+                  />
+                );
+              })}
           </Panel>
-        </div>
-      ) : null}
-
-      <div>
-        <SectionLabel meta="RISES AS A WINDOW CLOSES">
-          EXPIRY PRESSURE
-        </SectionLabel>
-        <Panel>
-          {context.chipWindows
-            .filter((w) => w.stopEvent >= context.gw)
-            .map((window) => {
-              const urgency = chipUrgency(
-                window,
-                context.gw,
-                assignedKeys.has(`${window.name}#${window.set}`),
-              );
-              return (
-                <UrgencyRow
-                  key={`${window.name}#${window.set}`}
-                  window={window}
-                  urgency={urgency}
-                  remaining={window.stopEvent - context.gw + 1}
-                />
-              );
-            })}
-        </Panel>
+        </section>
       </div>
     </div>
   );
@@ -206,6 +205,12 @@ async function resolvePlayedChips(
   return playedChipSets(await getChipsPlayed(getDb(), entryId), windows);
 }
 
+function SetTag({ set }: { set: number }) {
+  return set > 1 ? (
+    <span className="ml-1.5 text-xs font-normal text-muted">set {set}</span>
+  ) : null;
+}
+
 function AssignmentRow({
   assignment,
   currentGw,
@@ -214,69 +219,61 @@ function AssignmentRow({
   currentGw: number;
 }) {
   const thisWeek = assignment.gw === currentGw;
+  const clear =
+    assignment.marginOverNextBest !== null &&
+    assignment.marginOverNextBest > assignment.gain * 0.2;
 
   return (
-    <Row
-      height="tall"
-      className="grid grid-cols-[1fr_auto] gap-3 py-2 md:grid-cols-[1fr_84px_84px_92px]"
+    <div
+      className={cn(
+        "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-edge-subtle px-4 py-3.5 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto_auto]",
+        thisWeek && "bg-active shadow-[inset_4px_0_0_var(--text-primary)]",
+      )}
     >
-      <div className="min-w-0 self-center">
-        <div className="text-body text-primary">
+      <div className="min-w-0">
+        <div className="text-base font-semibold text-primary">
           {assignment.label}
-          {assignment.set > 1 ? (
-            <span className="ml-1.5 font-mono text-micro text-fainter">
-              SET {assignment.set}
+          <SetTag set={assignment.set} />
+        </div>
+        <div className="text-sm text-muted">
+          {assignment.marginOverNextBest === null
+            ? "No other week in this window is free"
+            : `${formatEp(assignment.marginOverNextBest)} better than GW${assignment.nextBestGw}`}
+          {assignment.marginOverNextBest !== null ? (
+            <span
+              className={cn(
+                "ml-2 inline-block px-1.5 py-0.5 text-[10px] font-bold tracking-wide uppercase",
+                clear
+                  ? "bg-sunken text-tertiary"
+                  : "bg-[color-mix(in_oklch,var(--warn)_14%,var(--surface-panel))] text-warn",
+              )}
+            >
+              {clear ? "Clear call" : "Close call"}
             </span>
           ) : null}
         </div>
-        <div className="font-mono text-micro tracking-[0.1em] text-fainter">
-          {assignment.marginOverNextBest === null ? (
-            <>NO OTHER WEEK FREE IN THIS WINDOW</>
-          ) : (
-            <>
-              {formatEp(assignment.marginOverNextBest)} BETTER THAN GW
-              {assignment.nextBestGw}
-            </>
-          )}
-        </div>
       </div>
 
-      <div className="flex flex-col justify-center text-right">
-        <div className="font-mono text-micro tracking-[0.12em] text-label">
-          PLAY IN
-        </div>
-        <div
-          className={cn(
-            "font-mono text-cell",
-            thisWeek ? "text-accent" : "text-primary",
-          )}
-        >
-          GW{assignment.gw}
-        </div>
-      </div>
-
-      <div className="hidden flex-col justify-center text-right md:flex">
-        <div className="font-mono text-micro tracking-[0.12em] text-label">
-          GAIN
-        </div>
-        <div className="font-mono text-cell text-accent">
+      <div className="hidden text-right sm:block">
+        <div className="text-xs font-medium text-muted">Worth</div>
+        <div className="font-display text-xl font-bold text-accent">
           +{formatEp(assignment.gain)}
         </div>
       </div>
 
-      <div className="hidden flex-col justify-center text-right md:flex">
-        <div className="font-mono text-micro tracking-[0.12em] text-label">
-          CONFIDENCE
-        </div>
-        <div className="font-mono text-cell text-muted">
-          {assignment.marginOverNextBest === null
-            ? "—"
-            : assignment.marginOverNextBest > assignment.gain * 0.2
-              ? "CLEAR"
-              : "NARROW"}
-        </div>
+      <div className="text-right">
+        <div className="text-xs font-medium text-muted">Play in</div>
+        {thisWeek ? (
+          <span className="inline-block bg-signal px-2 py-0.5 font-display text-base font-bold tracking-wide text-signal-ink uppercase">
+            This week
+          </span>
+        ) : (
+          <div className="font-display text-xl font-bold text-primary">
+            GW{assignment.gw}
+          </div>
+        )}
       </div>
-    </Row>
+    </div>
   );
 }
 
@@ -290,19 +287,13 @@ const REASON_COPY: Record<UnassignedChip["reason"], string> = {
 
 function UnassignedRow({ chip }: { chip: UnassignedChip }) {
   return (
-    <Row height="table" className="flex items-center justify-between gap-3">
-      <div className="text-small text-muted">
+    <div className="flex flex-col gap-0.5 border-b border-edge-subtle px-4 py-2.5 last:border-b-0">
+      <div className="text-sm font-medium text-primary">
         {chip.label}
-        {chip.set > 1 ? (
-          <span className="ml-1.5 font-mono text-micro text-fainter">
-            SET {chip.set}
-          </span>
-        ) : null}
+        <SetTag set={chip.set} />
       </div>
-      <div className="text-right font-mono text-micro tracking-[0.08em] text-fainter">
-        {REASON_COPY[chip.reason].toUpperCase()}
-      </div>
-    </Row>
+      <div className="text-xs text-muted">{REASON_COPY[chip.reason]}</div>
+    </div>
   );
 }
 
@@ -316,35 +307,29 @@ function UrgencyRow({
   remaining: number;
 }) {
   return (
-    <Row height="table" className="grid grid-cols-[1fr_64px_88px] gap-3">
-      <div className="self-center text-small text-muted">
+    <div className="grid grid-cols-[minmax(0,1fr)_56px_72px] items-center gap-3 border-b border-edge-subtle px-4 py-2.5 last:border-b-0">
+      <div className="truncate text-sm text-primary">
         {CHIP_LABEL[window.name]}
-        {window.set > 1 ? (
-          <span className="ml-1.5 font-mono text-micro text-fainter">
-            SET {window.set}
-          </span>
-        ) : null}
+        <SetTag set={window.set} />
       </div>
-      <div className="self-center text-right font-mono text-cell text-muted">
+      <div className="text-right font-display text-base font-bold text-muted">
         {remaining} GW
       </div>
-      <div className="flex items-center justify-end gap-2">
-        {/* A bar rather than a number: urgency is a feeling, not a measurement,
-            and rendering it to three decimals would overstate what it knows. */}
-        <div className="h-1 w-14 bg-track">
-          <div
-            className={cn(
-              "h-full",
-              urgency > 0.66
-                ? "bg-warn"
-                : urgency > 0.33
-                  ? "bg-accent-dim"
-                  : "bg-track-strong",
-            )}
-            style={{ width: `${Math.round(urgency * 100)}%` }}
-          />
-        </div>
+      {/* A bar rather than a number: urgency is a feeling, not a measurement,
+          and rendering it to three decimals would overstate what it knows. */}
+      <div className="h-2 w-full bg-track">
+        <div
+          className={cn(
+            "h-full",
+            urgency > 0.66
+              ? "bg-warn"
+              : urgency > 0.33
+                ? "bg-warn-dim"
+                : "bg-track-strong",
+          )}
+          style={{ width: `${Math.round(urgency * 100)}%` }}
+        />
       </div>
-    </Row>
+    </div>
   );
 }

@@ -140,7 +140,7 @@ export function GapChart({ points }: { points: GapPoint[] }) {
               y={y(tick)}
               textAnchor="end"
               dominantBaseline="middle"
-              className="font-mono"
+              className="font-display"
               fontSize={11}
               fill="var(--text-muted)"
             >
@@ -160,7 +160,7 @@ export function GapChart({ points }: { points: GapPoint[] }) {
               x={x(i)}
               y={HEIGHT - 8}
               textAnchor="middle"
-              className="font-mono"
+              className="font-display"
               fontSize={11}
               fill="var(--text-muted)"
             >
@@ -214,7 +214,7 @@ export function GapChart({ points }: { points: GapPoint[] }) {
 
       {point !== null && active !== null ? (
         <div
-          className="pointer-events-none absolute top-0 whitespace-nowrap border border-edge-strong bg-panel px-2.5 py-1.5 font-mono text-micro"
+          className="pointer-events-none absolute top-0 whitespace-nowrap border border-edge-strong bg-panel px-2.5 py-1.5 text-xs"
           style={{
             left: x(active),
             transform: active > last / 2 ? "translateX(calc(-100% - 8px))" : "translateX(8px)",

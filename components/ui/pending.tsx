@@ -1,7 +1,7 @@
 import { Panel } from "./panel";
 
 /**
- * Honest empty state for a screen whose engine has not been built yet.
+ * Honest empty state for a screen whose engine has nothing to show yet.
  *
  * The design mocks every screen with plausible numbers. Those numbers must
  * never reach the running app — a decision tool that displays an invented
@@ -12,16 +12,16 @@ export function Pending({
   phase,
   children,
 }: {
-  /** Which build phase delivers this screen, per PLAN.md. */
+  /** What the screen is waiting for, e.g. "the first deadline". */
   phase: string;
   children: React.ReactNode;
 }) {
   return (
     <Panel padded>
-      <div className="font-mono text-tiny tracking-[0.14em] text-label">
-        AWAITING {phase.toUpperCase()}
+      <div className="text-xs font-semibold tracking-wide text-warn uppercase">
+        Waiting for {phase}
       </div>
-      <div className="mt-2 max-w-prose text-small leading-relaxed text-muted text-pretty">
+      <div className="mt-1.5 max-w-prose text-sm leading-relaxed text-muted text-pretty">
         {children}
       </div>
     </Panel>
@@ -43,12 +43,12 @@ export function NoEntry() {
       No FPL team is configured, so there is no squad to work from. Set{" "}
       <code className="font-mono text-tertiary">FPL_TEAM_ID</code> to your entry
       id — the number in the URL when you open{" "}
-      <span className="text-tertiary">My Team</span> on the FPL site, as in{" "}
-      <code className="font-mono text-tertiary">/entry/4278347/</code>.
+      <span className="font-medium text-tertiary">My Team</span> on the FPL site,
+      as in <code className="font-mono text-tertiary">/entry/4278347/</code>.
       <br />
       <br />
       League-wide screens work without it. Only the ones about{" "}
-      <span className="text-tertiary">your</span> squad need it.
+      <span className="font-medium text-tertiary">your</span> squad need it.
     </Pending>
   );
 }
@@ -67,16 +67,17 @@ export function NoEntry() {
  * days the screen told people their nailed starter and their fourth-choice
  * striker were indistinguishable when the model had in fact told them apart.
  * A caveat that overstates the uncertainty is as wrong as one that hides it.
+ *
+ * No outer margin: every caller places it inside a gapped column, and a margin
+ * here doubled that gap.
  */
 export function PriorSeasonBasis() {
   return (
-    <div className="mb-4 border border-edge-strong bg-panel px-3.5 py-2.5 sm:mb-6">
-      <div className="font-mono text-tiny tracking-[0.14em] text-warn">
-        RANKED ON LAST SEASON
-      </div>
-      <div className="mt-1.5 max-w-prose text-small leading-relaxed text-muted text-pretty">
+    <div className="border border-warn-dim bg-[color-mix(in_oklch,var(--warn)_8%,var(--surface-panel))] px-4 py-3">
+      <div className="text-sm font-semibold text-warn">Ranked on last season</div>
+      <div className="mt-1 max-w-prose text-sm leading-relaxed text-secondary text-pretty">
         No gameweek has been played, so every number here comes from{" "}
-        <span className="text-tertiary">last season</span> — scoring rates, how
+        <span className="font-medium">last season</span> — scoring rates, how
         often each player started, and how strong each club was. All of it is
         real. None of it knows about a summer transfer, a new manager or a lost
         place, so a player who was nailed last season is ranked as nailed

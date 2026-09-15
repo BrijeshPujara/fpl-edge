@@ -3,7 +3,7 @@ import { loadDecisionContext } from "@/lib/db/decision-context";
 import { parseEntryId } from "@/lib/fpl/entry";
 import { DEFAULT_HORIZON } from "@/lib/engine/constants";
 import { TransferBoard } from "@/components/transfers/transfer-board";
-import { SectionLabel } from "@/components/ui/panel";
+import { PageHeader } from "@/components/ui/panel";
 import {
   NoEntry,
   Pending,
@@ -58,9 +58,9 @@ export default async function TransfersPage({
         No squad has been synced yet, and a transfer is a change to a squad. The
         FPL API only publishes picks once a gameweek deadline has passed, so
         there is nothing to move until{" "}
-        <span className="text-tertiary">{context.gwName}</span> locks. After it
-        does, <span className="text-tertiary">refresh squad</span> pulls your
-        team in immediately.
+        <span className="font-medium text-tertiary">{context.gwName}</span> locks.
+        After it does, <span className="font-medium text-tertiary">refresh squad</span>{" "}
+        pulls your team in immediately.
       </Pending>
     );
   }
@@ -70,10 +70,8 @@ export default async function TransfersPage({
   // analysis. PLAN.md is explicit that an invented number is worse than none.
   if (!context.projectable) {
     return (
-      <div>
-        <SectionLabel meta={`HORIZON ${DEFAULT_HORIZON} GW`}>
-          TRANSFER CANDIDATES
-        </SectionLabel>
+      <div className="flex flex-col gap-5">
+        <PageHeader title="Transfers" subtitle={`Judged over ${DEFAULT_HORIZON} gameweeks`} />
         <Pending phase="gameweek 1">
           The optimiser is built and the squad is loaded, but no gameweek has
           been played. Expected points need appearance history to mean anything,
@@ -82,9 +80,8 @@ export default async function TransfersPage({
           nothing.
           <br />
           <br />
-          Ranked moves appear once{" "}
-          <span className="text-tertiary">results have synced</span> for a
-          completed gameweek. To see the screen working before then, run{" "}
+          Ranked moves appear once results have synced for a completed
+          gameweek. To see the screen working before then, run{" "}
           <code className="font-mono text-tertiary">npm run backtest</code> once
           and open{" "}
           <code className="font-mono text-tertiary">/preview/transfers</code> in
@@ -95,9 +92,9 @@ export default async function TransfersPage({
   }
 
   return (
-    <>
+    <div className="flex flex-col gap-5">
       {context.basis === "prior-season" ? <PriorSeasonBasis /> : null}
       <TransferBoard context={context} />
-    </>
+    </div>
   );
 }

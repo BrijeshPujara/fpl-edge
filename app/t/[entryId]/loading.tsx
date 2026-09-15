@@ -22,7 +22,7 @@ export default function Loading() {
             {Array.from({ length: 6 }, (_, i) => (
               <Row key={i} height="table" className="flex items-center">
                 <div
-                  className="h-2 animate-pulse rounded-full bg-edge-strong"
+                  className="h-2 animate-pulse bg-track"
                   style={{ width: `${58 - i * 6}%`, animationDelay: `${i * 60}ms` }}
                 />
               </Row>
@@ -38,7 +38,7 @@ export default function Loading() {
             {Array.from({ length: 3 }, (_, i) => (
               <div
                 key={i}
-                className="h-2 animate-pulse rounded-full bg-edge-strong"
+                className="h-2 animate-pulse bg-track"
                 style={{ width: `${70 - i * 12}%`, animationDelay: `${i * 60}ms` }}
               />
             ))}

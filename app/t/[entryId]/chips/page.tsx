@@ -9,7 +9,7 @@ import {
 } from "@/lib/fpl/gameweek";
 import { CHIP_LABEL, TOTAL_GAMEWEEKS, type ChipName } from "@/lib/rules";
 import { cn } from "@/lib/cn";
-import { Panel, SectionLabel } from "@/components/ui/panel";
+import { PageHeader, Panel, SectionLabel } from "@/components/ui/panel";
 import { Pending } from "@/components/ui/pending";
 import { ChipAdvisories } from "@/components/chips/advisories";
 
@@ -58,139 +58,157 @@ export default async function ChipsPage({
   });
 
   const chipNames: ChipName[] = ["wildcard", "freehit", "3xc", "bboost"];
+  const columns = {
+    gridTemplateColumns: `repeat(${TOTAL_GAMEWEEKS}, minmax(0, 1fr))`,
+  };
 
   return (
-    <div>
-      <SectionLabel meta="B = BLANK · D = DOUBLE · WINDOWS FROM THE API">
-        CHIP TIMELINE · GW1–{TOTAL_GAMEWEEKS}
-      </SectionLabel>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Chips"
+        subtitle="When each chip can be played, where the blanks and doubles fall, and the week to play it"
+      />
 
-      {/*
-        The 38-column timeline cannot compress to a phone without becoming
-        unreadable, so it scrolls horizontally inside its panel at a minimum
-        legible width. The page body itself never scrolls sideways.
-      */}
-      <Panel className="overflow-x-auto p-4 pb-3.5">
-        <div className="min-w-[720px]">
-        <div className="mb-2.5 grid grid-cols-[150px_1fr] items-center gap-3.5">
-          <div />
-          <div
-            className="grid gap-0.5"
-            style={{
-              gridTemplateColumns: `repeat(${TOTAL_GAMEWEEKS}, minmax(0, 1fr))`,
-            }}
-          >
-            {gameweeks.map(({ gw, shape }) => (
-              <div key={gw} className="flex flex-col items-center gap-1">
-                <div
-                  className={cn(
-                    "font-mono text-[8px]",
-                    gw === currentGw
-                      ? "text-primary"
-                      : gw < currentGw
-                        ? "text-[#33383d]"
-                        : "text-fainter",
-                  )}
-                >
-                  {gw % 2 === 1 || gw === currentGw ? gw : ""}
-                </div>
-                <div
-                  title={`GW${gw}${shape ? ` · ${shape}` : ""}`}
-                  className={cn(
-                    "flex h-4 w-full items-center justify-center font-mono text-[9px] font-semibold",
-                    shape === "double" &&
-                      "bg-[var(--gw-double-bg)] text-[var(--gw-double-fg)]",
-                    shape === "blank" &&
-                      "bg-[var(--gw-blank-bg)] text-[var(--gw-blank-fg)]",
-                    shape !== "double" &&
-                      shape !== "blank" &&
-                      (gw === currentGw
-                        ? "bg-[var(--gw-current-bg)] text-label"
-                        : gw < currentGw
-                          ? "bg-[var(--gw-past-bg)] text-label"
-                          : "bg-[var(--gw-future-bg)] text-label"),
-                  )}
-                >
-                  {shape === "double" ? "D" : shape === "blank" ? "B" : ""}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+      <section>
+        <SectionLabel meta="Windows from FPL · blanks and doubles from the fixture list">
+          Season timeline
+        </SectionLabel>
 
-        {chipNames.map((name) => {
-          const windows = season.chipWindows.filter((w) => w.name === name);
-          if (windows.length === 0) return null;
-          return (
-            <div
-              key={name}
-              className="grid h-[38px] grid-cols-[150px_1fr] items-center gap-3.5 border-t border-[#16191b]"
-            >
-              <div className="flex flex-col gap-0.5">
-                <div className="text-body text-primary">{CHIP_LABEL[name]}</div>
-                <div className="font-mono text-micro tracking-[0.1em] text-fainter">
-                  {windows
-                    .map((w) => `GW${w.startEvent}–${w.stopEvent}`)
-                    .join(" · ")}
-                </div>
-              </div>
-              <div
-                className="grid gap-0.5"
-                style={{
-                  gridTemplateColumns: `repeat(${TOTAL_GAMEWEEKS}, minmax(0, 1fr))`,
-                }}
-              >
-                {gameweeks.map(({ gw, shape }) => {
-                  const open = windows.some(
-                    (w) => gw >= w.startEvent && gw <= w.stopEvent,
-                  );
-                  const closingSoon =
-                    open &&
-                    windows.some(
-                      (w) =>
-                        gw >= w.startEvent &&
-                        gw <= w.stopEvent &&
-                        w.stopEvent - currentGw <= 6 &&
-                        currentGw >= w.startEvent,
-                    );
-                  return (
+        {/*
+          The 38-column timeline cannot compress to a phone without becoming
+          unreadable, so it scrolls horizontally inside its panel at a minimum
+          legible width. The page body itself never scrolls sideways.
+        */}
+        <Panel className="overflow-x-auto px-4 pt-4 pb-3">
+          <div className="min-w-[760px]">
+            <div className="mb-2 grid grid-cols-[150px_1fr] items-end gap-4">
+              <div />
+              <div className="grid gap-0.5" style={columns}>
+                {gameweeks.map(({ gw, shape }) => (
+                  <div key={gw} className="flex flex-col items-center gap-1">
                     <div
-                      key={gw}
                       className={cn(
-                        "h-3.5 border-b",
-                        open
-                          ? closingSoon
-                            ? "bg-[#1e2124]"
-                            : "bg-[#191c1f]"
-                          : "bg-[#101315]",
-                        open && shape === "double"
-                          ? "border-[var(--gw-double-bg)]"
-                          : open && shape === "blank"
-                            ? "border-[var(--gw-blank-bg)]"
-                            : "border-transparent",
+                        "font-display text-[11px]",
+                        gw === currentGw
+                          ? "font-bold text-primary"
+                          : gw < currentGw
+                            ? "text-ghost"
+                            : "text-muted",
                       )}
-                    />
-                  );
-                })}
+                    >
+                      {gw % 2 === 1 || gw === currentGw ? gw : ""}
+                    </div>
+                    <div
+                      title={`GW${gw}${shape ? ` · ${shape}` : ""}`}
+                      className={cn(
+                        "flex h-5 w-full items-center justify-center font-display text-[11px] font-bold",
+                        shape === "double"
+                          ? "bg-[var(--gw-double-bg)] text-[var(--gw-double-fg)]"
+                          : shape === "blank"
+                            ? "bg-[var(--gw-blank-bg)] text-[var(--gw-blank-fg)]"
+                            : gw === currentGw
+                              ? "bg-signal text-signal-ink"
+                              : gw < currentGw
+                                ? "bg-[var(--gw-past-bg)]"
+                                : "bg-[var(--gw-future-bg)]",
+                      )}
+                    >
+                      {shape === "double" ? "D" : shape === "blank" ? "B" : ""}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          );
-        })}
+
+            {chipNames.map((name) => {
+              const windows = season.chipWindows.filter((w) => w.name === name);
+              if (windows.length === 0) return null;
+              return (
+                <div
+                  key={name}
+                  className="grid h-11 grid-cols-[150px_1fr] items-center gap-4 border-t border-edge-subtle"
+                >
+                  <div className="flex flex-col">
+                    <div className="text-sm font-semibold text-primary">
+                      {CHIP_LABEL[name]}
+                    </div>
+                    <div className="text-xs text-muted">
+                      {windows
+                        .map((w) => `GW${w.startEvent}–${w.stopEvent}`)
+                        .join(" · ")}
+                    </div>
+                  </div>
+                  <div className="grid gap-0.5" style={columns}>
+                    {gameweeks.map(({ gw, shape }) => {
+                      const open = windows.some(
+                        (w) => gw >= w.startEvent && gw <= w.stopEvent,
+                      );
+                      const closingSoon =
+                        open &&
+                        windows.some(
+                          (w) =>
+                            gw >= w.startEvent &&
+                            gw <= w.stopEvent &&
+                            w.stopEvent - currentGw <= 6 &&
+                            currentGw >= w.startEvent,
+                        );
+                      return (
+                        <div
+                          key={gw}
+                          className={cn(
+                            "h-4 border-b-2",
+                            open
+                              ? closingSoon
+                                ? // Salmon, not yellow: yellow already marks
+                                  // this gameweek, and two yellows in one
+                                  // timeline read as the same thing.
+                                  "bg-[var(--fdr-4-bg)]"
+                                : gw < currentGw
+                                  ? "bg-track"
+                                  : "bg-track-strong"
+                              : "bg-sunken",
+                            open && shape === "double"
+                              ? "border-[var(--fdr-1-bg)]"
+                              : open && shape === "blank"
+                                ? "border-[var(--fdr-5-bg)]"
+                                : "border-transparent",
+                          )}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+          <Key className="bg-signal" label="This gameweek" />
+          <Key className="bg-track-strong" label="Window open" />
+          <Key className="bg-[var(--fdr-4-bg)]" label="Window closing soon" />
+          <Key className="bg-[var(--gw-double-bg)]" label="Double gameweek (D)" />
+          <Key className="bg-[var(--gw-blank-bg)]" label="Blank gameweek (B)" />
         </div>
-      </Panel>
+      </section>
 
       {counts === null ? (
-        <div className="mt-6">
-          <Pending phase="fixture sync">
-            The fixture list could not be fetched, so blanks and doubles are not
-            marked above.
-          </Pending>
-        </div>
+        <Pending phase="the fixture list">
+          The fixture list could not be fetched, so blanks and doubles are not
+          marked above.
+        </Pending>
       ) : null}
 
-      <div className="mt-6">
-        <ChipAdvisories entryId={entryId} />
-      </div>
+      <ChipAdvisories entryId={entryId} />
     </div>
+  );
+}
+
+function Key({ className, label }: { className: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className={cn("size-2.5", className)} />
+      {label}
+    </span>
   );
 }

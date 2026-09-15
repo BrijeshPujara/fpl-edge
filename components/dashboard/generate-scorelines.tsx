@@ -2,11 +2,12 @@
 
 import { useFormStatus } from "react-dom";
 import { generateScorelines } from "@/app/actions";
+import { buttonClass } from "@/components/ui/button";
 
 /**
  * The button that makes the prediction.
  *
- * Labelled REGENERATE once predictions exist, because pressing it again
+ * Labelled "Regenerate" once predictions exist, because pressing it again
  * replaces them — and someone who thinks they are adding a second opinion
  * should be told they are overwriting the first.
  */
@@ -36,9 +37,9 @@ function Button({ existing }: { existing: boolean }) {
     <button
       type="submit"
       disabled={pending}
-      className="shrink-0 font-mono text-micro tracking-[0.12em] text-dim underline-offset-4 hover:text-primary hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60"
+      className={buttonClass(existing ? "secondary" : "primary")}
     >
-      {pending ? "GENERATING…" : existing ? "REGENERATE" : "GENERATE"}
+      {pending ? "Generating…" : existing ? "Regenerate" : "Generate predictions"}
     </button>
   );
 }

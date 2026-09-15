@@ -21,18 +21,13 @@ export function TeamForm() {
     <Panel padded>
       <form action={formAction} className="flex flex-col gap-3.5">
         <div>
-          <label
-            htmlFor="entryId"
-            className="font-mono text-tiny tracking-[0.14em] text-label"
-          >
-            FPL TEAM ID
+          <label htmlFor="entryId" className="text-sm font-semibold text-primary">
+            Your FPL team ID
           </label>
-          <p className="mt-1.5 text-small leading-relaxed text-muted text-pretty">
-            Open <span className="text-tertiary">My Team</span> on the FPL site
-            and take the number from the URL — in{" "}
-            <code className="font-mono text-tertiary">
-              /entry/4278347/event/1
-            </code>{" "}
+          <p className="mt-1 text-sm leading-relaxed text-muted text-pretty">
+            Open <span className="font-medium text-tertiary">My Team</span> on the
+            FPL site and take the number from the URL — in{" "}
+            <code className="font-mono text-tertiary">/entry/4278347/event/1</code>{" "}
             it is <code className="font-mono text-tertiary">4278347</code>.
           </p>
         </div>
@@ -45,14 +40,14 @@ export function TeamForm() {
           placeholder="4278347"
           aria-describedby={state.error ? "entryId-error" : undefined}
           aria-invalid={state.error ? true : undefined}
-          className="h-11 border border-edge-strong bg-sunken px-3 font-mono text-value text-primary placeholder:text-ghost focus:border-accent-dim focus:outline-none"
+          className="h-12 border border-edge-strong bg-panel px-3 font-display text-xl font-bold tracking-wide text-primary placeholder:text-ghost focus:border-primary focus:outline-2 focus:outline-offset-0 focus:outline-signal"
         />
 
         {state.error ? (
           <p
             id="entryId-error"
             role="alert"
-            className="text-small leading-relaxed text-warn text-pretty"
+            className="text-sm leading-relaxed font-medium text-danger text-pretty"
           >
             {state.error}
           </p>
@@ -61,13 +56,13 @@ export function TeamForm() {
         <button
           type="submit"
           disabled={pending}
-          className="h-11 border border-accent-dim bg-[color-mix(in_oklch,var(--accent)_10%,var(--surface-panel))] font-mono text-tiny tracking-[0.14em] text-accent transition-colors hover:bg-[color-mix(in_oklch,var(--accent)_16%,var(--surface-panel))] disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-12 bg-signal font-display text-lg font-bold tracking-wide text-signal-ink uppercase hover:bg-[color-mix(in_oklch,var(--signal)_88%,black)] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {pending ? "LOOKING IT UP…" : "OPEN MY TEAM"}
+          {pending ? "Looking it up…" : "Open my team"}
         </button>
 
-        <p className="text-small leading-relaxed text-dim text-pretty">
-          A team id is public — anyone can read any squad through the FPL API,
+        <p className="text-sm leading-relaxed text-muted text-pretty">
+          A team ID is public — anyone can read any squad through the FPL API,
           which is how mini-league tables work. Nothing private is stored, and
           there is no account to create.
         </p>

@@ -8,7 +8,7 @@ import {
 import { CAPTAIN_MULTIPLIER } from "@/lib/rules";
 import { ep as formatEp, percent } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { Panel, Row, SectionLabel } from "@/components/ui/panel";
+import { PageHeader, Panel, SectionLabel } from "@/components/ui/panel";
 import { PriorSeasonBasis } from "@/components/ui/pending";
 
 /**
@@ -20,80 +20,103 @@ import { PriorSeasonBasis } from "@/components/ui/pending";
 export function CaptainBoard({ context }: { context: ReadyDecisionContext }) {
   const ranked = rankFromContext(context);
   const best = ranked[0];
+  const differential = ranked[1] && best && ranked[1].pHaul > best.pHaul ? ranked[1] : null;
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-6">
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Captain"
+        subtitle={`GW${context.gw} · ranked on expected points`}
+      />
+
       {context.basis === "prior-season" ? <PriorSeasonBasis /> : null}
 
-      <div>
-        <SectionLabel meta={`GW${context.gw} · DOUBLED`}>
-          THE ARMBAND
-        </SectionLabel>
-        <Panel padded>
-          <div className="font-mono text-tiny tracking-[0.14em] text-accent">
-            {best ? best.name.toUpperCase() : "NO CANDIDATE"}
-          </div>
-          <div className="mt-2 max-w-prose text-small leading-relaxed text-muted text-pretty">
-            {best ? (
-              <>
-                Highest expected return at{" "}
-                {formatEp(best.ep * CAPTAIN_MULTIPLIER)} doubled. It hauls{" "}
+      <Panel>
+        {best ? (
+          <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+            <div className="min-w-0">
+              <div className="text-xs font-medium text-muted">Your captain</div>
+              <div className="font-display text-3xl font-bold tracking-wide text-primary uppercase">
+                {best.name}
+              </div>
+              <p className="mt-1 max-w-prose text-sm leading-relaxed text-muted text-pretty">
+                {best.positionShort} · {best.club}. Hauls{" "}
                 {percent(best.pHaul * 100, 0)} of the time and blanks{" "}
-                {percent(best.pBlank * 100, 0)} of the time.
-                {ranked[1] && ranked[1].pHaul > best.pHaul ? (
+                {percent(best.pBlank * 100, 0)}.
+                {differential ? (
                   <>
                     {" "}
-                    <span className="text-tertiary">
-                      {ranked[1].name} hauls more often
+                    <span className="font-semibold text-primary">
+                      {differential.name} hauls more often
                     </span>{" "}
-                    ({percent(ranked[1].pHaul * 100, 0)}) despite the lower
+                    ({percent(differential.pHaul * 100, 0)}) despite the lower
                     mean — the differential pick if you are chasing.
                   </>
                 ) : null}
-              </>
-            ) : (
-              <>No player in the squad projects above zero this gameweek.</>
-            )}
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="text-xs font-medium text-muted">Expected, doubled</div>
+              <div className="font-display text-4xl font-bold text-accent">
+                {formatEp(best.ep * CAPTAIN_MULTIPLIER)}
+              </div>
+            </div>
           </div>
-        </Panel>
-      </div>
+        ) : (
+          <p className="px-5 py-4 text-sm text-muted">
+            No player in the squad projects above zero this gameweek.
+          </p>
+        )}
+      </Panel>
 
-      <div>
+      <section>
         <SectionLabel
-          meta={`HAUL = ${CAPTAIN_HAUL_THRESHOLD}+ · BLANK = ${CAPTAIN_BLANK_THRESHOLD} OR FEWER`}
+          meta={`Haul = ${CAPTAIN_HAUL_THRESHOLD}+ points · blank = ${CAPTAIN_BLANK_THRESHOLD} or fewer`}
         >
-          CANDIDATES
+          Every candidate
         </SectionLabel>
-        <Panel className="overflow-x-auto">
-          <div className="min-w-[680px]">
-            <Row height="dense" className="grid grid-cols-[1fr_54px_54px_60px_60px_92px] gap-2.5">
-              {["", "EP", "MEDIAN", "HAUL", "BLANK", "SHAPE"].map((h, i) => (
-                <div
-                  key={h || i}
-                  className={cn(
-                    "font-mono text-micro tracking-[0.12em] text-label",
-                    i > 0 && "text-right",
-                    i === 5 && "text-left",
-                  )}
-                >
-                  {h}
-                </div>
-              ))}
-            </Row>
-            {ranked.map((c, index) => (
-              <CandidateRow key={c.playerId} candidate={c} isPick={index === 0} />
-            ))}
+        <Panel>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-edge-strong bg-sunken text-left text-xs text-muted">
+                  <th scope="col" className="py-2.5 pr-3 pl-4 font-medium">Player</th>
+                  <th scope="col" className="py-2.5 pr-3 text-right font-medium">Expected</th>
+                  <th scope="col" className="py-2.5 pr-3 text-right font-medium">Median</th>
+                  <th scope="col" className="py-2.5 pr-3 text-right font-medium">Haul</th>
+                  <th scope="col" className="py-2.5 pr-3 text-right font-medium">Blank</th>
+                  <th scope="col" className="w-[120px] py-2.5 pr-4 font-medium">Shape</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ranked.map((c, index) => (
+                  <CandidateRow key={c.playerId} candidate={c} isPick={index === 0} />
+                ))}
+              </tbody>
+            </table>
           </div>
         </Panel>
-        <div className="mt-2 max-w-prose text-small leading-relaxed text-dim text-pretty">
-          Ranked by expected points, which is the risk-neutral answer. The
-          median sits below the mean for anyone whose scoring is goal-dependent;
-          the gap between them is how volatile that player is. Doubling
-          multiplies both the ceiling and the blank, which is why a safe captain
-          and a differential are genuinely different choices rather than degrees
-          of the same one.
+
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+          <span className="flex items-center gap-1.5">
+            <span className="size-2.5 bg-warn-dim" /> Blank
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="size-2.5 bg-track-strong" /> Ordinary
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="size-2.5 bg-accent" /> Haul
+          </span>
         </div>
-      </div>
+        <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted text-pretty">
+          Ranked by expected points, which is the risk-neutral answer. The median
+          sits below the mean for anyone whose scoring is goal-dependent; the gap
+          between them is how volatile that player is. Doubling multiplies both
+          the ceiling and the blank, which is why a safe captain and a
+          differential are genuinely different choices rather than degrees of the
+          same one.
+        </p>
+      </section>
     </div>
   );
 }
@@ -101,9 +124,7 @@ export function CaptainBoard({ context }: { context: ReadyDecisionContext }) {
 type Ranked = CaptainCandidate & { name: string; club: string; positionShort: string };
 
 /** Rank the fifteen, attaching the names the engine deliberately does not carry. */
-function rankFromContext(
-  context: ReadyDecisionContext,
-): Ranked[] {
+function rankFromContext(context: ReadyDecisionContext): Ranked[] {
   const byId = new Map(context.squad.map((c) => [c.id, c]));
 
   const ranked = rankCaptains(
@@ -136,52 +157,51 @@ function CandidateRow({
   isPick: boolean;
 }) {
   return (
-    <Row
-      height="table"
+    <tr
       className={cn(
-        "grid grid-cols-[1fr_54px_54px_60px_60px_92px] items-center gap-2.5",
-        isPick && "bg-active",
+        "border-b border-edge-subtle last:border-b-0",
+        isPick ? "bg-active" : "hover:bg-panel-hover",
       )}
     >
-      <div className="flex min-w-0 items-baseline gap-2">
-        <div
-          className={cn(
-            "truncate text-small",
-            isPick ? "text-primary" : "text-secondary",
-          )}
-        >
-          {candidate.name}
-        </div>
-        <div className="shrink-0 font-mono text-micro tracking-[0.1em] text-fainter">
-          {candidate.positionShort} · {candidate.club}
-        </div>
-      </div>
-
-      <div
+      <td
         className={cn(
-          "text-right font-mono text-cell",
+          "py-2.5 pr-3 pl-4",
+          isPick && "shadow-[inset_4px_0_0_var(--text-primary)]",
+        )}
+      >
+        <span className={cn("text-primary", isPick ? "font-bold" : "font-medium")}>
+          {candidate.name}
+        </span>{" "}
+        <span className="text-xs text-muted">
+          {candidate.positionShort} · {candidate.club}
+        </span>
+      </td>
+      <td
+        className={cn(
+          "py-2.5 pr-3 text-right font-display text-base font-bold",
           isPick ? "text-accent" : "text-primary",
         )}
       >
         {formatEp(candidate.ep)}
-      </div>
-      <div className="text-right font-mono text-cell text-muted">
+      </td>
+      <td className="py-2.5 pr-3 text-right font-display text-base font-bold text-muted">
         {candidate.median}
-      </div>
-      <div className="text-right font-mono text-cell text-accent">
+      </td>
+      <td className="py-2.5 pr-3 text-right font-display text-base font-bold text-accent">
         {percent(candidate.pHaul * 100, 0)}
-      </div>
-      <div
+      </td>
+      <td
         className={cn(
-          "text-right font-mono text-cell",
+          "py-2.5 pr-3 text-right font-display text-base font-bold",
           candidate.pBlank > 0.5 ? "text-warn" : "text-muted",
         )}
       >
         {percent(candidate.pBlank * 100, 0)}
-      </div>
-
-      <ShapeBar distribution={candidate.distribution} />
-    </Row>
+      </td>
+      <td className="py-2.5 pr-4">
+        <ShapeBar distribution={candidate.distribution} />
+      </td>
+    </tr>
   );
 }
 
@@ -200,7 +220,7 @@ function ShapeBar({ distribution }: { distribution: number[] }) {
 
   return (
     <div
-      className="flex h-1.5 w-full overflow-hidden bg-track"
+      className="flex h-2.5 w-full overflow-hidden bg-track"
       title={`blank ${pct(blank)} · ordinary ${pct(middle)} · haul ${pct(haul)}`}
     >
       <div className="bg-warn-dim" style={{ width: pct(blank) }} />
@@ -209,4 +229,3 @@ function ShapeBar({ distribution }: { distribution: number[] }) {
     </div>
   );
 }
-

@@ -13,7 +13,7 @@ import {
 import { CHIP_LABEL, type ChipName } from "@/lib/rules";
 import { ep as formatEp, money } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { Panel, Readout, Row, SectionLabel, StatRow } from "@/components/ui/panel";
+import { PageHeader, Panel, Readout, SectionLabel, StatRow } from "@/components/ui/panel";
 import { Pending } from "@/components/ui/pending";
 import { GapChart } from "@/components/shadow/gap-chart";
 
@@ -48,8 +48,8 @@ export default async function ShadowPage({
 
   if (weeks.length === 0) {
     return (
-      <div>
-        <SectionLabel>SHADOW MANAGER</SectionLabel>
+      <div className="flex flex-col gap-5">
+        <PageHeader title="Shadow manager" />
         <Pending phase="the next journal sync">
           No shadow squad yet. The next sync copies your latest squad — same
           players, bank and chips — and from then on the shadow does only what
@@ -104,67 +104,77 @@ export default async function ShadowPage({
     : null;
   const pairedByGw = new Map((verdict?.weeks ?? []).map((w) => [w.gw, w]));
 
+  const card = "border border-edge-strong bg-panel px-4 py-3";
+
   return (
-    <div className="flex flex-col gap-4 sm:gap-6">
-      <div>
-        <SectionLabel meta={seed ? `STARTED FROM YOUR GW${seed.row.gw} SQUAD` : undefined}>
-          SHADOW MANAGER
-        </SectionLabel>
-        <Panel padded>
-          {verdict ? (
-            <div className="grid grid-cols-2 gap-x-6 sm:grid-cols-4">
-              <Readout label="ENGINE" value={String(verdict.shadowTotal)} />
-              <Readout label="YOU" value={String(verdict.managerTotal)} />
-              <Readout
-                label="GAP"
-                value={signed(verdict.gap)}
-                tone={verdict.gap > 0 ? "accent" : verdict.gap < 0 ? "warn" : "primary"}
-              />
-              <Readout label="WEEKS SCORED" value={String(verdict.weeks.length)} />
-            </div>
-          ) : (
-            <div className="font-mono text-tiny tracking-[0.14em] text-warn">
-              YOUR FPL HISTORY COULD NOT BE READ
-            </div>
-          )}
-          <div className="mt-3 max-w-prose text-small leading-relaxed text-muted text-pretty">
-            {verdict ? reading(verdict) : `Nothing to compare against: ${history.ok ? "" : history.reason}`}{" "}
-            <span className="text-dim">
-              The shadow began with your squad, bank and chips, and since then
-              has done only what the engine advises — its transfers, its hits,
-              its chips and its captain. Each week is written while the
-              gameweek is open and never afterwards. Points are net of hits on
-              both sides.
-            </span>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Shadow manager"
+        subtitle={
+          seed
+            ? `A squad that only follows the engine, started from your GW${seed.row.gw} team`
+            : "A squad that only follows the engine"
+        }
+      />
+
+      <section className="flex flex-col gap-3">
+        {verdict ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Readout className={card} label="Engine" value={String(verdict.shadowTotal)} />
+            <Readout className={card} label="You" value={String(verdict.managerTotal)} />
+            <Readout
+              className={card}
+              label="Gap"
+              value={signed(verdict.gap)}
+              tone={verdict.gap > 0 ? "accent" : verdict.gap < 0 ? "warn" : "primary"}
+            />
+            <Readout className={card} label="Weeks scored" value={String(verdict.weeks.length)} />
           </div>
+        ) : (
+          <Panel padded>
+            <div className="text-sm font-semibold text-warn">
+              Your FPL history could not be read
+            </div>
+            <div className="mt-1 text-sm text-muted">
+              {history.ok ? "" : history.reason}
+            </div>
+          </Panel>
+        )}
+        <Panel padded>
+          <p className="max-w-prose text-sm leading-relaxed text-primary text-pretty">
+            {verdict ? reading(verdict) : "Nothing to compare against yet."}
+          </p>
+          <p className="mt-1.5 max-w-prose text-sm leading-relaxed text-muted text-pretty">
+            The shadow began with your squad, bank and chips, and since then has
+            done only what the engine advises — its transfers, its hits, its
+            chips and its captain. Each week is written while the gameweek is
+            open and never afterwards. Points are net of hits on both sides.
+          </p>
         </Panel>
-      </div>
+      </section>
 
       {verdict && verdict.weeks.length > 0 ? (
-        <div>
-          <SectionLabel meta="SHADED BAND = WHAT LUCK ALONE PRODUCES">
-            CUMULATIVE GAP, ENGINE MINUS YOU
+        <section>
+          <SectionLabel meta="Shaded band = what luck alone produces">
+            Cumulative gap, engine minus you
           </SectionLabel>
           <Panel padded>
             <GapChart points={verdict.weeks} />
           </Panel>
-        </div>
+        </section>
       ) : null}
 
-      <div className="grid grid-cols-1 items-start gap-4 sm:gap-6 lg:grid-cols-[1fr_300px]">
-        <div>
-          <SectionLabel meta={`${engineWeeks.length} PLANNED`}>WEEK BY WEEK</SectionLabel>
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <section>
+          <SectionLabel meta={`${engineWeeks.length} planned`}>Week by week</SectionLabel>
           <Panel>
-            <Row
-              height="dense"
-              className="grid grid-cols-[48px_1fr_52px_52px_52px] gap-2 font-mono text-micro tracking-[0.12em] text-label"
-            >
+            <div className="grid grid-cols-[52px_minmax(0,1fr)_48px_56px_48px] gap-2 border-b border-edge-strong bg-sunken px-4 py-2.5 text-xs font-medium text-muted">
               <div>GW</div>
-              <div>ENGINE DID</div>
-              <div className="text-right">YOU</div>
-              <div className="text-right">ENGINE</div>
-              <div className="text-right">GAP</div>
-            </Row>
+              <div>Engine did</div>
+              <div className="text-right">You</div>
+              <div className="text-right">Engine</div>
+              <div className="text-right">Gap</div>
+            </div>
             {[...engineWeeks].reverse().map((week) => (
               <WeekRow
                 key={week.row.id}
@@ -175,27 +185,27 @@ export default async function ShadowPage({
               />
             ))}
             {engineWeeks.length === 0 ? (
-              <Row height="auto" className="text-small text-muted">
+              <p className="px-4 py-3 text-sm text-muted">
                 The first plan is written on the next sync.
-              </Row>
+              </p>
             ) : null}
           </Panel>
-        </div>
+        </section>
 
         {latest ? (
-          <div>
+          <section>
             <SectionLabel
               meta={
                 // Short: this sits in a 300px column, and anything longer
                 // pushes the title onto two lines.
                 latest.row.gw === openGw
-                  ? "OPEN TILL DEADLINE"
+                  ? "Open till deadline"
                   : latest.row.points === null
-                    ? "AWAITING RESULTS"
-                    : "SCORED"
+                    ? "Awaiting results"
+                    : "Scored"
               }
             >
-              GW{latest.row.gw} PLAN
+              GW{latest.row.gw} plan
             </SectionLabel>
             <Panel>
               <StatRow
@@ -209,31 +219,25 @@ export default async function ShadowPage({
                 value={latest.row.hit_cost > 0 ? `−${latest.row.hit_cost}` : "0"}
                 tone={latest.row.hit_cost > 0 ? "warn" : "muted"}
               />
-              <StatRow
-                label="Captain"
-                value={captainOf(latest, name)}
-              />
+              <StatRow label="Captain" value={captainOf(latest, name)} />
               <StatRow
                 label="Projected"
                 value={latest.row.projected_ep === null ? "—" : formatEp(latest.row.projected_ep)}
               />
               <StatRow label="Bank" value={money(latest.row.bank)} tone="muted" />
-              <StatRow
-                label="Recorded"
-                value={stamp(latest.row.updated_at)}
-                tone="muted"
-              />
+              <StatRow label="Recorded" value={stamp(latest.row.updated_at)} tone="muted" />
               {latest.moves.length > 0 ? (
-                <Row height="auto" className="text-small text-primary">
+                <div className="flex flex-col gap-0.5 px-4 py-3 text-sm text-primary">
                   {latest.moves.map((m) => (
                     <div key={`${m.out}-${m.in}`}>
-                      <span className="text-muted">{name(m.out)}</span> → {name(m.in)}
+                      <span className="text-muted line-through">{name(m.out)}</span>{" "}
+                      → <span className="font-semibold">{name(m.in)}</span>
                     </div>
                   ))}
-                </Row>
+                </div>
               ) : null}
             </Panel>
-          </div>
+          </section>
         ) : null}
       </div>
     </div>
@@ -263,30 +267,40 @@ function WeekRow({
     .join(" · ");
 
   return (
-    <Row
-      height="auto"
-      className="grid grid-cols-[48px_1fr_52px_52px_52px] items-baseline gap-2"
+    <div
+      className={cn(
+        "grid grid-cols-[52px_minmax(0,1fr)_48px_56px_48px] items-baseline gap-2 border-b border-edge-subtle px-4 py-3 last:border-b-0",
+        open && "bg-active",
+      )}
     >
-      <div className="font-mono text-cell text-label">GW{row.gw}</div>
-      <div className="min-w-0 text-small text-primary text-pretty">{did}</div>
-      <div className="text-right font-mono text-cell text-muted">
+      <div className="font-display text-base font-bold text-primary">GW{row.gw}</div>
+      <div className="min-w-0 text-sm text-primary text-pretty">{did}</div>
+      <div className="text-right font-display text-base font-bold text-muted">
         {paired ? paired.manager : "—"}
       </div>
-      <div className="text-right font-mono text-cell text-primary">
-        {paired ? paired.shadow : open ? "open" : "—"}
+      <div className="text-right font-display text-base font-bold text-primary">
+        {paired ? (
+          paired.shadow
+        ) : open ? (
+          <span className="bg-signal px-1 text-[10px] tracking-wide text-signal-ink uppercase">
+            Open
+          </span>
+        ) : (
+          "—"
+        )}
       </div>
       <div
         className={cn(
-          "text-right font-mono text-cell",
+          "text-right font-display text-base font-bold",
           !paired && "text-fainter",
           paired && paired.gap > 0 && "text-accent",
-          paired && paired.gap < 0 && "text-warn",
+          paired && paired.gap < 0 && "text-danger",
           paired && paired.gap === 0 && "text-muted",
         )}
       >
         {paired ? signed(paired.gap) : "—"}
       </div>
-    </Row>
+    </div>
   );
 }
 

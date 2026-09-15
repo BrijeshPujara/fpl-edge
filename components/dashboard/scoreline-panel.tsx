@@ -85,10 +85,10 @@ export async function ScorelinePanel({
 
       <Panel>
         <Row height="tall" className="flex justify-between gap-3">
-          <div className="min-w-0 font-mono text-micro tracking-[0.12em] text-label">
+          <div className="min-w-0 text-sm font-medium text-muted">
             {predictions.length === 0
-              ? `NOT YET GENERATED FOR GW${gw}`
-              : `GENERATED FOR GW${gw}`}
+              ? `Not generated yet for GW${gw}`
+              : `Generated for GW${gw}`}
           </div>
           <GenerateScorelines
             entryId={entryId}
@@ -101,15 +101,15 @@ export async function ScorelinePanel({
           <>
             <Row
               height="table"
-              className="grid grid-cols-[1fr_repeat(3,64px)] gap-2 font-mono text-micro tracking-[0.06em] text-ghost sm:grid-cols-[1fr_repeat(3,74px)_56px]"
+              className="grid grid-cols-[1fr_repeat(3,64px)] gap-2 bg-sunken text-xs font-medium text-muted sm:grid-cols-[1fr_repeat(3,74px)_56px]"
             >
-              <div>FIXTURE</div>
-              <div className="text-right">HOME</div>
-              <div className="text-right">DRAW</div>
-              <div className="text-right">AWAY</div>
+              <div>Fixture</div>
+              <div className="text-right">Home</div>
+              <div className="text-right">Draw</div>
+              <div className="text-right">Away</div>
               {/* Only the result column drops away on a narrow screen; the
                   three that carry the prediction never do. */}
-              <div className="hidden text-right sm:block">RESULT</div>
+              <div className="hidden text-right sm:block">Result</div>
             </Row>
             {predictions.map((p) => (
               <FixtureRow key={p.prediction.id} predicted={p} />
@@ -159,11 +159,11 @@ function Result({
   score: string | null;
 }) {
   return (
-    <div className="text-right font-mono tabular-nums">
-      <div className="text-cell text-secondary">
+    <div className="text-right tabular-nums">
+      <div className="font-display text-base font-bold text-primary">
         {Math.round(Number(probability) * 100)}%
       </div>
-      {score ? <div className="text-micro text-ghost">{score}</div> : null}
+      {score ? <div className="text-xs text-muted">{score}</div> : null}
     </div>
   );
 }
@@ -175,13 +175,13 @@ function FixtureRow({ predicted }: { predicted: PredictedFixture }) {
       height="tall"
       className="grid grid-cols-[1fr_repeat(3,64px)] gap-2 sm:grid-cols-[1fr_repeat(3,74px)_56px]"
     >
-      <div className="flex min-w-0 items-center gap-1.5 truncate text-small text-primary">
+      <div className="flex min-w-0 items-center gap-1.5 truncate text-sm font-semibold text-primary">
         <span className="truncate">
           {predicted.homeShort} v {predicted.awayShort}
         </span>
         {p.uses_prior ? (
           <span
-            className="font-mono text-micro text-ghost"
+            className="text-xs font-bold text-warn"
             title="One side is newly promoted, so its rating is a prior rather than a measurement."
           >
             ?
@@ -193,7 +193,7 @@ function FixtureRow({ predicted }: { predicted: PredictedFixture }) {
       <Result probability={p.p_draw} score={scoreFor(predicted, "draw")} />
       <Result probability={p.p_away} score={scoreFor(predicted, "away")} />
 
-      <div className="hidden text-right font-mono text-cell tabular-nums sm:block">
+      <div className="hidden text-right font-display text-base font-bold sm:block">
         {outcome === null ? (
           <span className="text-ghost">&mdash;</span>
         ) : (
@@ -264,7 +264,7 @@ function Footnote({
 }) {
   if (!hasRatings) {
     return (
-      <div className="mt-2 max-w-prose text-small leading-relaxed text-dim text-pretty">
+      <div className="mt-2 max-w-prose text-sm leading-relaxed text-muted text-pretty">
         No team ratings are stored yet, so there is nothing to predict from.
         They are fitted from played matches and written by a job, not by this
         page.
@@ -273,7 +273,7 @@ function Footnote({
   }
 
   return (
-    <div className="mt-2 flex max-w-prose flex-col gap-2 text-small leading-relaxed text-dim text-pretty">
+    <div className="mt-2 flex max-w-prose flex-col gap-2 text-sm leading-relaxed text-muted text-pretty">
       <p>
         Each result shows how likely it is, and{" "}
         <span className="text-tertiary">{captionFor(scoreMethod)}</span>. The
@@ -303,7 +303,7 @@ function Footnote({
             </span>{" "}
             never played at this level, so each carries what promoted sides
             average rather than a rating of its own, marked{" "}
-            <span className="font-mono text-tertiary">?</span> &mdash; the
+            <span className="font-bold text-warn">?</span> &mdash; the
             weakest number on this panel.
           </>
         ) : (

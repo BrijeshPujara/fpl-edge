@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
+import { ArrowRight } from "lucide-react";
 import { ENTRY_COOKIE } from "@/lib/entry-cookie";
 import { parseEntryId, resolveEntryId } from "@/lib/fpl/entry";
 import { getDb, isDbConfigured } from "@/lib/db/client";
 import { getEntryRow } from "@/lib/db/entries";
 import { TeamForm } from "@/components/chrome/team-form";
-import { Panel, Row, SectionLabel } from "@/components/ui/panel";
+import { Panel, SectionLabel } from "@/components/ui/panel";
 
 /**
  * The front door.
@@ -36,35 +37,36 @@ export default async function LandingPage({
       : null;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-8 pb-8 sm:gap-12">
-      <section className="pt-6 sm:pt-12">
-        <div className="font-mono text-tiny tracking-[0.16em] text-label">
-          FPL EDGE · A DECISION TOOL, NOT A TIP SHEET
+    <div className="mx-auto flex max-w-3xl flex-col gap-10 pb-8 sm:gap-12">
+      <section className="flex flex-col gap-4 pt-4 sm:pt-10">
+        <div className="text-xs font-semibold tracking-wide text-muted uppercase">
+          FPL Edge · a decision tool, not a tip sheet
         </div>
-        <h1 className="mt-4 max-w-2xl text-hero leading-[1.1] font-semibold tracking-[-0.02em] text-primary text-balance sm:text-display">
+        <h1 className="max-w-2xl font-display text-4xl leading-[1.02] font-bold tracking-wide text-primary uppercase text-balance sm:text-6xl">
           Every recommendation shows the number behind it.
         </h1>
-        <p className="mt-4 max-w-prose text-body leading-relaxed text-muted text-pretty">
+        <p className="max-w-prose text-base leading-relaxed text-secondary text-pretty">
           Fantasy football is a shopping problem wearing a football shirt. You
           have £100m, you buy fifteen players, eleven of them score. This
           forecasts what each player is worth, then solves for the best squad you
           can actually afford — and tells you when the answer is to do nothing.
         </p>
 
-        <div className="mt-7">
+        <div className="mt-2">
           {known !== null ? (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col items-start gap-3">
               <Link
                 href={`/t/${known}`}
-                className="inline-flex h-11 w-full max-w-sm items-center justify-center border border-accent-dim bg-[color-mix(in_oklch,var(--accent)_10%,var(--surface-panel))] px-5 font-mono text-tiny tracking-[0.14em] text-accent transition-colors hover:bg-[color-mix(in_oklch,var(--accent)_16%,var(--surface-panel))]"
+                className="inline-flex h-12 items-center gap-2 bg-signal px-6 font-display text-lg font-bold tracking-wide text-signal-ink uppercase hover:bg-[color-mix(in_oklch,var(--signal)_88%,black)] hover:text-signal-ink"
               >
-                OPEN {(entry?.name ?? `TEAM ${known}`).toUpperCase()} →
+                Open {entry?.name ?? `team ${known}`}
+                <ArrowRight aria-hidden className="size-5" />
               </Link>
               <Link
                 href="/?switch=1"
-                className="font-mono text-micro tracking-[0.12em] text-dim underline-offset-4 hover:text-primary hover:underline"
+                className="text-sm font-medium text-muted underline underline-offset-4 hover:text-primary"
               >
-                USE A DIFFERENT TEAM
+                Use a different team
               </Link>
             </div>
           ) : (
@@ -76,8 +78,8 @@ export default async function LandingPage({
       </section>
 
       <Section
-        label="HOW IT WORKS"
-        meta="TWO QUESTIONS"
+        label="How it works"
+        meta="Two questions"
         lead="Only two questions exist, and keeping them apart is the whole design. Most people mash them together and end up buying whoever did well last Saturday."
       >
         <Panel>
@@ -95,8 +97,8 @@ export default async function LandingPage({
       </Section>
 
       <Section
-        label="THE DATA"
-        meta="ALL OF IT PUBLIC"
+        label="The data"
+        meta="All of it public"
         lead="Everything comes from the official FPL API. No scraping, no paid feed, no account beyond your own public team id."
       >
         <Panel>
@@ -128,8 +130,8 @@ export default async function LandingPage({
       </Section>
 
       <Section
-        label="THE CALCULATIONS"
-        meta="FOUR THAT MATTER"
+        label="The calculations"
+        meta="Four that matter"
         lead="Each one is a pure function with tests against it, and each is measured against a full replay of last season rather than against intuition."
       >
         <Panel>
@@ -157,14 +159,14 @@ export default async function LandingPage({
       </Section>
 
       <Section
-        label="WHAT IT WILL NOT DO"
-        meta="THE HONEST PART"
+        label="What it will not do"
+        meta="The honest part"
         lead="A tool that hides its limits is a tool you cannot calibrate against."
       >
         <Panel>
           <DataRow
             what="Invent a number it has not earned"
-            detail="Before a gameweek is played every projection is the same positional prior, so the screens explain that instead of ranking noise. Em dashes, not decimals."
+            detail="Before a gameweek is played every projection is the same positional prior, so the screens explain that instead of ranking noise. Dashes, not decimals."
           />
           <DataRow
             what="Watch football"
@@ -178,12 +180,12 @@ export default async function LandingPage({
       </Section>
 
       <section>
-        <SectionLabel meta="OPEN SOURCE">THE LONG VERSION</SectionLabel>
+        <SectionLabel meta="Open source">The long version</SectionLabel>
         <Panel padded>
-          <p className="max-w-prose text-small leading-relaxed text-muted text-pretty">
+          <p className="max-w-prose text-sm leading-relaxed text-muted text-pretty">
             <a
               href="https://github.com/BrijeshPujara/fpl-edge"
-              className="text-accent underline-offset-4 hover:underline"
+              className="font-semibold text-primary underline underline-offset-4 hover:text-accent"
             >
               The repository
             </a>{" "}
@@ -211,7 +213,7 @@ function Section({
   return (
     <section>
       <SectionLabel meta={meta}>{label}</SectionLabel>
-      <p className="mb-3.5 max-w-prose text-small leading-relaxed text-muted text-pretty">
+      <p className="mb-3 max-w-prose text-sm leading-relaxed text-muted text-pretty">
         {lead}
       </p>
       {children}
@@ -229,31 +231,29 @@ function Step({
   body: string;
 }) {
   return (
-    <Row height="auto" className="grid grid-cols-[2.25rem_1fr] gap-3">
-      <div className="pt-0.5 font-mono text-micro tracking-[0.12em] text-accent-dim">
-        {index}
+    <div className="grid grid-cols-[3rem_minmax(0,1fr)] gap-3 border-b border-edge-subtle px-4 py-3.5 last:border-b-0">
+      <div>
+        <span className="inline-block bg-sidebar px-1.5 py-0.5 font-display text-sm font-bold text-signal">
+          {index}
+        </span>
       </div>
       <div>
-        <div className="text-body text-primary">{title}</div>
-        <div className="mt-1 max-w-prose text-small leading-relaxed text-muted text-pretty">
+        <div className="text-base font-semibold text-primary">{title}</div>
+        <div className="mt-1 max-w-prose text-sm leading-relaxed text-muted text-pretty">
           {body}
         </div>
       </div>
-    </Row>
+    </div>
   );
 }
 
-/**
- * items-start is load-bearing: the Row primitive sets items-center for its
- * usual single-line case, which centres a column of text horizontally.
- */
 function DataRow({ what, detail }: { what: string; detail: string }) {
   return (
-    <Row height="auto" className="flex flex-col items-start gap-0.5">
-      <div className="text-small text-secondary">{what}</div>
-      <div className="max-w-prose text-small leading-relaxed text-dim text-pretty">
+    <div className="flex flex-col gap-0.5 border-b border-edge-subtle px-4 py-3 last:border-b-0">
+      <div className="text-sm font-semibold text-primary">{what}</div>
+      <div className="max-w-prose text-sm leading-relaxed text-muted text-pretty">
         {detail}
       </div>
-    </Row>
+    </div>
   );
 }
