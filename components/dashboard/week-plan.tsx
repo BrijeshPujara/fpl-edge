@@ -222,7 +222,9 @@ function PlanRow({
       </span>
       <span className="min-w-0">
         <span className="block text-xs font-medium text-muted">{label}</span>
-        <span className="block truncate text-base font-semibold text-primary">
+        {/* Wraps rather than truncates: on a phone a two-move transfer cut to
+            "Tzolis, Pedro Porro →…" hides exactly who is coming in. */}
+        <span className="block text-base font-semibold text-primary text-pretty">
           {headline}
         </span>
         <span className="block text-sm text-muted text-pretty">{detail}</span>

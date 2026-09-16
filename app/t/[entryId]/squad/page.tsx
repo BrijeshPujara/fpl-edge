@@ -1,23 +1,7 @@
-import { getSeasonContext } from "@/lib/fpl/season";
-import { gameweekInPlay } from "@/lib/fpl/gameweek";
-import { applyAvailability, getAvailability } from "@/lib/fpl/availability";
-import { loadDecisionContext } from "@/lib/db/decision-context";
-import { DEFAULT_HORIZON } from "@/lib/engine/constants";
-import { getLiveGameweek } from "@/lib/fpl/live-context";
-import { liveSquad, type LivePlayer } from "@/lib/squad/live";
-import { getDb, isDbConfigured } from "@/lib/db/client";
-import {
-  getFixturesFrom,
-  getLatestSquad,
-  getPlayersByIds,
-  getRecentStats,
-  getTeams,
-} from "@/lib/db/queries";
-import { getTeamRatingRows } from "@/lib/db/ratings";
-import { buildSquadView } from "@/lib/squad/view";
 import { notFound } from "next/navigation";
+import { getSeasonContext } from "@/lib/fpl/season";
 import { parseEntryId } from "@/lib/fpl/entry";
-import { FORM_WINDOW } from "@/lib/engine/constants";
+import { loadSquadView } from "@/lib/squad/squad-view";
 import { ep as formatEp, money } from "@/lib/format";
 import { PageHeader, Panel, SectionLabel, StatRow } from "@/components/ui/panel";
 import { Pending } from "@/components/ui/pending";
@@ -49,7 +33,9 @@ export default async function SquadPage({
     );
   }
 
-  if (!isDbConfigured()) {
+  const loaded = await loadSquadView(entryId, season);
+
+  if (loaded.state === "no-db") {
     return (
       <Pending phase="configuration">
         Supabase is not configured. Set{" "}
@@ -63,96 +49,22 @@ export default async function SquadPage({
     );
   }
 
-  const { target } = season.gameweek;
-  const db = getDb();
-  const stored = await getLatestSquad(db, entryId, target.id);
-
-  if (!stored) {
+  if (loaded.state === "no-squad") {
     return (
       <Pending phase="the first deadline">
         No squad has been synced yet. The FPL API only publishes a manager&apos;s
         picks once a gameweek&apos;s deadline has passed, so there is nothing to
-        render until <span className="text-tertiary">{target.name}</span> locks.
-        Once it has, use{" "}
-        <span className="text-tertiary">refresh squad</span> above to pull it
-        straight away — the scheduled sync would not otherwise reach it until
-        the following morning.
+        render until{" "}
+        <span className="font-medium text-tertiary">{season.gameweek.target.name}</span>{" "}
+        locks. Once it has, use{" "}
+        <span className="font-medium text-tertiary">refresh squad</span> above to
+        pull it straight away — the scheduled sync would not otherwise reach it
+        until the following morning.
       </Pending>
     );
   }
 
-  const playerIds = stored.picks.map((p) => p.player_id);
-  const [storedPlayers, teams, teamRatings, fixtures, stats, availability] =
-    await Promise.all([
-      getPlayersByIds(db, playerIds),
-      getTeams(db),
-      getTeamRatingRows(db),
-      getFixturesFrom(db, target.id, target.id + 6),
-      getRecentStats(db, playerIds, Math.max(1, target.id - FORM_WINDOW)),
-      getAvailability(),
-    ]);
-
-  // Fitness from the API, not from the overnight sync — see getAvailability.
-  const players = applyAvailability(storedPlayers, availability);
-
-  /*
-   * Projections from the same loader every other screen uses, so a player
-   * cannot read one number here and another on the dashboard. Deduplicated
-   * per request, so this is not a second load.
-   */
-  const context = await loadDecisionContext(entryId, DEFAULT_HORIZON).catch(
-    () => null,
-  );
-  const epByPlayer =
-    context?.state === "ready"
-      ? new Map(
-          context.squad.map((c) => [
-            c.id,
-            c.perGameweek.find((g) => g.gw === context.gw)?.ep ?? 0,
-          ]),
-        )
-      : undefined;
-
-  const view = buildSquadView({
-    gw: target.id,
-    picks: stored.picks,
-    players,
-    teams,
-    fixtures,
-    stats,
-    teamRatings,
-    epByPlayer,
-    picksGw: stored.squad.gw,
-    teamCodes: new Map(season.teams.map((t) => [t.id, t.code])),
-  });
-
-  /*
-   * Live scores, when the gameweek is being played.
-   *
-   * Keyed on the gameweek IN PLAY rather than the target: the moment a
-   * deadline passes the target becomes next week, and asking the live feed
-   * about a gameweek nobody has kicked off in returns nothing.
-   *
-   * Uncached, and allowed to fail quietly — the pitch is worth rendering with
-   * projections alone if the live feed is unreachable.
-   */
-  const inPlay = gameweekInPlay(season.gameweek);
-  const live = await getLiveGameweek(inPlay.id);
-  const liveByPlayer = live
-    ? new Map<number, LivePlayer>(
-        liveSquad({
-          picks: stored.picks.map((p) => ({
-            playerId: p.player_id,
-            position: p.position,
-            isCaptain: p.is_captain,
-            isVice: p.is_vice,
-          })),
-          elements: live.elements,
-          startedFixtures: live.startedFixtures,
-          chip: stored.squad.chip_played,
-        }).players.map((p) => [p.playerId, p]),
-      )
-    : undefined;
+  const { view, live } = loaded;
 
   return (
     <div className="grid grid-cols-1 items-start gap-5 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
@@ -163,7 +75,7 @@ export default async function SquadPage({
         />
 
         {view.picksAreStale ? (
-          <div className="rounded-xl border border-warn-dim bg-[color-mix(in_oklch,var(--warn)_8%,var(--surface-panel))] px-4 py-3 text-sm text-secondary">
+          <div className="border border-warn-dim bg-[color-mix(in_oklch,var(--warn)_8%,var(--surface-panel))] px-4 py-3 text-sm text-secondary">
             <span className="font-semibold text-warn">
               Showing your GW{view.picksGw} team.
             </span>{" "}
@@ -172,12 +84,12 @@ export default async function SquadPage({
           </div>
         ) : null}
 
-        <Pitch squad={view} live={liveByPlayer} />
-        <Bench players={view.bench} live={liveByPlayer} />
+        <Pitch squad={view} live={live} />
+        <Bench players={view.bench} live={live} />
       </div>
 
       <div className="flex flex-col gap-4 lg:pt-[3.25rem]">
-        <div>
+        <section>
           <SectionLabel>GW{view.gw} projection</SectionLabel>
           <Panel>
             {view.preSeason ? (
@@ -205,9 +117,9 @@ export default async function SquadPage({
               </>
             )}
           </Panel>
-        </div>
+        </section>
 
-        <div>
+        <section>
           <SectionLabel>Squad</SectionLabel>
           <Panel>
             <StatRow label="Squad value" value={money(view.totals.squadValue)} />
@@ -217,7 +129,7 @@ export default async function SquadPage({
               tone={view.totals.flaggedCount > 0 ? "warn" : "primary"}
             />
           </Panel>
-        </div>
+        </section>
 
         {view.preSeason ? (
           <Pending phase="gameweek 1">
@@ -227,12 +139,12 @@ export default async function SquadPage({
           </Pending>
         ) : null}
 
-        <div>
+        <section>
           <SectionLabel>Key</SectionLabel>
           <Panel padded>
             <PitchKey />
           </Panel>
-        </div>
+        </section>
       </div>
     </div>
   );
